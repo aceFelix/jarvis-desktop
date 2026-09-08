@@ -1,0 +1,55 @@
+# jarvis-desktop CI（作者：aceFelix）
+#
+# push/PR 到 main/master 时自动执行：
+#   npm ci（跳过 Electron 二进制下载）→ tsc 类型检查 → vitest 单测 → electron-vite 构建
+#
+# 说明：
+#   - CI 只做类型检查/单测/构建验证，不实际启动 Electron 窗口，
+#     故设 ELECTRON_SKIP_BINARY_DOWNLOAD=1 跳过大体积运行时二进制下载，加速安装；
+#   - 单测为纯逻辑测试（node + jsdom 环境）：握手解析、生命周期状态机、
+#     WS 客户端、事件分发、store、React 组件，不依赖 Python 后端与真实 Electron。
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  # 跳过 Electron 二进制下载（typecheck/test/build 均不需要真实运行时）
+  ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+
+jobs:
+  verify:
+    name: Typecheck / Test / Build (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["20", "22"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck (tsc node + web)
+        run: npm run typecheck
+
+      - name: Unit tests (vitest)
+        run: npm run test
+
+      - name: Build (electron-vite)
+        run: npm run build

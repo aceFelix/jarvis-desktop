@@ -2,7 +2,7 @@
 
 > J.A.R.V.I.S 桌面壳（Electron + React）—— 拉起 [`jarvis`](../jarvis) 的 `--serve` 后端，提供桌面宿主能力与全新 React UI。
 
-[![tests](https://img.shields.io/badge/tests-75%20passed-brightgreen)]() [![typecheck](https://img.shields.io/badge/typecheck-passing-brightgreen)]() [![license](https://img.shields.io/badge/license-MIT-blue)]()
+[![CI](https://github.com/aceFelix/jarvis-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/aceFelix/jarvis-desktop/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-MIT-blue)]()
 
 ## 定位
 
@@ -66,6 +66,10 @@ npm run dev
 | `npm run typecheck` | tsc 类型检查（node + web 两套程序） |
 | `npm run test` | vitest 单测（75 用例：握手解析、生命周期状态机、WS 客户端、事件分发、store、React 组件） |
 
+### CI
+
+push / PR 到 `main` 时 GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）自动在 Node 20/22 双版本上执行：`npm ci`（跳过 Electron 二进制下载）→ `typecheck` → `test` → `build`，不依赖 Python 后端与真实 Electron 运行时。
+
 ## 目录结构
 
 ```
@@ -99,7 +103,7 @@ jarvis-desktop/
 
 - dev 模式依赖本机 jarvis 源码仓库，**不捆绑 Python 运行时**（PyInstaller 打包为二期目标）。
 - 现有 pywebview 工作台（`jarvis --gui`）保留不动，与桌面壳并存：`--gui` 走工作台，`--serve` 走桌面壳。
-- 本仓库一期**不推送远程**，待本地实测通过后由维护者创建 GitHub 远程再关联。
+- 本仓库已推送 GitHub（`origin/main`，https://github.com/aceFelix/jarvis-desktop ），CI 随 push/PR 自动运行。
 
 ## License
 
