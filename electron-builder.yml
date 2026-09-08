@@ -1,0 +1,15 @@
+appId: com.acefelix.jarvis.desktop
+productName: JARVIS Desktop
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**
+  - package.json
+asarUnpack: []
+win:
+  # 一期 dev 模式不做签名与安装包（NSIS + 代码签名是二期目标）
+  target:
+    - dir
+  icon: build/icon.ico
+npmRebuild: false
