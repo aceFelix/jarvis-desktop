@@ -20,6 +20,7 @@ import {
   type BackendManager
 } from './backend'
 import { initLogging, log, logError } from './logging'
+import { resolveIconPath } from './appIcon'
 import { createTray, destroyTray } from './tray'
 import { IpcChannels, type WindowAction } from '../shared/contracts'
 
@@ -32,6 +33,9 @@ let quitting = false
 const DEV_RENDERER_URL = process.env['ELECTRON_RENDERER_URL']
 
 function createWindow(): void {
+  // 任务栏/Alt-Tab 图标与托盘同源（appIcon.ts）：不设时 dev 模式会显示
+  // Electron 内置原子 logo，与托盘反应炉不一致（2026-09-10 实机反馈）
+  const iconPath = resolveIconPath()
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -40,6 +44,7 @@ function createWindow(): void {
     show: false,
     frame: false, // 自绘标题栏（渲染进程 WindowControl IPC 控制最小化/关闭）
     backgroundColor: '#081220', // 深蓝实底，避免启动白闪
+    icon: iconPath ?? undefined,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
