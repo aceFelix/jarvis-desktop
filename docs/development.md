@@ -8,7 +8,7 @@
 |---|---|---|
 | Node.js | ≥ 18（推荐 20+） | 构建 / 运行 Electron |
 | Python | jarvis 的运行环境 | 拉起 `agent.serve` 后端 |
-| websockets | pip 可选依赖 | serve 模式的 WS 传输层（`pip install websockets`） |
+| websockets | jarvis 核心依赖（2026-09 起） | serve 模式的 WS 传输层，随 jarvis 安装自动就绪 |
 | jarvis 源码 | 同级 `../jarvis` | 一期 dev 模式直接依赖源码仓库 |
 
 ```powershell
@@ -48,13 +48,25 @@ npm run test       # vitest run（全部单测）
 npm run test:watch # vitest 监听模式
 ```
 
+### 图标资源（build/icon.ico）
+
+`electron-builder.yml` 的 `win.icon` 与 `tray.ts` 的兜底图标路径都指向 `build/icon.ico`（多尺寸 16~256，深蓝实底反应炉图案）。该文件由脚本生成并入库，重生成方式（需 jarvis 环境已装 Pillow）：
+
+```powershell
+# 复用 jarvis agent/daemon/autostart.py 的反应炉绘制逻辑，单一图案来源
+python scripts/gen_icon.py
+```
+
+**窗口与托盘同源**：任务栏/Alt-Tab 图标（`BrowserWindow.icon`）与托盘图标都经 `src/main/appIcon.ts` 解析（候选顺序：`~/.jarvis/jarvis_window.ico` → `build/icon.ico`），杜绝「任务栏 Electron 原子 logo、托盘反应炉」的分叉（2026-09-10 实机反馈修复）。
+
 ## 4. 测试
 
-vitest 分两个环境：`test/main/**`（node 环境，主进程逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **75 用例**：
+vitest 分两个环境：`test/main/**`（node 环境，主进程逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **81 用例**：
 
 | 测试文件 | 覆盖 |
 |---|---|
 | `test/main/backend.test.ts` | `parseHandshakeLine`（正常/残缺/超时行）、`resolvePythonEnv`、`BackendManager` 状态机（spawn→ready、stderr 噪声、仓库缺失、spawn 抛错、提前退出、握手超时、stop 杀进程树、意外退出、重复 start 复用） |
+| `test/main/appIcon.test.ts` | 图标候选优先级（用户目录实底版 → build/icon.ico）、全缺失降级 null、build/icon.ico 入库守卫、加载失败降级 |
 | `test/renderer/ws.test.ts` | `JarvisWsClient`：URL 构造与 token 编码、handleRaw 事件分发、sendCommand 回执兑现、同类型 FIFO 匹配、send 只发不等、断线拒绝 pending + 退避重连、close 不重连 |
 | `test/renderer/chatStore.test.ts` | 消息流 store 全部 action：流式增量、thinking/text 分累、finishAssistant、工具卡建卡与按 id 回填、乱序补卡、ask_user、replayHistory、clear |
 | `test/renderer/dispatcher.test.ts` | `dispatchServerEvent` 全事件路由 → chat/left/metrics store 与状态栏回调；列表类型守卫 |

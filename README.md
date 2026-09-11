@@ -26,7 +26,7 @@ jarvis（Python）                         jarvis-desktop（Electron）
 一期为 **dev 模式**：桌面壳依赖本机 `jarvis` 源码仓库与 Python 环境（不捆绑 Python）。
 
 1. **jarvis 仓库**：默认位于本仓库同级 `../jarvis`，或用环境变量 `JARVIS_REPO` 指定。
-2. **Python 环境**：`jarvis` 的运行环境，需安装可选依赖 `websockets`（`pip install websockets`）。默认用 `python`，或用 `JARVIS_PYTHON` 指定解释器（如 venv 内的绝对路径）。
+2. **Python 环境**：`jarvis` 的运行环境（`websockets` 已为其核心依赖，随安装自动就绪）。默认用 `python`，或用 `JARVIS_PYTHON` 指定解释器（如 venv 内的绝对路径）。
 3. **Node.js**：≥ 18（推荐 20+），用于构建与运行 Electron。
 
 ## 运行
@@ -64,7 +64,7 @@ npm run dev
 | `npm run dev` | electron-vite 开发模式（热重载 + 拉起后端） |
 | `npm run build` | 打包主进程 / preload / 渲染进程到 `out/` |
 | `npm run typecheck` | tsc 类型检查（node + web 两套程序） |
-| `npm run test` | vitest 单测（75 用例：握手解析、生命周期状态机、WS 客户端、事件分发、store、React 组件） |
+| `npm run test` | vitest 单测（81 用例：握手解析、生命周期状态机、图标解析、WS 客户端、事件分发、store、React 组件） |
 
 ### CI
 
@@ -78,6 +78,7 @@ jarvis-desktop/
 │   ├── main/          # Electron 主进程（TS）
 │   │   ├── index.ts    # 应用生命周期、单实例、窗口、IPC
 │   │   ├── backend.ts  # BackendManager：spawn/握手/回收 serve 子进程
+│   │   ├── appIcon.ts  # 图标解析单一来源（窗口/托盘同源，防分叉）
 │   │   ├── tray.ts     # 系统托盘
 │   │   └── logging.ts  # 写 userData/logs/desktop.log
 │   ├── preload/       # contextBridge 最小暴露面（token 不落盘）
@@ -91,6 +92,8 @@ jarvis-desktop/
 ├── test/
 │   ├── main/          # 主进程逻辑单测（node 环境）
 │   └── renderer/      # 渲染层单测 + React 组件测试（jsdom）
+├── build/             # 打包资源（icon.ico 反应炉图标，scripts/gen_icon.py 生成）
+├── scripts/           # gen_icon.py：复用 jarvis 反应炉绘制逻辑生成多尺寸 ico
 └── docs/              # architecture.md / development.md
 ```
 
