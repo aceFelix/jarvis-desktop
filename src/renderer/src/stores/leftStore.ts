@@ -8,6 +8,7 @@
  */
 
 import { create } from 'zustand'
+import type { VoiceState } from '../../../shared/contracts'
 
 export interface SessionItem {
   name: string
@@ -32,8 +33,8 @@ export interface VoiceItem {
 /** 左栏活动面板。 */
 export type LeftPanel = 'history' | 'model' | 'voice'
 
-/** 对话模式：文本 / 实时语音。 */
-export type ChatMode = 'text' | 'talk'
+/** 对话模式：文本 / 实时语音 / 半双工语音。 */
+export type ChatMode = 'text' | 'talk' | 'voice'
 
 export interface LeftState {
   sessions: SessionItem[]
@@ -42,6 +43,10 @@ export interface LeftState {
   activePanel: LeftPanel
   mode: ChatMode
   talkActive: boolean
+  /** 半双工语音会话是否运行中（voice_started/stopped 驱动）。 */
+  voiceActive: boolean
+  /** 当前语音阶段（voice_state 驱动，''=无）；ChatArea 状态条文案据此渲染。 */
+  voiceState: VoiceState | ''
 
   setSessions: (list: SessionItem[]) => void
   setModels: (list: ModelItem[]) => void
@@ -49,6 +54,8 @@ export interface LeftState {
   setActivePanel: (panel: LeftPanel) => void
   setMode: (mode: ChatMode) => void
   setTalkActive: (active: boolean) => void
+  setVoiceActive: (active: boolean) => void
+  setVoiceState: (state: VoiceState | '') => void
 }
 
 export const useLeftStore = create<LeftState>((set) => ({
@@ -58,11 +65,15 @@ export const useLeftStore = create<LeftState>((set) => ({
   activePanel: 'history',
   mode: 'text',
   talkActive: false,
+  voiceActive: false,
+  voiceState: '',
 
   setSessions: (sessions) => set({ sessions }),
   setModels: (models) => set({ models }),
   setVoices: (voices) => set({ voices }),
   setActivePanel: (activePanel) => set({ activePanel }),
   setMode: (mode) => set({ mode }),
-  setTalkActive: (talkActive) => set({ talkActive })
+  setTalkActive: (talkActive) => set({ talkActive }),
+  setVoiceActive: (voiceActive) => set({ voiceActive }),
+  setVoiceState: (voiceState) => set({ voiceState })
 }))

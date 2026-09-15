@@ -12,6 +12,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useBackendStore } from '../stores/backendStore'
 import { useChatStore, type MessageItem } from '../stores/chatStore'
+import { useLeftStore } from '../stores/leftStore'
+import { voiceStatusLabels } from '../api/dispatcher'
 
 /** 单条消息渲染（按 kind 判别分发）。 */
 function MessageView({ item }: { item: MessageItem }): JSX.Element {
@@ -59,9 +61,18 @@ function MessageView({ item }: { item: MessageItem }): JSX.Element {
 export default function ChatArea(): JSX.Element {
   const messages = useChatStore((s) => s.messages)
   const askPrompt = useChatStore((s) => s.askPrompt)
+  // busy：回复进行中（sendMessage 置位，assistant_done 收尾），驱动
+  // 发送按钮切换为“停止”态。@author aceFelix
+  const busy = useChatStore((s) => s.busy)
   const sendMessage = useBackendStore((s) => s.sendMessage)
+  const abortReply = useBackendStore((s) => s.abortReply)
   const answerUser = useBackendStore((s) => s.answerUser)
   const toggleTalk = useBackendStore((s) => s.toggleTalk)
+  const toggleVoice = useBackendStore((s) => s.toggleVoice)
+  const interruptVoice = useBackendStore((s) => s.interruptVoice)
+  // 半双工语音：会话运行中标记 + 当前阶段（驱动状态条文案）。
+  const voiceActive = useLeftStore((s) => s.voiceActive)
+  const voiceState = useLeftStore((s) => s.voiceState)
   // 发送/麦克风按钮可用性跟随 WS 连接状态（未连上时置灰）
   const wsConnected = useBackendStore((s) => s.wsConnected)
 
@@ -88,6 +99,8 @@ export default function ChatArea(): JSX.Element {
   const doSend = (): void => {
     const text = draft.trim()
     if (!text) return
+    // 回复进行中禁止再发（引擎指令串行，叠发只会排队到下一轮）
+    if (busy) return
     setDraft('')
     if (inputRef.current) inputRef.current.style.height = 'auto'
     void sendMessage(text)
@@ -124,6 +137,32 @@ export default function ChatArea(): JSX.Element {
         </div>
       ) : null}
 
+      {voiceActive ? (
+        <div id="voice-bar" data-testid="voice-bar">
+          <span className="voice-state" data-testid="voice-state">
+            {voiceState ? (voiceStatusLabels[voiceState] ?? '语音中...') : '语音已开启'}
+          </span>
+          <button
+            className="action-btn"
+            data-testid="voice-interrupt"
+            title="打断当前播报/识别（不停会话）"
+            onClick={() => void interruptVoice()}
+            disabled={!wsConnected}
+          >
+            ✋ 打断
+          </button>
+          <button
+            className="action-btn"
+            data-testid="voice-exit"
+            title="退出语音，回文本模式"
+            onClick={() => void toggleVoice()}
+            disabled={!wsConnected}
+          >
+            ⏹ 退出语音
+          </button>
+        </div>
+      ) : null}
+
       <footer id="input-bar" className="glass-bar">
         <textarea
           ref={inputRef}
@@ -143,9 +182,29 @@ export default function ChatArea(): JSX.Element {
             }
           }}
         />
-        <button className="action-btn primary" onClick={doSend} disabled={!wsConnected}>
-          发送
-        </button>
+        {/* 发送/停止双态按钮：busy 时变“■ 停止”，再点发 reply.abort 中断回复。
+            停止不依赖 WS 回执前先置灰，故不加 wsConnected 禁用以外的限制。
+            @author aceFelix */}
+        {busy ? (
+          <button
+            className="action-btn danger"
+            data-testid="btn-stop"
+            title="停止贾维斯当前回复/思考"
+            onClick={() => void abortReply()}
+            disabled={!wsConnected}
+          >
+            ■ 停止
+          </button>
+        ) : (
+          <button
+            className="action-btn primary"
+            data-testid="btn-send"
+            onClick={doSend}
+            disabled={!wsConnected}
+          >
+            发送
+          </button>
+        )}
         <button
           className={`action-btn${wsConnected ? '' : ' disabled'}`}
           title="开始/结束实时语音"

@@ -54,7 +54,7 @@ app.whenReady()
 ```
 
 Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
-`ChatEngine` + `MetricsCollector` + `WorkbenchAPI` + `DesktopBridgeServer` → `server.start()` → `engine.start()` → `metrics.start()` → `start_event_pump()` → 投递 `init` 事件 → **打印握手 JSON** → 监视 stdin EOF 等待停机。
+`ProactiveHub` + `ChatEngine`（registry_hook 挂载提醒/截止日期工具）+ `MetricsCollector` + `WorkbenchAPI` + `DesktopBridgeServer` → `server.start()` → `engine.start()` → `metrics.start()` → `start_event_pump()` → `hub.start()`（主动播报，事件泵启动后）→ 投递 `init` 事件 → **打印握手 JSON** → 监视 stdin EOF 等待停机（停机反序：`hub.stop()` → `server.stop()` → `metrics.stop()` → `engine.stop()`）。
 
 ### 后端生命周期状态机
 
@@ -81,7 +81,7 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 
 ## 4. 安全边界
 
-- **进程隔离**：`contextIsolation: true`、`nodeIntegration: false`、`sandbox: true`；渲染进程无 Node 能力，唯一入口是 preload 的 `window.jarvisDesktop`（3 个方法，白名单 IPC 通道）。
+- **进程隔离**：`contextIsolation: true`、`nodeIntegration: false`、`sandbox: true`；渲染进程无 Node 能力，唯一入口是 preload 的 `window.jarvisDesktop`（5 个方法，白名单 IPC 通道；其中 `log` / `notify` 为单向 `send` 不等回执）。
 - **网络收敛**：Python 的 `DesktopBridgeServer` 仅绑 `127.0.0.1` + 系统分配的随机端口，**不对局域网暴露**（这是与手机协同模式 `0.0.0.0` + 固定端口的关键差异）。WS 连接需 token 认证，token 错误服务端以 `4401` 关闭。
 - **外链隔离**：`setWindowOpenHandler` 把 http(s) 外链交给系统浏览器，窗口内一律 `deny`。
 - **token 保密**：见上节，全链路只在内存传递。
@@ -97,7 +97,7 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 - 回执（request/response 型指令）：`{"event": "reply", "data": {"type", "ok", "result" | "error"}}`。
 - 握手（stdout 单行）：`{"type": "jarvis-serve-ready", "port", "http_port", "token", "pid"}`。
 
-### 指令一览（13 条）
+### 指令一览（18 条）
 
 | 指令 | 参数 | result |
 |---|---|---|
@@ -112,8 +112,13 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `metrics.get` | — | `{cpu, memory, disk}` |
 | `state.get` | — | `{provider, model, ...}` |
 | `answer_user` | `text` | null（回填 ask_user 弹窗） |
+| `reply.abort` | — | bool（停止当前回复：服务端线程安全取消引擎 send 任务，取消路径仍发 `assistant_done` 收尾；无进行中回复时 false） |
 | `talk.start` | — | null（结果走 `talk_started`） |
 | `talk.stop` | — | null（结果走 `talk_stopped`） |
+| `voice.start` | — | null（结果走 `voice_started`；与 `talk` 互斥，引擎自动停对方） |
+| `voice.stop` | — | null（结果走 `voice_stopped`） |
+| `voice.interrupt` | — | bool（打断当前播报/识别，不停会话；与麦克风 barge-in 双通道） |
+| `proactive.ack` | `task_id` | bool（确认主动提醒已读、停升级重发；serve 侧 hub 未装配时 ok=false） |
 
 ### 事件一览
 
@@ -122,5 +127,7 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 - **提示**：`info` / `warn` / `error` / `status` / `ask_user`
 - **指标**：`metrics`（每 2 秒推送）
 - **实时语音**：`talk_started` / `talk_stopped` / `volume` / `user_speaking` / `ai_speaking` / `user_transcript` / `ai_transcript` / `ai_transcript_delta`
+- **半双工语音**：`voice_started` / `voice_stopped` / `voice_state`（payload 为 `listening｜thinking｜speaking｜standby｜exited`）/ `voice_user_transcript` / `voice_ai_text_delta`（流式增量）/ `voice_ai_text`（全量）——音频 I/O 留 serve 本机 pyaudio，壳只做遥控 + 状态/文字显示
+- **主动播报**：`proactive_notify`（payload `{kind: briefing｜reminder｜deadline, title, text, task_id}`；由 serve 侧 `ProactiveHub` 装配的每日简报 / 对话提醒 / 截止日期触发，仅 `--serve` / 桌面壳运行期间生效）
 
-渲染侧 `api/dispatcher.ts` 把上述事件映射进 Zustand store（`chatStore` / `leftStore` / `metricsStore`）与反应炉动画实例，组件只订阅 store 切片——与 workbench 前端 `app.js::dispatchEvent` 口径一致。
+渲染侧 `api/dispatcher.ts` 把上述事件映射进 Zustand store（`chatStore` / `leftStore` / `metricsStore`）与反应炉动画实例，组件只订阅 store 切片——与 workbench 前端 `app.js::dispatchEvent` 口径一致。其中 `proactive_notify` 除上屏聊天气泡外，还调 `window.jarvisDesktop.notify` 经主进程弹 Windows 原生通知（`src/main/notify.ts`），reminder 带 `task_id` 时回发 `proactive.ack`。

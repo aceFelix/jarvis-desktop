@@ -1,5 +1,5 @@
 /**
- * 左栏：模式切换（文本/实时）+ 三面板切换（历史会话/模型/音色）+ 状态 footer。
+ * 左栏：模式切换（文本/实时/语音）+ 三面板切换（历史会话/模型/音色）+ 状态 footer。
  *
  * 面板切换即刷新对应列表（sessions.list / models.list / voices.list 指令）；
  * 列表项悬停/选中字体变蓝（与 workbench 交互口径一致，样式在 main.css）。
@@ -9,7 +9,7 @@
 
 import { useEffect } from 'react'
 import { useBackendStore } from '../stores/backendStore'
-import { useLeftStore, type LeftPanel } from '../stores/leftStore'
+import { useLeftStore, type ChatMode, type LeftPanel } from '../stores/leftStore'
 
 /** 通用列表项（标题 + 副行 + 当前标记）。 */
 function ListItem(props: {
@@ -35,7 +35,7 @@ function ListItem(props: {
 }
 
 export default function LeftSidebar(): JSX.Element {
-  const { sessions, models, voices, activePanel, mode, talkActive } = useLeftStore()
+  const { sessions, models, voices, activePanel, mode, talkActive, voiceActive } = useLeftStore()
   const { setActivePanel, setMode } = useLeftStore()
   const backend = useBackendStore()
 
@@ -51,10 +51,21 @@ export default function LeftSidebar(): JSX.Element {
     else void backend.refreshVoices()
   }, [activePanel, backend.wsConnected])
 
-  const switchMode = (next: 'text' | 'talk'): void => {
+  const switchMode = (next: ChatMode): void => {
     if (next === mode) return
-    setMode(next)
-    void backend.toggleTalk()
+    // 语音 / 实时：交给各自 toggle（内部 setMode 并发 start；引擎侧互斥自动停对方）。
+    if (next === 'voice') {
+      void backend.toggleVoice()
+      return
+    }
+    if (next === 'talk') {
+      void backend.toggleTalk()
+      return
+    }
+    // 文本：停掉当前正在跑的实时 / 半双工语音（停完由 *_stopped 事件回 text）。
+    if (talkActive) void backend.toggleTalk()
+    else if (voiceActive) void backend.toggleVoice()
+    else setMode('text')
   }
 
   return (
@@ -78,6 +89,13 @@ export default function LeftSidebar(): JSX.Element {
           onClick={() => switchMode('talk')}
         >
           🎙️ 实时
+        </button>
+        <button
+          className={`seg-btn${mode === 'voice' ? ' active' : ''}`}
+          title="半双工语音（/voice：说话→回复→再听）"
+          onClick={() => switchMode('voice')}
+        >
+          🎤 语音
         </button>
       </div>
 
@@ -162,6 +180,7 @@ export default function LeftSidebar(): JSX.Element {
         <span className={`status-dot ${backend.statusLabel.tone === 'busy' ? 'busy' : backend.statusLabel.tone === 'err' ? 'err' : backend.statusLabel.tone === 'talk' ? 'talk' : 'idle'}`} />
         <span id="status-text">{backend.statusLabel.text}</span>
         {talkActive ? <span className="talk-flag">🎙️ 实时中</span> : null}
+        {voiceActive ? <span className="talk-flag">🎤 语音中</span> : null}
       </footer>
     </aside>
   )

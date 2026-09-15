@@ -18,6 +18,9 @@ import TitleBar from '@renderer/components/TitleBar'
 import { useChatStore } from '@renderer/stores/chatStore'
 import { useLeftStore } from '@renderer/stores/leftStore'
 import { useMetricsStore } from '@renderer/stores/metricsStore'
+import { useBackendStore } from '@renderer/stores/backendStore'
+import { Cmd } from '../../src/shared/contracts'
+import type { JarvisWsClient } from '@renderer/api/ws'
 
 beforeEach(() => {
   useChatStore.getState().clear()
@@ -27,7 +30,9 @@ beforeEach(() => {
     voices: [],
     activePanel: 'history',
     mode: 'text',
-    talkActive: false
+    talkActive: false,
+    voiceActive: false,
+    voiceState: ''
   })
   useMetricsStore.setState({ cpu: 0, memory: null, disk: null })
 })
@@ -73,7 +78,42 @@ describe('ChatArea', () => {
 
   it('未连接时发送按钮禁用', () => {
     render(<ChatArea />)
-    expect(screen.getByText('发送')).toBeDisabled()
+    expect(screen.getByTestId('btn-send')).toBeDisabled()
+  })
+
+  it('busy 时发送按钮切换为“■ 停止”，点击发 reply.abort', async () => {
+    // 回复进行中双态按钮：停止态不受 wsConnected 以外限制，点击后
+    // 经 backendStore.abortReply 发 Cmd.ReplyAbort。@author aceFelix
+    const sendCommand = vi.fn().mockResolvedValue({ ok: true, result: true })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: true
+    })
+    useChatStore.getState().setBusy(true)
+    render(<ChatArea />)
+
+    expect(screen.queryByTestId('btn-send')).toBeNull()
+    const stop = screen.getByTestId('btn-stop')
+    expect(stop).toHaveTextContent('停止')
+    fireEvent.click(stop)
+    await vi.waitFor(() => expect(sendCommand).toHaveBeenCalledWith(Cmd.ReplyAbort, {}))
+
+    useBackendStore.setState({ client: null, wsConnected: false })
+  })
+
+  it('busy 时 Enter 不叠发消息（引擎指令串行）', () => {
+    const sendCommand = vi.fn().mockResolvedValue({ ok: true, result: null })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: true
+    })
+    useChatStore.getState().setBusy(true)
+    render(<ChatArea />)
+    const ta = screen.getByPlaceholderText(/和贾维斯说点什么/) as HTMLTextAreaElement
+    fireEvent.change(ta, { target: { value: '叠发' } })
+    fireEvent.keyDown(ta, { key: 'Enter' })
+    expect(sendCommand).not.toHaveBeenCalled()
+    useBackendStore.setState({ client: null, wsConnected: false })
   })
 
   it('输入框可编辑（受控）', () => {
@@ -81,6 +121,20 @@ describe('ChatArea', () => {
     const ta = screen.getByPlaceholderText(/和贾维斯说点什么/) as HTMLTextAreaElement
     fireEvent.change(ta, { target: { value: '测试文本' } })
     expect(ta.value).toBe('测试文本')
+  })
+
+  it('voiceActive 时渲染语音状态条（阶段文案 + 打断/退出按钮）', () => {
+    useLeftStore.setState({ voiceActive: true, voiceState: 'listening' })
+    render(<ChatArea />)
+    expect(screen.getByTestId('voice-bar')).toBeInTheDocument()
+    expect(screen.getByTestId('voice-state')).toHaveTextContent('聆听中')
+    expect(screen.getByTestId('voice-interrupt')).toBeInTheDocument()
+    expect(screen.getByTestId('voice-exit')).toBeInTheDocument()
+  })
+
+  it('非语音态不渲染语音状态条', () => {
+    render(<ChatArea />)
+    expect(screen.queryByTestId('voice-bar')).toBeNull()
   })
 })
 
@@ -122,6 +176,18 @@ describe('LeftSidebar 面板切换', () => {
     render(<LeftSidebar />)
     fireEvent.click(screen.getByText('🎙️ 实时'))
     expect(screen.getByText('🎙️ 实时').className).toContain('active')
+  })
+
+  it('切换到语音模式后按钮高亮', () => {
+    render(<LeftSidebar />)
+    fireEvent.click(screen.getByText('🎤 语音'))
+    expect(screen.getByText('🎤 语音').className).toContain('active')
+  })
+
+  it('voiceActive 时 footer 显示语音中标记', () => {
+    useLeftStore.setState({ voiceActive: true, mode: 'voice' })
+    render(<LeftSidebar />)
+    expect(screen.getByText('🎤 语音中')).toBeInTheDocument()
   })
 })
 

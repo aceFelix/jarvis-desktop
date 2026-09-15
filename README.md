@@ -9,7 +9,7 @@
 `jarvis-desktop` 与 `jarvis` 是**上下游分离**的两个仓库（对齐 `dsh-desktop` / `deepseek-harness` 的关系）：
 
 - **jarvis（上游，Python）**：Agent 运行时。`--serve` 模式启动一个 headless API 服务，复用与 pywebview 工作台完全相同的引擎零件（`ChatEngine` + `WorkbenchAPI` + `MetricsCollector`），经 WebSocket 对外提供指令/事件流。
-- **jarvis-desktop（下游，Electron）**：桌面宿主。**不重写 Agent 运行时**，只负责：拉起并守护 `python -m agent.serve` 子进程、解析 stdout 握手 JSON、单实例、托盘、日志、退出时回收 Python 进程树；UI 用 React 全新实现，但沿用 J.A.R.V.I.S 视觉语言。
+- **jarvis-desktop（下游，Electron）**：桌面宿主。**不重写 Agent 运行时**，只负责：拉起并守护 `python -m agent.serve` 子进程、解析 stdout 握手 JSON、单实例、托盘、日志、系统通知（主动播报）、退出时回收 Python 进程树；UI 用 React 全新实现，但沿用 J.A.R.V.I.S 视觉语言。
 
 ```
 jarvis（Python）                         jarvis-desktop（Electron）
@@ -64,7 +64,7 @@ npm run dev
 | `npm run dev` | electron-vite 开发模式（热重载 + 拉起后端） |
 | `npm run build` | 打包主进程 / preload / 渲染进程到 `out/` |
 | `npm run typecheck` | tsc 类型检查（node + web 两套程序） |
-| `npm run test` | vitest 单测（81 用例：握手解析、生命周期状态机、图标解析、WS 客户端、事件分发、store、React 组件） |
+| `npm run test` | vitest 单测（122 用例：握手解析、生命周期状态机、图标解析、系统通知、WS 客户端、事件分发（含主动播报、半双工语音 `voice_*`、`assistant_done` 撤销 busy）、store（含 `toggleVoice`/`interruptVoice`/`abortReply` 指令路由）、preload 契约、React 组件（含语音模式 UI、发送/停止双态按钮）） |
 
 ### CI
 
@@ -79,6 +79,7 @@ jarvis-desktop/
 │   │   ├── index.ts    # 应用生命周期、单实例、窗口、IPC
 │   │   ├── backend.ts  # BackendManager：spawn/握手/回收 serve 子进程
 │   │   ├── appIcon.ts  # 图标解析单一来源（窗口/托盘同源，防分叉）
+│   │   ├── notify.ts   # 系统通知（主动播报经主进程弹原生通知 + 任务栏闪烁）
 │   │   ├── tray.ts     # 系统托盘
 │   │   └── logging.ts  # 写 userData/logs/desktop.log
 │   ├── preload/       # contextBridge 最小暴露面（token 不落盘）
@@ -91,6 +92,7 @@ jarvis-desktop/
 │   └── shared/        # contracts.ts：主/preload/渲染共享契约（镜像 protocol.py）
 ├── test/
 │   ├── main/          # 主进程逻辑单测（node 环境）
+│   ├── preload/       # preload 暴露面契约单测（notify 通道）
 │   └── renderer/      # 渲染层单测 + React 组件测试（jsdom）
 ├── build/             # 打包资源（icon.ico 反应炉图标，scripts/gen_icon.py 生成）
 ├── scripts/           # gen_icon.py：复用 jarvis 反应炉绘制逻辑生成多尺寸 ico

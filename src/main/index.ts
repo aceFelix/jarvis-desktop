@@ -21,8 +21,9 @@ import {
 } from './backend'
 import { initLogging, log, logError } from './logging'
 import { resolveIconPath } from './appIcon'
+import { showSystemNotification } from './notify'
 import { createTray, destroyTray } from './tray'
-import { IpcChannels, type WindowAction } from '../shared/contracts'
+import { IpcChannels, type NotifyRequest, type WindowAction } from '../shared/contracts'
 
 let mainWindow: BrowserWindow | null = null
 let backend: BackendManager | null = null
@@ -115,6 +116,12 @@ function registerIpc(): void {
   // @author aceFelix
   ipcMain.on(IpcChannels.RendererLog, (_event, msg: unknown) => {
     log(`[renderer] ${String(msg)}`)
+  })
+  // 系统通知桥：主动播报（简报/提醒/截止日期）经主进程弹 Windows 原生通知，
+  // 窗口未聚焦时附加任务栏闪烁（托盘态也可靠）
+  // @author aceFelix
+  ipcMain.on(IpcChannels.SystemNotify, (_event, req: NotifyRequest) => {
+    showSystemNotification(req, () => mainWindow)
   })
 }
 

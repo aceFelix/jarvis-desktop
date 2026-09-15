@@ -50,11 +50,46 @@ export const IpcChannels = {
   /** 主进程 → 渲染进程：后端状态变化推送。 */
   BackendStatus: 'jarvis:backend-status',
   /** 渲染进程 → 主进程：日志桥（写入 userData/logs/desktop.log，现场诊断用）。 */
-  RendererLog: 'jarvis:renderer-log'
+  RendererLog: 'jarvis:renderer-log',
+  /** 渲染进程 → 主进程：系统通知（主动播报弹 Windows 通知，单向 send）。 */
+  SystemNotify: 'jarvis:system-notify'
 } as const
+
+/** 系统通知请求体（渲染进程 → 主进程，主进程 Electron Notification 弹窗）。 */
+export interface NotifyRequest {
+  title: string
+  body: string
+}
+
+/**
+ * 主动播报事件 payload（镜像 protocol.EVT_PROACTIVE_NOTIFY，源自 ProactiveHub）。
+ *
+ * kind：briefing=每日简报 / reminder=用户提醒 / deadline=截止日期提醒。
+ * task_id 仅 reminder 携带（窗口可见时回 proactive.ack 停止升级重发）。
+ */
+export interface ProactiveNotifyPayload {
+  kind: 'briefing' | 'reminder' | 'deadline' | string
+  title: string
+  text: string
+  task_id?: string
+}
 
 /** 窗口控制动作（自绘标题栏按钮）。 */
 export type WindowAction = 'minimize' | 'close'
+
+/**
+ * 半双工语音会话状态（镜像 voice_events.STATE_*）。
+ *
+ * voice_state 事件的 payload 即此字符串：dialog=对话中 / listening=聆听 /
+ * thinking=思考 / speaking=播报 / standby=待机 / exited=已退出。
+ */
+export type VoiceState =
+  | 'dialog'
+  | 'listening'
+  | 'thinking'
+  | 'speaking'
+  | 'standby'
+  | 'exited'
 
 /** WS 指令 type 常量（镜像 protocol.CMD_*）。 */
 export const Cmd = {
@@ -70,5 +105,11 @@ export const Cmd = {
   StateGet: 'state.get',
   AnswerUser: 'answer_user',
   TalkStart: 'talk.start',
-  TalkStop: 'talk.stop'
+  TalkStop: 'talk.stop',
+  VoiceStart: 'voice.start',
+  VoiceStop: 'voice.stop',
+  VoiceInterrupt: 'voice.interrupt',
+  ProactiveAck: 'proactive.ack',
+  /** 停止当前回复（发送按钮二次点击）：服务端线程安全取消引擎 send 任务。 */
+  ReplyAbort: 'reply.abort'
 } as const

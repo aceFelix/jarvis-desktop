@@ -14,6 +14,7 @@ import {
   IpcChannels,
   type BackendInfo,
   type BackendStatusEvent,
+  type NotifyRequest,
   type WindowAction
 } from '../shared/contracts'
 
@@ -35,6 +36,17 @@ const api = {
    */
   log: (msg: string): void => {
     ipcRenderer.send(IpcChannels.RendererLog, String(msg))
+  },
+
+  /**
+   * 系统通知桥：主动播报（每日简报/提醒/截止日期）经主进程弹 Windows
+   * 原生通知。单向 send 不等回执（通知失败不影响业务）；走主进程
+   * 而非渲染端 HTML5 Notification，窗口隐藏/最小化到托盘时依然可靠。
+   *
+   * @author aceFelix
+   */
+  notify: (req: NotifyRequest): void => {
+    ipcRenderer.send(IpcChannels.SystemNotify, req)
   },
 
   /**

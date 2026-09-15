@@ -490,6 +490,25 @@ body {
     outline: none;
 }
 
+/* ---- 半双工语音状态条（ChatArea，voice 模式显示阶段 + 打断/退出） ---- */
+#voice-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 0 10% 8px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: rgba(90, 200, 250, 0.1);
+    border: 1px solid rgba(90, 200, 250, 0.4);
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+#voice-bar .voice-state {
+    flex: 1;
+    color: #a0e9ff;
+}
+
 /* ---- 按钮 ---- */
 .action-btn {
     padding: 7px 14px;

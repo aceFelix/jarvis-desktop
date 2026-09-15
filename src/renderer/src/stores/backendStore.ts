@@ -29,6 +29,8 @@ export interface JarvisConnection {
   refreshSessions: () => Promise<void>
   refreshModels: () => Promise<void>
   refreshVoices: () => Promise<void>
+  /** 提醒已读回执（proactive.ack）：fire-and-forget，失败静默。 */
+  ackProactive: (taskId: string) => void
 }
 
 /**
@@ -73,12 +75,18 @@ export interface BackendStoreState {
 
   // ---- 指令动作（组件层入口） ----
   sendMessage: (text: string) => Promise<void>
+  /** 停止当前回复（reply.abort）：busy 由服务端 assistant_done 事件收尾。 */
+  abortReply: () => Promise<void>
   newSession: () => Promise<void>
   openSession: (name: string) => Promise<void>
   selectModel: (name: string) => Promise<void>
   selectVoice: (name: string) => Promise<void>
   answerUser: (text: string) => Promise<void>
   toggleTalk: () => Promise<void>
+  /** 切换半双工语音（voiceActive 时发 VoiceStop，否则置 voice 模式发 VoiceStart）。 */
+  toggleVoice: () => Promise<void>
+  /** 打断当前语音播报/识别（voice.interrupt），不停会话。 */
+  interruptVoice: () => Promise<void>
   refreshSessions: () => Promise<void>
   refreshModels: () => Promise<void>
   refreshVoices: () => Promise<void>
@@ -90,7 +98,20 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
   const conn: JarvisConnection = {
     refreshSessions: () => get().refreshSessions(),
     refreshModels: () => get().refreshModels(),
-    refreshVoices: () => get().refreshVoices()
+    refreshVoices: () => get().refreshVoices(),
+    ackProactive: (taskId) => {
+      // 提醒已读回执：只发不等（send），失败静默——不因回执问题把错误
+      // 写进聊天流（与 runCommand 的显式指令不同，这是后台自动确认）。
+      // 服务端会回 reply，但无 pending 项时 ws.handleRaw 自然丢弃。
+      // @author aceFelix
+      const client = get().client
+      if (!client || !taskId) return
+      try {
+        client.send(Cmd.ProactiveAck, { task_id: taskId })
+      } catch {
+        // 忽略发送失败（未连接/已断开）
+      }
+    }
   }
 
   /** 发指令并检查回执；失败时把错误写进聊天流（统一错误出口）。 */
@@ -196,6 +217,14 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
       }
     },
 
+    abortReply: async () => {
+      // 停止回复：只发指令不改 busy——引擎取消后 _handle_send 的 finally
+      // 仍会发 assistant_done，由 dispatcher 统一收尾（setBusy(false)+状态栏）。
+      // @author aceFelix
+      set({ statusLabel: { text: '正在停止...', tone: 'busy' } })
+      await runCommand(Cmd.ReplyAbort)
+    },
+
     newSession: async () => {
       await runCommand(Cmd.SessionsNew)
     },
@@ -233,6 +262,20 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
         left.setMode('talk')
         await runCommand(Cmd.TalkStart)
       }
+    },
+
+    toggleVoice: async () => {
+      const left = useLeftStore.getState()
+      if (left.voiceActive) {
+        await runCommand(Cmd.VoiceStop)
+      } else {
+        left.setMode('voice')
+        await runCommand(Cmd.VoiceStart)
+      }
+    },
+
+    interruptVoice: async () => {
+      await runCommand(Cmd.VoiceInterrupt)
     },
 
     refreshSessions: async () => {

@@ -8,6 +8,7 @@
  */
 
 import type { ServerEvent } from '../api/ws'
+import type { ProactiveNotifyPayload, VoiceState } from '../../../shared/contracts'
 import { useChatStore } from '../stores/chatStore'
 import { useLeftStore, type ModelItem, type SessionItem, type VoiceItem } from '../stores/leftStore'
 import { useMetricsStore, type MetricsPayload } from '../stores/metricsStore'
@@ -22,6 +23,16 @@ export const talkStatusLabels: Record<string, string> = {
   listening: '聆听中...',
   speaking: '贾维斯说话中...',
   error: '实时连接异常'
+}
+
+/** 半双工语音状态标签（voice_state → 状态条文案，镜像 voice_events.STATE_*）。 */
+export const voiceStatusLabels: Record<string, string> = {
+  dialog: '语音对话中',
+  listening: '聆听中...',
+  thinking: '思考中...',
+  speaking: '播报中...',
+  standby: '语音待命',
+  exited: '语音已退出'
 }
 
 /** 状态栏文案 store（status 事件与 busy 状态共用出口）。 */
@@ -66,6 +77,9 @@ export function dispatchServerEvent(
       break
     case 'assistant_done':
       chat.finishAssistant()
+      // 回复收尾（含 reply.abort 取消路径）：撤销 busy，发送按钮从
+      // “停止”态恢复为“发送”态。@author aceFelix
+      chat.setBusy(false)
       onStatus?.({ text: '就绪', tone: 'idle' })
       void conn.refreshSessions()
       break
@@ -129,6 +143,10 @@ export function dispatchServerEvent(
     // ---- 实时语音 ----
     case 'talk_started':
       left.setTalkActive(true)
+      // 权威置 talk 模式：voice→talk 互斥切换时，引擎先发的 voice_stopped 会
+      // 把 mode 重置为 text，这里复位保证最终停在 talk（与 voice_started 对称）。
+      // @author aceFelix
+      left.setMode('talk')
       break
     case 'talk_stopped':
       left.setTalkActive(false)
@@ -165,6 +183,72 @@ export function dispatchServerEvent(
       } else {
         chat.appendAssistantText(text)
         chat.finishAssistant()
+      }
+      break
+    }
+
+    // ---- 半双工语音（/voice：STT→LLM→TTS 连续循环，本机出声） ----
+    case 'voice_started':
+      left.setVoiceActive(true)
+      left.setMode('voice')
+      break
+    case 'voice_stopped':
+      left.setVoiceActive(false)
+      left.setVoiceState('')
+      left.setMode('text')
+      onStatus?.({ text: '就绪', tone: 'idle' })
+      break
+    case 'voice_state': {
+      const st = String(payload ?? '')
+      left.setVoiceState(st as VoiceState)
+      if (voiceStatusLabels[st]) {
+        onStatus?.({ text: voiceStatusLabels[st], tone: 'talk' })
+      }
+      break
+    }
+    case 'voice_user_transcript':
+      chat.addUser(String(payload ?? ''))
+      break
+    case 'voice_ai_text_delta':
+      chat.appendAssistantText(String(payload ?? ''))
+      break
+    case 'voice_ai_text': {
+      // 全量文本：替换流式气泡并收尾（与 ai_transcript 同构）
+      const text = String(payload ?? '')
+      const messages = useChatStore.getState().messages
+      const lastAi = [...messages].reverse().find((m) => m.kind === 'ai' && m.streaming)
+      if (lastAi) {
+        chat.appendAssistantText('')
+        useChatStore.setState((s) => ({
+          messages: s.messages.map((m) =>
+            m.id === lastAi.id && m.kind === 'ai' ? { ...m, text, streaming: false } : m
+          )
+        }))
+      } else {
+        chat.appendAssistantText(text)
+        chat.finishAssistant()
+      }
+      break
+    }
+
+    // ---- 主动播报（每日简报 / 用户提醒 / 截止日期） ----
+    case 'proactive_notify': {
+      const p = (payload ?? {}) as ProactiveNotifyPayload
+      const kind = p.kind ?? 'briefing'
+      const text = String(p.text ?? '')
+      const title = String(p.title ?? '贾维斯主动提醒')
+      // 上屏：reminder 带 ⏰ 前缀；briefing/deadline 全文多行系统气泡
+      //（.message 基类 white-space: pre-wrap，\n 直接换行）
+      chat.addSystem(kind === 'reminder' ? `⏰ ${text}` : text)
+      // 主进程系统通知：窗口隐藏/最小化到托盘时依然弹（走 jarvisDesktop.notify）
+      try {
+        window.jarvisDesktop?.notify?.({ title, body: text })
+      } catch {
+        // 通知失败不影响上屏
+      }
+      // reminder 且带 task_id：窗口可见即视为已读，回执停止升级重发
+      if (kind === 'reminder' && p.task_id) {
+        conn.ackProactive(String(p.task_id))
       }
       break
     }
