@@ -466,6 +466,92 @@ body {
 
 .glass-bar textarea::placeholder { color: rgba(159, 201, 232, 0.45); }
 
+/* 附件 chips 区（输入栏上方）：待发送附件缩略图/文件名 + 移除按钮。
+   @author aceFelix */
+#attach-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 10% 6px;
+    flex-shrink: 0;
+}
+
+.attach-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 7px;
+    border-radius: 8px;
+    background: rgba(8, 18, 32, 0.7);
+    border: 1px solid var(--edge-mid);
+    font-size: 12px;
+    color: #9fc8e8;
+}
+
+.attach-chip img {
+    width: 36px;
+    height: 36px;
+    object-fit: cover;
+    border-radius: 5px;
+}
+
+.attach-chip .chip-name {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attach-chip .chip-remove {
+    border: none;
+    background: transparent;
+    color: rgba(159, 201, 232, 0.75);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 0 2px;
+}
+
+.attach-chip .chip-remove:hover { color: #ff5a5a; }
+
+/* AI 气泡右下角消息级操作行（复制本条回复）。@author aceFelix */
+.msg-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 6px;
+}
+
+.msg-action-btn {
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #9fc9e8;
+    background: rgba(91, 200, 255, 0.07);
+    border: 1px solid var(--edge-soft);
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.msg-action-btn:hover {
+    color: #5bc8ff;
+    background: rgba(91, 200, 255, 0.16);
+}
+
+/* 用户气泡内的附件图片缩略图（已发送）。@author aceFelix */
+.msg-thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.msg-thumbs img {
+    max-width: 180px;
+    max-height: 180px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--edge-mid);
+}
+
 #ask-user-bar {
     display: flex;
     gap: 8px;
@@ -591,6 +677,175 @@ body {
     color: #9cc4e0;
 }
 
+/* ---- 右栏五区块（设置/任务中心/用量/系统状态/运行健康） ---- */
+/* 五区块叠加后超出列高：整列纵向滚动（glass-col 已 min-height:0 保证滚动生效）。 */
+#right-col { overflow-y: auto; }
+
+/* 分段小标题间距：首个 header 保持原间距，后续 header 上边界加大分隔 */
+#right-col .col-header + .col-header,
+#right-col .col-header:not(:first-child) { margin-top: 6px; }
+
+/* 空态提示（任务中心/用量/日志流共用） */
+.side-empty {
+    font-size: 12px;
+    color: #6f93b3;
+    padding: 4px 2px;
+}
+
+/* 设置面板：行式布局（标签 + 分段控件），后续新设置项按行追加。@author aceFelix */
+.settings-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.setting-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.setting-label {
+    font-size: 12px;
+    color: #9cc9e8;
+    letter-spacing: 1px;
+}
+
+/* 任务中心列表 */
+.task-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.task-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--edge-soft);
+    font-size: 12px;
+}
+
+.task-time {
+    flex-shrink: 0;
+    color: #7fe3ff;
+    font-variant-numeric: tabular-nums;
+}
+
+.task-time.due-soon { color: #ffd166; }
+.task-time.due-over { color: #ff8a8a; }
+
+.task-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #d8ecfa;
+}
+
+.task-tag {
+    flex-shrink: 0;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    color: #a0e9ff;
+    border: 1px solid rgba(91, 200, 255, 0.4);
+}
+
+/* 最近简报（折叠块） */
+.briefing-block {
+    margin-top: 8px;
+    border: 1px solid var(--edge-soft);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 12px;
+}
+
+.briefing-block summary {
+    padding: 7px 10px;
+    cursor: pointer;
+    color: #a0e9ff;
+    user-select: none;
+}
+
+.briefing-text {
+    padding: 0 10px 8px;
+    color: #c2dcf0;
+    white-space: pre-wrap;
+    max-height: 140px;
+    overflow-y: auto;
+}
+
+/* 会话与用量卡 */
+.usage-card {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1.2px solid var(--edge-soft);
+}
+
+.usage-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+    color: #9cc4e0;
+}
+
+.usage-value {
+    color: #d8ecfa;
+    font-variant-numeric: tabular-nums;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 运行健康：MCP 状态 + 日志流 */
+.mcp-line { font-size: 12px; }
+.mcp-ok { color: #7fe3b8; }
+.mcp-warn { color: #ffd166; }
+
+.mcp-failed {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #ff8a8a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.log-feed {
+    margin-top: 8px;
+    max-height: 160px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--edge-soft);
+}
+
+.log-line {
+    font-size: 11px;
+    font-family: Consolas, 'Courier New', monospace;
+    color: #9cc4e0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* ---- 启动遮罩（后端未就绪） ---- */
 #boot-overlay {
     position: fixed;
@@ -665,3 +920,165 @@ body {
     word-break: break-all;
     text-align: left;
 }
+
+/* ==================== 浅色主题覆盖（设置面板切换，<html data-theme="light">） ====================
+   策略：深色字面量保持不动，浅色只覆盖结构性表面色与文本色；
+   半透明主题蓝 rgba 在两态下均可读，无需逐条覆盖。@author aceFelix */
+
+[data-theme='light'] body {
+    background:
+        radial-gradient(ellipse at 50% 40%, rgba(120, 180, 235, 0.35), transparent 65%),
+        linear-gradient(160deg, #e8f1fa 0%, #dbe7f3 55%, #cfdce9 100%);
+    color: #1a2b3c;
+}
+
+/* 板块边界色：浅色底上原亮蓝过浅，整体换深一号。
+   注意 :root 即 <html>（data-theme 所挂元素），必须用 :root[data-theme] 连写。 */
+:root[data-theme='light'] {
+    --edge-strong: rgba(30, 110, 190, 0.6);
+    --edge-mid: rgba(30, 110, 190, 0.48);
+    --edge-soft: rgba(30, 110, 190, 0.36);
+}
+
+[data-theme='light'] #title-bar {
+    background: rgba(255, 255, 255, 0.55);
+}
+
+[data-theme='light'] #title-logo { color: #0d5fa8; text-shadow: none; }
+[data-theme='light'] #title-sub { color: rgba(50, 80, 110, 0.7); }
+[data-theme='light'] .win-btn { color: #3a5a78; }
+[data-theme='light'] .win-btn:hover { background: rgba(30, 120, 200, 0.12); color: #0d5fa8; }
+[data-theme='light'] .win-btn.close:hover { background: rgba(220, 60, 60, 0.16); color: #b03030; }
+
+[data-theme='light'] .glass-col {
+    background: rgba(255, 255, 255, 0.55);
+    box-shadow: 0 10px 30px rgba(60, 90, 130, 0.18),
+                0 0 12px rgba(30, 120, 200, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+[data-theme='light'] .col-title { color: #0d5fa8; text-shadow: none; }
+
+[data-theme='light'] .seg-btn { color: #3a5a78; background: rgba(30, 120, 200, 0.06); }
+[data-theme='light'] .seg-btn:hover { background: rgba(30, 120, 200, 0.12); color: #0d5fa8; }
+[data-theme='light'] .seg-btn.active {
+    color: #0d5fa8;
+    background: rgba(30, 120, 200, 0.16);
+    border-color: rgba(20, 110, 200, 0.55);
+    box-shadow: 0 0 8px rgba(30, 120, 200, 0.18);
+}
+
+[data-theme='light'] .panel-label { color: #4a7396; }
+[data-theme='light'] .setting-label { color: #4a7396; }
+
+[data-theme='light'] .list-item { color: #22384e; background: rgba(255, 255, 255, 0.5); }
+[data-theme='light'] .list-item:hover { background: rgba(30, 120, 200, 0.1); color: #0d5fa8; }
+[data-theme='light'] .list-item.current {
+    color: #0a6fd6;
+    border-color: rgba(20, 110, 200, 0.55);
+    background: rgba(30, 120, 200, 0.1);
+}
+[data-theme='light'] .list-item .sub { color: #5a7f9e; }
+
+[data-theme='light'] #left-footer { color: #4a7396; }
+
+[data-theme='light'] #center-col {
+    background: rgba(255, 255, 255, 0.42);
+    box-shadow: 0 10px 30px rgba(60, 90, 130, 0.15),
+                0 0 12px rgba(30, 120, 200, 0.07),
+                inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+[data-theme='light'] .message.user {
+    background: rgba(30, 140, 230, 0.12);
+    border-color: rgba(30, 120, 210, 0.5);
+    color: #12304a;
+}
+
+[data-theme='light'] .message.ai {
+    background: rgba(255, 255, 255, 0.72);
+    border-color: rgba(90, 140, 190, 0.4);
+    color: #16283a;
+}
+
+[data-theme='light'] .message.system {
+    color: #5a7f9e;
+    background: rgba(255, 255, 255, 0.5);
+    border-color: rgba(30, 120, 200, 0.45);
+}
+
+[data-theme='light'] .message.error-msg { border-color: rgba(220, 70, 70, 0.5); color: #c0392b; }
+[data-theme='light'] .message.user .message-label { color: #0d5fa8; }
+[data-theme='light'] .message.ai .message-label { color: #0a6fd6; }
+[data-theme='light'] .cursor-blink { color: #0a6fd6; }
+[data-theme='light'] .thinking-block { color: #5a7f9e; border-left-color: rgba(30, 120, 200, 0.5); }
+
+[data-theme='light'] .msg-action-btn { color: #3a5f82; background: rgba(30, 120, 200, 0.07); }
+[data-theme='light'] .msg-action-btn:hover { color: #0d5fa8; background: rgba(30, 120, 200, 0.14); }
+
+[data-theme='light'] .tool-card { color: #3a5a78; background: rgba(255, 255, 255, 0.6); }
+[data-theme='light'] .tool-card.error { border-color: rgba(220, 70, 70, 0.45); }
+
+[data-theme='light'] .glass-bar {
+    background: rgba(255, 255, 255, 0.65);
+    box-shadow: 0 6px 20px rgba(60, 90, 130, 0.16);
+}
+[data-theme='light'] .glass-bar textarea { color: #16283a; }
+[data-theme='light'] .glass-bar textarea::placeholder { color: rgba(60, 90, 120, 0.45); }
+
+[data-theme='light'] .attach-chip { background: rgba(255, 255, 255, 0.7); color: #3a5f82; }
+[data-theme='light'] .attach-chip .chip-remove { color: rgba(60, 90, 120, 0.75); }
+[data-theme='light'] .attach-chip .chip-remove:hover { color: #c0392b; }
+
+[data-theme='light'] #ask-user-bar { background: rgba(255, 190, 90, 0.16); }
+[data-theme='light'] #ask-user-text { color: #a0640a; }
+[data-theme='light'] #ask-user-bar input { background: rgba(255, 255, 255, 0.7); color: #333; }
+
+[data-theme='light'] #voice-bar .voice-state { color: #0a7fbe; }
+
+[data-theme='light'] .action-btn { color: #1c3a55; background: rgba(30, 120, 200, 0.08); }
+[data-theme='light'] .action-btn:hover { background: rgba(30, 120, 200, 0.16); color: #0d5fa8; }
+[data-theme='light'] .action-btn.danger { color: #c0392b; background: rgba(255, 90, 90, 0.1); }
+
+[data-theme='light'] .metric-card,
+[data-theme='light'] .usage-card {
+    background: rgba(255, 255, 255, 0.55);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+[data-theme='light'] .metric-head { color: #2c4a66; }
+[data-theme='light'] .metric-value { color: #0a6fd6; }
+[data-theme='light'] .gauge { background: rgba(30, 60, 90, 0.08); }
+[data-theme='light'] .metric-detail { color: #5a7f9e; }
+
+[data-theme='light'] .side-empty { color: #7a97b0; }
+
+[data-theme='light'] .task-item { background: rgba(255, 255, 255, 0.5); }
+[data-theme='light'] .task-time { color: #0a6fd6; }
+[data-theme='light'] .task-time.due-soon { color: #c98a00; }
+[data-theme='light'] .task-time.due-over { color: #c0392b; }
+[data-theme='light'] .task-text { color: #2c4a66; }
+[data-theme='light'] .task-tag { color: #0a7fbe; }
+
+[data-theme='light'] .briefing-block { background: rgba(255, 255, 255, 0.45); }
+[data-theme='light'] .briefing-block summary { color: #0a7fbe; }
+[data-theme='light'] .briefing-text { color: #3a5a78; }
+
+[data-theme='light'] .usage-row { color: #5a7f9e; }
+[data-theme='light'] .usage-value { color: #2c4a66; }
+
+[data-theme='light'] .mcp-ok { color: #1a9e6e; }
+[data-theme='light'] .mcp-warn { color: #c98a00; }
+[data-theme='light'] .mcp-failed { color: #c0392b; }
+
+[data-theme='light'] .log-feed { background: rgba(255, 255, 255, 0.45); }
+[data-theme='light'] .log-line { color: #4a7396; }
+
+[data-theme='light'] #boot-overlay { background: rgba(230, 240, 250, 0.72); }
+[data-theme='light'] .boot-card {
+    background: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 10px 40px rgba(60, 90, 130, 0.22), 0 0 16px rgba(30, 120, 200, 0.1);
+}
+[data-theme='light'] .boot-title { color: #0d5fa8; text-shadow: none; }
+[data-theme='light'] .boot-hint { color: #4a7396; }
+[data-theme='light'] .boot-error { color: #c0392b; }
+[data-theme='light'] .boot-detail { color: #a33; }

@@ -20,14 +20,18 @@ import {
 import { useChatStore } from '@renderer/stores/chatStore'
 import { useLeftStore } from '@renderer/stores/leftStore'
 import { useMetricsStore } from '@renderer/stores/metricsStore'
+import { useRightStore } from '@renderer/stores/rightStore'
 import type { JarvisConnection } from '@renderer/stores/backendStore'
 
-/** 假连接门面：三个刷新动作 + 提醒已读回执均为 spy。 */
+/** 假连接门面：六个刷新动作 + 提醒已读回执均为 spy。 */
 function makeConn(): JarvisConnection {
   return {
     refreshSessions: vi.fn().mockResolvedValue(undefined),
     refreshModels: vi.fn().mockResolvedValue(undefined),
     refreshVoices: vi.fn().mockResolvedValue(undefined),
+    refreshSchedule: vi.fn().mockResolvedValue(undefined),
+    refreshCost: vi.fn().mockResolvedValue(undefined),
+    refreshState: vi.fn().mockResolvedValue(undefined),
     ackProactive: vi.fn()
   }
 }
@@ -45,6 +49,7 @@ beforeEach(() => {
     voiceState: ''
   })
   useMetricsStore.setState({ cpu: 0, memory: null, disk: null })
+  useRightStore.setState({ reminders: [], deadlines: [], latestBriefing: '', cost: null, mcp: null, logs: [] })
 })
 
 describe('dispatchServerEvent · 文本对话流', () => {
@@ -74,6 +79,12 @@ describe('dispatchServerEvent · 文本对话流', () => {
     useChatStore.getState().setBusy(true)
     dispatchServerEvent({ event: 'assistant_done', data: null }, makeConn())
     expect(useChatStore.getState().busy).toBe(false)
+  })
+
+  it('assistant_done 刷新右栏用量卡（一轮对话消耗了 token）', () => {
+    const conn = makeConn()
+    dispatchServerEvent({ event: 'assistant_done', data: null }, conn)
+    expect(conn.refreshCost).toHaveBeenCalled()
   })
 
   it('user_message 回显被跳过（防双气泡）', () => {
@@ -114,12 +125,15 @@ describe('dispatchServerEvent · 文本对话流', () => {
 })
 
 describe('dispatchServerEvent · 会话与初始化', () => {
-  it('init 触发三列表刷新', () => {
+  it('init 触发六路刷新（左栏三面板 + 右栏任务/用量/运行健康）', () => {
     const conn = makeConn()
     dispatchServerEvent({ event: 'init', data: null }, conn)
     expect(conn.refreshSessions).toHaveBeenCalled()
     expect(conn.refreshModels).toHaveBeenCalled()
     expect(conn.refreshVoices).toHaveBeenCalled()
+    expect(conn.refreshSchedule).toHaveBeenCalled()
+    expect(conn.refreshCost).toHaveBeenCalled()
+    expect(conn.refreshState).toHaveBeenCalled()
   })
 
   it('session_new 清空并提示', () => {
@@ -303,6 +317,18 @@ describe('dispatchServerEvent · 主动播报 proactive_notify', () => {
     expect(sys[0].kind === 'system' && sys[0].text).toBe(text)
     expect(notifySpy).toHaveBeenCalledWith({ title: '贾维斯主动提醒', body: text })
     expect(conn.ackProactive).not.toHaveBeenCalled()
+  })
+
+  it('briefing 原文进右栏最近简报 + 刷新任务中心', () => {
+    // 任务中心联动：简报更新 latestBriefing；提醒触发/截止日期检查后
+    // 列表有变化（fired 离列、days_left 更新），统一刷新。@author aceFelix
+    const conn = makeConn()
+    dispatchServerEvent(
+      { event: 'proactive_notify', data: { kind: 'briefing', title: '贾维斯主动提醒', text: '今日简报' } },
+      conn
+    )
+    expect(useRightStore.getState().latestBriefing).toBe('今日简报')
+    expect(conn.refreshSchedule).toHaveBeenCalled()
   })
 
   it('reminder 带 ⏰ 前缀上屏 + 弹通知 + 按 task_id 回执', () => {

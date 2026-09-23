@@ -23,12 +23,34 @@ import {
 import { useChatStore } from './chatStore'
 import { useLeftStore } from './leftStore'
 import { useMetricsStore, type MetricsPayload } from './metricsStore'
+import {
+  useRightStore,
+  type CostInfo,
+  type DeadlineItem,
+  type McpStatus,
+  type ReminderItem
+} from './rightStore'
+
+/** 消息附件载荷（与 serve/server.py 入队校验同口径）：
+ * - images：base64 图片块，后端转 ImageContent 走 vision；
+ * - files：文本文件内容，后端拼进消息正文。
+ * @author aceFelix */
+export interface SendAttachments {
+  images?: Array<{ data: string; media_type: string }>
+  files?: Array<{ name: string; content: string }>
+}
 
 /** 连接级动作集合（dispatcher 回调依赖，避免循环引用具体 store 实现）。 */
 export interface JarvisConnection {
   refreshSessions: () => Promise<void>
   refreshModels: () => Promise<void>
   refreshVoices: () => Promise<void>
+  /** 右栏任务中心刷新（schedule.list → rightStore）。 */
+  refreshSchedule: () => Promise<void>
+  /** 右栏用量卡刷新（cost.get → rightStore）。 */
+  refreshCost: () => Promise<void>
+  /** 右栏运行健康刷新（state.get 的 mcp 快照 → rightStore）。 */
+  refreshState: () => Promise<void>
   /** 提醒已读回执（proactive.ack）：fire-and-forget，失败静默。 */
   ackProactive: (taskId: string) => void
 }
@@ -74,7 +96,8 @@ export interface BackendStoreState {
   disconnect: () => void
 
   // ---- 指令动作（组件层入口） ----
-  sendMessage: (text: string) => Promise<void>
+  /** 发送消息（可带附件）：images 走 vision，files 由后端拼进正文。 */
+  sendMessage: (text: string, attachments?: SendAttachments) => Promise<void>
   /** 停止当前回复（reply.abort）：busy 由服务端 assistant_done 事件收尾。 */
   abortReply: () => Promise<void>
   newSession: () => Promise<void>
@@ -90,6 +113,9 @@ export interface BackendStoreState {
   refreshSessions: () => Promise<void>
   refreshModels: () => Promise<void>
   refreshVoices: () => Promise<void>
+  refreshSchedule: () => Promise<void>
+  refreshCost: () => Promise<void>
+  refreshState: () => Promise<void>
   fetchMetrics: () => Promise<void>
 }
 
@@ -99,6 +125,9 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     refreshSessions: () => get().refreshSessions(),
     refreshModels: () => get().refreshModels(),
     refreshVoices: () => get().refreshVoices(),
+    refreshSchedule: () => get().refreshSchedule(),
+    refreshCost: () => get().refreshCost(),
+    refreshState: () => get().refreshState(),
     ackProactive: (taskId) => {
       // 提醒已读回执：只发不等（send），失败静默——不因回执问题把错误
       // 写进聊天流（与 runCommand 的显式指令不同，这是后台自动确认）。
@@ -202,14 +231,25 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
 
     // ---- 指令动作 ----
 
-    sendMessage: async (text) => {
+    sendMessage: async (text, attachments) => {
       const trimmed = text.trim()
-      if (!trimmed) return
+      // 附件口径与 serve/server.py 入队校验一致：空 data/空 content 的条目不发
+      const images = attachments?.images?.filter((i) => i.data) ?? []
+      const files = attachments?.files?.filter((f) => f.content) ?? []
+      if (!trimmed && !images.length && !files.length) return
       const chat = useChatStore.getState()
-      chat.addUser(trimmed)
+      // 气泡缩略图：base64 → data URL（仅本地展示；WS 传原始 base64 字段）
+      chat.addUser(
+        trimmed,
+        images.length ? images.map((i) => `data:${i.media_type};base64,${i.data}`) : undefined
+      )
       chat.setBusy(true)
       set({ statusLabel: { text: '思考中...', tone: 'busy' } })
-      const result = await runCommand(Cmd.Message, { text: trimmed })
+      const result = await runCommand(Cmd.Message, {
+        text: trimmed,
+        images: images.length ? images : undefined,
+        files: files.length ? files : undefined
+      })
       if (result === null) {
         // 回执失败：撤销 busy（成功路径由 assistant_done 事件收尾）
         chat.setBusy(false)
@@ -291,6 +331,35 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     refreshVoices: async () => {
       const result = await runCommand(Cmd.VoicesList)
       if (result !== null) useLeftStore.getState().setVoices(asVoiceList(result))
+    },
+
+    refreshSchedule: async () => {
+      // 任务中心：schedule.list → reminders/deadlines 两列表（hub 未装配时
+      // 后端返回空列表，前端自然空态）。@author aceFelix
+      const result = await runCommand(Cmd.ScheduleList)
+      if (result !== null) {
+        const r = result as { reminders?: ReminderItem[]; deadlines?: DeadlineItem[] }
+        useRightStore
+          .getState()
+          .setSchedule(
+            Array.isArray(r.reminders) ? r.reminders : [],
+            Array.isArray(r.deadlines) ? r.deadlines : []
+          )
+      }
+    },
+
+    refreshCost: async () => {
+      // 用量卡：cost.get → token 累计/轮数/消息数。@author aceFelix
+      const result = await runCommand(Cmd.CostGet)
+      if (result !== null) useRightStore.getState().setCost(result as CostInfo)
+    },
+
+    refreshState: async () => {
+      // 运行健康：state.get 的 mcp 快照（null=MCP 未启用）。@author aceFelix
+      const result = await runCommand(Cmd.StateGet)
+      if (result !== null) {
+        useRightStore.getState().setMcp((result as { mcp?: McpStatus | null }).mcp ?? null)
+      }
     },
 
     fetchMetrics: async () => {

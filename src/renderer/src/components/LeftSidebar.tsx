@@ -10,6 +10,7 @@
 import { useEffect } from 'react'
 import { useBackendStore } from '../stores/backendStore'
 import { useLeftStore, type ChatMode, type LeftPanel } from '../stores/leftStore'
+import { useT } from '../i18n'
 
 /** 通用列表项（标题 + 副行 + 当前标记）。 */
 function ListItem(props: {
@@ -38,6 +39,7 @@ export default function LeftSidebar(): JSX.Element {
   const { sessions, models, voices, activePanel, mode, talkActive, voiceActive } = useLeftStore()
   const { setActivePanel, setMode } = useLeftStore()
   const backend = useBackendStore()
+  const t = useT()
 
   // 面板切换即刷新对应数据（与 workbench switchPanel 口径一致）。
   // 守卫用 wsConnected 而非 client：client 在 connect() 里一创建就非 null，
@@ -71,31 +73,31 @@ export default function LeftSidebar(): JSX.Element {
   return (
     <aside id="left-col" className="glass-col">
       <div className="col-header">
-        <span className="col-title">控制台</span>
+        <span className="col-title">{t('left.console')}</span>
       </div>
 
       {/* 模式切换 */}
       <div className="segmented">
         <button
           className={`seg-btn${mode === 'text' ? ' active' : ''}`}
-          title="文本对话"
+          title={t('left.mode.text.tip')}
           onClick={() => switchMode('text')}
         >
-          💬 文本
+          {t('left.mode.text')}
         </button>
         <button
           className={`seg-btn${mode === 'talk' ? ' active' : ''}`}
-          title="实时语音（/talk）"
+          title={t('left.mode.talk.tip')}
           onClick={() => switchMode('talk')}
         >
-          🎙️ 实时
+          {t('left.mode.talk')}
         </button>
         <button
           className={`seg-btn${mode === 'voice' ? ' active' : ''}`}
-          title="半双工语音（/voice：说话→回复→再听）"
+          title={t('left.mode.voice.tip')}
           onClick={() => switchMode('voice')}
         >
-          🎤 语音
+          {t('left.mode.voice')}
         </button>
       </div>
 
@@ -103,9 +105,9 @@ export default function LeftSidebar(): JSX.Element {
       <div className="segmented">
         {(
           [
-            ['history', '📜 历史会话'],
-            ['model', '🤖 模型'],
-            ['voice', '🎵 音色']
+            ['history', t('left.panel.history')],
+            ['model', t('left.panel.model')],
+            ['voice', t('left.panel.voice')]
           ] as Array<[LeftPanel, string]>
         ).map(([panel, label]) => (
           <button
@@ -126,13 +128,13 @@ export default function LeftSidebar(): JSX.Element {
               <ListItem
                 key={s.name}
                 title={s.name}
-                sub={`${new Date(s.updated_at * 1000).toLocaleString()} · ${s.message_count} 条消息`}
+                sub={`${new Date(s.updated_at * 1000).toLocaleString()} · ${t('left.messagesCount', { n: s.message_count })}`}
                 onClick={() => void backend.openSession(s.name)}
               />
             ))}
           </div>
           <button className="action-btn" onClick={() => void backend.newSession()}>
-            ＋ 新建会话
+            {t('left.newSession')}
           </button>
         </div>
       ) : null}
@@ -140,13 +142,13 @@ export default function LeftSidebar(): JSX.Element {
       {/* 面板二：模型 */}
       {activePanel === 'model' ? (
         <div className="panel" data-testid="panel-model">
-          <div className="panel-label">对话模型</div>
+          <div className="panel-label">{t('left.modelTitle')}</div>
           <div className="list-area">
             {models.map((m) => (
               <ListItem
                 key={m.name}
                 title={m.name}
-                sub={[m.desc || m.vendor || '', m.current ? '· 当前' : '']
+                sub={[m.desc || m.vendor || '', m.current ? `· ${t('left.current')}` : '']
                   .filter(Boolean)
                   .join(' ')}
                 current={m.current}
@@ -160,13 +162,13 @@ export default function LeftSidebar(): JSX.Element {
       {/* 面板三：音色 */}
       {activePanel === 'voice' ? (
         <div className="panel" data-testid="panel-voice">
-          <div className="panel-label">TTS 音色</div>
+          <div className="panel-label">{t('left.voiceTitle')}</div>
           <div className="list-area">
             {voices.map((v) => (
               <ListItem
                 key={v.name}
                 title={v.name}
-                sub={`${v.description ?? ''}${v.current ? ' · 当前' : ''}`}
+                sub={`${v.description ?? ''}${v.current ? ` · ${t('left.current')}` : ''}`}
                 current={v.current}
                 onClick={v.current ? undefined : () => void backend.selectVoice(v.name)}
               />
@@ -179,8 +181,8 @@ export default function LeftSidebar(): JSX.Element {
       <footer id="left-footer">
         <span className={`status-dot ${backend.statusLabel.tone === 'busy' ? 'busy' : backend.statusLabel.tone === 'err' ? 'err' : backend.statusLabel.tone === 'talk' ? 'talk' : 'idle'}`} />
         <span id="status-text">{backend.statusLabel.text}</span>
-        {talkActive ? <span className="talk-flag">🎙️ 实时中</span> : null}
-        {voiceActive ? <span className="talk-flag">🎤 语音中</span> : null}
+        {talkActive ? <span className="talk-flag">{t('left.talkActive')}</span> : null}
+        {voiceActive ? <span className="talk-flag">{t('left.voiceActive')}</span> : null}
       </footer>
     </aside>
   )

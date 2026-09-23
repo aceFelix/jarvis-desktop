@@ -52,8 +52,17 @@ export const IpcChannels = {
   /** 渲染进程 → 主进程：日志桥（写入 userData/logs/desktop.log，现场诊断用）。 */
   RendererLog: 'jarvis:renderer-log',
   /** 渲染进程 → 主进程：系统通知（主动播报弹 Windows 通知，单向 send）。 */
-  SystemNotify: 'jarvis:system-notify'
+  SystemNotify: 'jarvis:system-notify',
+  /** invoke：截取主屏缩略图（右栏快捷操作「截屏发给贾维斯」）。 */
+  CaptureScreen: 'jarvis:capture-screen'
 } as const
+
+/** 截屏结果（主进程 desktopCapturer → 渲染进程附件区）。 */
+export interface ScreenCapture {
+  /** PNG base64（随 message 指令 images 字段上送，走 vision）。 */
+  data: string
+  media_type: string
+}
 
 /** 系统通知请求体（渲染进程 → 主进程，主进程 Electron Notification 弹窗）。 */
 export interface NotifyRequest {
@@ -103,6 +112,10 @@ export const Cmd = {
   VoicesSelect: 'voices.select',
   MetricsGet: 'metrics.get',
   StateGet: 'state.get',
+  /** 右栏任务中心数据源：待触发提醒 + 活跃截止日期。 */
+  ScheduleList: 'schedule.list',
+  /** 右栏用量卡数据源：会话 token 累计 + 对话轮数 + 消息条数。 */
+  CostGet: 'cost.get',
   AnswerUser: 'answer_user',
   TalkStart: 'talk.start',
   TalkStop: 'talk.stop',

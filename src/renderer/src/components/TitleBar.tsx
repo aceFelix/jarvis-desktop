@@ -8,7 +8,10 @@
  * @author aceFelix
  */
 
+import { useT } from '../i18n'
+
 export default function TitleBar(): JSX.Element {
+  const t = useT()
   const minimize = (): void => {
     void window.jarvisDesktop?.windowControl('minimize')
   }
@@ -20,13 +23,13 @@ export default function TitleBar(): JSX.Element {
     <header id="title-bar">
       <span id="title-drag">
         <span id="title-logo">J.A.R.V.I.S</span>
-        <span id="title-sub">· 桌面工作台</span>
+        <span id="title-sub">{t('app.subtitle')}</span>
       </span>
       <div id="win-controls">
-        <button className="win-btn" title="最小化" onClick={minimize}>
+        <button className="win-btn" title={t('app.minimize')} onClick={minimize}>
           ─
         </button>
-        <button className="win-btn close" title="关闭（隐藏到托盘）" onClick={close}>
+        <button className="win-btn close" title={t('app.closeTip')} onClick={close}>
           ✕
         </button>
       </div>

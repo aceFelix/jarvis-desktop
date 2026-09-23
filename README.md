@@ -64,11 +64,45 @@ npm run dev
 | `npm run dev` | electron-vite 开发模式（热重载 + 拉起后端） |
 | `npm run build` | 打包主进程 / preload / 渲染进程到 `out/` |
 | `npm run typecheck` | tsc 类型检查（node + web 两套程序） |
-| `npm run test` | vitest 单测（122 用例：握手解析、生命周期状态机、图标解析、系统通知、WS 客户端、事件分发（含主动播报、半双工语音 `voice_*`、`assistant_done` 撤销 busy）、store（含 `toggleVoice`/`interruptVoice`/`abortReply` 指令路由）、preload 契约、React 组件（含语音模式 UI、发送/停止双态按钮）） |
+| `npm run test` | vitest 单测（150 用例：握手解析、生命周期状态机、图标解析、系统通知、WS 客户端、事件分发（含主动播报、半双工语音 `voice_*`、`assistant_done` 撤销 busy、init 六路刷新、briefing 任务中心联动）、store（含 `toggleVoice`/`interruptVoice`/`abortReply` 指令路由、`sendMessage` 附件 payload、右栏 schedule/cost/state 刷新映射、settingsStore 主题/语言持久化与 i18n 查键）、preload 契约、React 组件（含语音模式 UI、发送/停止双态按钮、📎 附件 chips 与气泡缩略图、AI 气泡复制按钮、输入栏 📸 截屏、右栏五区块与设置面板）） |
 
 ### CI
 
 push / PR 到 `main` 时 GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）自动在 Node 20/22 双版本上执行：`npm ci`（跳过 Electron 二进制下载）→ `typecheck` → `test` → `build`，不依赖 Python 后端与真实 Electron 运行时。
+
+## 消息附件（📎 / 粘贴）
+
+输入栏 📎 按钮（多选）与输入框粘贴事件支持两类附件：
+
+- **图片**（png/jpeg/webp/gif）：base64 后随 `message` 指令 `images` 字段上送，后端转
+  `ImageContent` 走 vision 链路；用户气泡显缩略图；
+- **文本文件**（.md/.txt/.py/.json 等）：读内容随 `files` 字段上送，后端拼进消息正文的
+  「附带文件」代码块（超 2 万字符截断）。
+
+上限（serve 入队校验快速失败，前端同口径提示）：单条 ≤8 张图片（base64 ≤10M 字符）、
+≤5 个文件（单内容 ≤20 万字符）；待发送附件在输入栏上方以 chips 展示、可移除；
+纯图片消息（空文本）也可发送。协议细节见 [docs/architecture.md](docs/architecture.md) 「消息附件」小节。
+
+## 右栏面板（五区块）
+
+右栏自上而下五个区块，任务/用量/健康数据经 `schedule.list` / `cost.get` / `state.get`
+指令与 `proactive_notify` 事件从 serve 侧拉取：
+
+- **设置**：主题切换（深色/浅色，`<html data-theme>` + main.css 浅色覆盖块）与界面语言
+  （中文/English，轻量 i18n 字典），localStorage 持久化、重启保持；行式布局可扩展新设置项；
+- **任务中心**：待触发提醒（⏰ + 时间 + 重复标签）与活跃截止日期（倒计时，临期标黄、
+  逾期标红），以及最近一条每日简报（折叠块）；
+- **会话与用量**：当前模型、token 累计（输入/输出/缓存）与对话轮数/消息条数，口径同
+  REPL `/cost`；
+- **系统状态**：CPU / 内存 / 磁盘三指标卡（每 2 秒推送，CPU>85% 进度条变红）；
+- **运行健康**：MCP 连接快照（成功/失败名单 + 工具数）与运行日志流（滚动 30 条）。
+
+原「快捷操作」区块已拆解：📸 截屏入口迁入输入栏（📎 旁，截图入附件区随消息走 vision）；
+📋 复制改为 AI 气泡右下角的消息级「复制」按钮（流式结束后出现）；＋新会话沿用左栏
+「新建会话」，■停止回复沿用输入栏发送/停止双态按钮。语言切换 v1 覆盖静态界面文案，
+运行时状态文本与后端事件消息保持中文。
+
+架构与刷新时机见 [docs/architecture.md](docs/architecture.md) 「右栏五区块」小节。
 
 ## 目录结构
 
@@ -85,7 +119,8 @@ jarvis-desktop/
 │   ├── preload/       # contextBridge 最小暴露面（token 不落盘）
 │   ├── renderer/src/  # React 渲染进程
 │   │   ├── api/        # ws.ts（WS 客户端）/ dispatcher.ts（事件→store）
-│   │   ├── stores/     # Zustand：chat/left/metrics/backend/reactorRef
+│   │   ├── stores/     # Zustand：chat/left/metrics/backend/right/attach/settings/reactorRef
+│   │   ├── i18n.ts     # 轻量中英文案字典（useT/translate，静态界面文案双语）
 │   │   ├── components/ # 三栏组件 + 自绘标题栏 + 反应炉 canvas
 │   │   ├── reactor.ts  # 反应炉动画（移植自 workbench reactor.js）
 │   │   └── styles/     # main.css（深蓝玻璃拟态视觉语言）

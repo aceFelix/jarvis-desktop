@@ -15,7 +15,7 @@
 import { create } from 'zustand'
 
 export type MessageItem =
-  | { kind: 'user'; id: number; text: string }
+  | { kind: 'user'; id: number; text: string; images?: string[] }
   | { kind: 'ai'; id: number; text: string; thinking: string; streaming: boolean }
   | {
       kind: 'tool'
@@ -39,7 +39,8 @@ export interface ChatState {
   /** 状态栏：busy（思考中）/ idle。 */
   busy: boolean
 
-  addUser: (text: string) => void
+  /** 用户气泡：images 为缩略图 data URL（仅展示，模型侧走 WS 的 base64 字段）。 */
+  addUser: (text: string, images?: string[]) => void
   appendAssistantText: (delta: string) => void
   appendThinking: (delta: string) => void
   finishAssistant: () => void
@@ -68,8 +69,13 @@ export const useChatStore = create<ChatState>((set) => ({
   askPrompt: null,
   busy: false,
 
-  addUser: (text) =>
-    set((s) => ({ messages: [...s.messages, { kind: 'user', id: genId(), text }] })),
+  addUser: (text, images) =>
+    set((s) => ({
+      messages: [
+        ...s.messages,
+        { kind: 'user', id: genId(), text, images: images?.length ? images : undefined }
+      ]
+    })),
 
   appendAssistantText: (delta) =>
     set((s) => {

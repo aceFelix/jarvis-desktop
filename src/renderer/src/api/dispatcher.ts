@@ -12,6 +12,7 @@ import type { ProactiveNotifyPayload, VoiceState } from '../../../shared/contrac
 import { useChatStore } from '../stores/chatStore'
 import { useLeftStore, type ModelItem, type SessionItem, type VoiceItem } from '../stores/leftStore'
 import { useMetricsStore, type MetricsPayload } from '../stores/metricsStore'
+import { useRightStore } from '../stores/rightStore'
 import { getReactor } from '../stores/reactorRef'
 import type { ReactorStatus } from '../reactor'
 import type { JarvisConnection } from '../stores/backendStore'
@@ -41,6 +42,11 @@ export interface StatusLabel {
   tone: 'idle' | 'busy' | 'talk' | 'err'
 }
 
+/** 运行健康日志流入口：右栏滚动展示最近事件（带时间戳由 store 添加）。 */
+function logLine(text: string): void {
+  useRightStore.getState().pushLog(text)
+}
+
 /**
  * 分发一条服务端事件。
  *
@@ -58,11 +64,14 @@ export function dispatchServerEvent(
   const payload = msg.data
 
   switch (msg.event) {
-    // ---- 初始化：刷新左栏三面板数据 ----
+    // ---- 初始化：刷新左栏三面板 + 右栏任务中心/用量/运行健康 ----
     case 'init':
       void conn.refreshSessions()
       void conn.refreshModels()
       void conn.refreshVoices()
+      void conn.refreshSchedule()
+      void conn.refreshCost()
+      void conn.refreshState()
       break
 
     // ---- 文本对话流 ----
@@ -82,10 +91,14 @@ export function dispatchServerEvent(
       chat.setBusy(false)
       onStatus?.({ text: '就绪', tone: 'idle' })
       void conn.refreshSessions()
+      // 一轮对话消耗了 token：刷新右栏用量卡。@author aceFelix
+      void conn.refreshCost()
+      logLine('回复完成')
       break
     case 'tool_use': {
       const p = payload as { name?: string; id?: string; input?: unknown }
       chat.addToolCard(p?.name ?? '工具', p?.id ?? '', JSON.stringify(p?.input ?? {}, null, 2))
+      logLine(`工具调用：${p?.name ?? '工具'}`)
       break
     }
     case 'tool_result': {
@@ -95,12 +108,15 @@ export function dispatchServerEvent(
     }
     case 'info':
       chat.addSystem(String(payload ?? ''))
+      logLine(String(payload ?? ''))
       break
     case 'warn':
       chat.addSystem(`⚠ ${payload ?? ''}`, 'warn')
+      logLine(`⚠ ${payload ?? ''}`)
       break
     case 'error':
       chat.addSystem(`✗ ${payload ?? ''}`, 'error')
+      logLine(`✗ ${payload ?? ''}`)
       onStatus?.({ text: '出错', tone: 'err' })
       break
     case 'ask_user':
@@ -250,6 +266,13 @@ export function dispatchServerEvent(
       if (kind === 'reminder' && p.task_id) {
         conn.ackProactive(String(p.task_id))
       }
+      // 任务中心联动：简报原文上右栏；提醒触发/截止日期检查后列表有变化
+      //（ fired 任务离列、days_left 更新），统一刷新。@author aceFelix
+      if (kind === 'briefing') {
+        useRightStore.getState().setBriefing(text)
+      }
+      void conn.refreshSchedule()
+      logLine(`主动播报（${kind}）：${title}`)
       break
     }
 

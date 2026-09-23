@@ -19,6 +19,9 @@ import { useChatStore } from '@renderer/stores/chatStore'
 import { useLeftStore } from '@renderer/stores/leftStore'
 import { useMetricsStore } from '@renderer/stores/metricsStore'
 import { useBackendStore } from '@renderer/stores/backendStore'
+import { useRightStore } from '@renderer/stores/rightStore'
+import { useAttachStore } from '@renderer/stores/attachStore'
+import { useSettingsStore } from '@renderer/stores/settingsStore'
 import { Cmd } from '../../src/shared/contracts'
 import type { JarvisWsClient } from '@renderer/api/ws'
 
@@ -35,6 +38,11 @@ beforeEach(() => {
     voiceState: ''
   })
   useMetricsStore.setState({ cpu: 0, memory: null, disk: null })
+  useRightStore.setState({ reminders: [], deadlines: [], latestBriefing: '', cost: null, mcp: null, logs: [] })
+  useAttachStore.setState({ pending: [] })
+  // 设置面板改动会持久化到 localStorage：每个用例复位默认，避免语言/主题串场
+  useSettingsStore.getState().setTheme('dark')
+  useSettingsStore.getState().setLanguage('zh')
 })
 
 afterEach(() => {
@@ -61,6 +69,42 @@ describe('ChatArea', () => {
     expect(screen.getByTestId('msg-ai').querySelector('.cursor-blink')).toBeNull()
   })
 
+  it('AI 气泡流式结束后渲染复制按钮，点击写入剪贴板并变「已复制」', async () => {
+    // 消息级复制（替代原右栏「复制回复」）：气泡右下操作行。@author aceFelix
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    useChatStore.getState().appendAssistantText('回复内容')
+    useChatStore.getState().finishAssistant()
+    render(<ChatArea />)
+    const btn = screen.getByTestId('btn-copy-msg')
+    expect(btn).toHaveTextContent('复制')
+    fireEvent.click(btn)
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith('回复内容'))
+    await vi.waitFor(() => expect(btn).toHaveTextContent('已复制'))
+  })
+
+  it('流式中的 AI 气泡不渲染复制按钮', () => {
+    useChatStore.getState().appendAssistantText('回复中')
+    render(<ChatArea />)
+    expect(screen.queryByTestId('btn-copy-msg')).toBeNull()
+  })
+
+  it('📸 截屏按钮：主进程返回 base64 后入附件区 chips', async () => {
+    // 截屏入口自右栏快捷操作迁入输入栏：captureScreen → attachStore.addImage
+    // → chips 渲染，随下一条消息走 vision 上送。@author aceFelix
+    ;(window as unknown as { jarvisDesktop?: unknown }).jarvisDesktop = {
+      captureScreen: vi.fn().mockResolvedValue({ data: 'QUJD', media_type: 'image/png' })
+    }
+    useBackendStore.setState({ client: null, wsConnected: true })
+    render(<ChatArea />)
+    fireEvent.click(screen.getByTestId('btn-capture'))
+    await vi.waitFor(() => expect(screen.getByTestId('attach-chips')).toBeInTheDocument())
+    const pending = useAttachStore.getState().pending
+    expect(pending).toHaveLength(1)
+    expect(pending[0]).toMatchObject({ kind: 'image', b64: 'QUJD', mediaType: 'image/png' })
+    useBackendStore.setState({ wsConnected: false })
+  })
+
   it('渲染工具卡片与系统提示', () => {
     useChatStore.getState().addToolCard('read_file', 'c1', '{"p":1}')
     useChatStore.getState().addSystem('已就绪')
@@ -76,9 +120,11 @@ describe('ChatArea', () => {
     expect(screen.getByText('是否继续？')).toBeInTheDocument()
   })
 
-  it('未连接时发送按钮禁用', () => {
+  it('未连接时发送/附件/截屏按钮禁用', () => {
     render(<ChatArea />)
     expect(screen.getByTestId('btn-send')).toBeDisabled()
+    expect(screen.getByTestId('btn-attach')).toBeDisabled()
+    expect(screen.getByTestId('btn-capture')).toBeDisabled()
   })
 
   it('busy 时发送按钮切换为“■ 停止”，点击发 reply.abort', async () => {
@@ -114,6 +160,37 @@ describe('ChatArea', () => {
     fireEvent.keyDown(ta, { key: 'Enter' })
     expect(sendCommand).not.toHaveBeenCalled()
     useBackendStore.setState({ client: null, wsConnected: false })
+  })
+
+  it('📎 选文本文件 → chips 显示 → 发送 payload 带 files', async () => {
+    // 附件链路组件层验证：file input 变更 → 待发送 chips → 随 message 上送。
+    // @author aceFelix
+    const sendCommand = vi.fn().mockResolvedValue({ ok: true, result: null })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: true
+    })
+    render(<ChatArea />)
+    const input = screen.getByTestId('attach-input') as HTMLInputElement
+    fireEvent.change(input, {
+      target: { files: [new File(['# 你好'], 'note.md', { type: 'text/markdown' })] }
+    })
+    await vi.waitFor(() => expect(screen.getByTestId('attach-chips')).toHaveTextContent('note.md'))
+    const ta = screen.getByPlaceholderText(/和贾维斯说点什么/) as HTMLTextAreaElement
+    fireEvent.change(ta, { target: { value: '看文件' } })
+    fireEvent.click(screen.getByTestId('btn-send'))
+    await vi.waitFor(() => expect(sendCommand).toHaveBeenCalled())
+    const [, payload] = sendCommand.mock.calls[0]
+    expect(payload.files).toEqual([{ name: 'note.md', content: '# 你好' }])
+    expect(payload.images).toBeUndefined()
+    useBackendStore.setState({ client: null, wsConnected: false })
+  })
+
+  it('用户气泡渲染附件图片缩略图', () => {
+    useChatStore.getState().addUser('看图', ['data:image/png;base64,QUJD'])
+    render(<ChatArea />)
+    const thumbs = screen.getByTestId('msg-thumbs')
+    expect(thumbs.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,QUJD')
   })
 
   it('输入框可编辑（受控）', () => {
@@ -202,6 +279,103 @@ describe('RightSidebar 指标', () => {
     expect(screen.getByText('90%')).toBeInTheDocument()
     expect(screen.getByText('6 / 10 GB')).toBeInTheDocument()
     expect(document.querySelector('.gauge-fill.hot')).not.toBeNull()
+  })
+})
+
+describe('RightSidebar 设置面板', () => {
+  // 设置区块（替代原快捷操作）：主题/语言分段控件，行式布局可扩展。@author aceFelix
+  it('渲染主题与语言分段控件（默认深色/中文高亮）', () => {
+    render(<RightSidebar />)
+    expect(screen.getByTestId('settings-panel')).toBeInTheDocument()
+    expect(screen.getByTestId('btn-theme-dark').className).toContain('active')
+    expect(screen.getByTestId('btn-lang-zh').className).toContain('active')
+  })
+
+  it('点击浅色：settingsStore 切 light 且 <html data-theme> 生效', () => {
+    render(<RightSidebar />)
+    fireEvent.click(screen.getByTestId('btn-theme-light'))
+    expect(useSettingsStore.getState().theme).toBe('light')
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(screen.getByTestId('btn-theme-light').className).toContain('active')
+  })
+
+  it('点击 English：静态界面文案切换为英文', () => {
+    render(<RightSidebar />)
+    fireEvent.click(screen.getByTestId('btn-lang-en'))
+    expect(useSettingsStore.getState().language).toBe('en')
+    expect(screen.getByText('Task Center')).toBeInTheDocument()
+    expect(screen.getByText('Settings')).toBeInTheDocument()
+  })
+})
+
+describe('RightSidebar 任务中心与用量', () => {
+  it('渲染提醒与截止日期（逾期标红文案）', () => {
+    useRightStore.setState({
+      reminders: [{ id: 't1', content: '开会', trigger_at: '2026-09-23T09:00:00', repeat: 'daily' }],
+      deadlines: [
+        { id: 'd1', title: 'Q3 交付', due_date: '2026-09-20', days_left: -2, status: 'overdue' }
+      ]
+    })
+    render(<RightSidebar />)
+    const center = screen.getByTestId('task-center')
+    expect(center).toHaveTextContent('⏰ 开会')
+    expect(center).toHaveTextContent('每日')
+    expect(center).toHaveTextContent('已逾期 2 天')
+    expect(center).toHaveTextContent('📋 Q3 交付')
+  })
+
+  it('无任务时空态提示；有简报时渲染折叠块', () => {
+    render(<RightSidebar />)
+    expect(screen.getByTestId('task-center')).toHaveTextContent('暂无待办提醒')
+    cleanup()
+    useRightStore.setState({ latestBriefing: '早上好，先生' })
+    render(<RightSidebar />)
+    expect(screen.getByTestId('latest-briefing')).toHaveTextContent('早上好，先生')
+  })
+
+  it('用量卡渲染 token 统计（千分位分组）', () => {
+    useRightStore.setState({
+      cost: {
+        provider: 'deepseek',
+        model: 'deepseek-chat',
+        input_tokens: 12345,
+        output_tokens: 678,
+        cache_read_tokens: 50,
+        cache_creation_tokens: 10,
+        dialogs: 3,
+        messages: 8
+      }
+    })
+    render(<RightSidebar />)
+    const card = screen.getByTestId('usage-card')
+    expect(card).toHaveTextContent('deepseek-chat')
+    expect(card).toHaveTextContent('12,345')
+    expect(card).toHaveTextContent('3 轮 / 8 条')
+  })
+})
+
+describe('RightSidebar 运行健康', () => {
+  it('MCP 未启用时提示；有快照时显示连接/工具数', () => {
+    render(<RightSidebar />)
+    expect(screen.getByTestId('mcp-status')).toHaveTextContent('MCP 未启用')
+    cleanup()
+    useRightStore.setState({ mcp: { connected: ['amap'], failed: ['x'], tools: 5 } })
+    render(<RightSidebar />)
+    const status = screen.getByTestId('mcp-status')
+    expect(status).toHaveTextContent('MCP 1 连 / 1 败 · 5 工具')
+    expect(status).toHaveTextContent('失败：x')
+  })
+
+  it('日志流渲染最近事件（最新在前）', () => {
+    useRightStore.getState().pushLog('第一条')
+    useRightStore.getState().pushLog('第二条')
+    render(<RightSidebar />)
+    const feed = screen.getByTestId('log-feed')
+    const lines = feed.querySelectorAll('.log-line')
+    expect(lines).toHaveLength(2)
+    // 渲染倒序：最新一条在最前
+    expect(lines[0]).toHaveTextContent('第二条')
+    expect(lines[1]).toHaveTextContent('第一条')
   })
 })
 

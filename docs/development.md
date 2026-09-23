@@ -61,7 +61,7 @@ python scripts/gen_icon.py
 
 ## 4. 测试
 
-vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **122 用例**：
+vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **150 用例**：
 
 | 测试文件 | 覆盖 |
 |---|---|
@@ -70,10 +70,11 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 | `test/main/notify.test.ts` | `showSystemNotification`（主动播报系统通知）：isSupported 弹窗、title 空回退 J.A.R.V.I.S、title+body 全空不弹、构造异常吞掉、窗口未聚焦 flashFrame / 已聚焦不闪 / 无窗口降级 |
 | `test/preload/index.test.ts` | preload 暴露面契约：`jarvisDesktop` 键、notify 通道存在、notify 走 SystemNotify 通道原样 send、通道名稳定契约、既有能力（log/windowControl/onBackendStatus）未被挤掉 |
 | `test/renderer/ws.test.ts` | `JarvisWsClient`：URL 构造与 token 编码、handleRaw 事件分发、sendCommand 回执兑现、同类型 FIFO 匹配、send 只发不等、断线拒绝 pending + 退避重连、close 不重连 |
-| `test/renderer/chatStore.test.ts` | 消息流 store 全部 action：流式增量、thinking/text 分累、finishAssistant、工具卡建卡与按 id 回填、乱序补卡、ask_user、replayHistory、clear |
-| `test/renderer/dispatcher.test.ts` | `dispatchServerEvent` 全事件路由 → chat/left/metrics store 与状态栏回调（含 `assistant_done` 撤销 busy，驱动发送/停止双态按钮恢复）；列表类型守卫；`proactive_notify` 主动播报（briefing/reminder/deadline 上屏、reminder 带 task_id 回 ack、系统通知调用、window 缺失降级）；半双工语音 `voice_*` 事件（started/stopped/state 迁移/user_transcript/ai_text_delta→ai_text 全量替换、talk_started 权威复位 talk 模式） |
-| `test/renderer/components.test.tsx` | React 组件（@testing-library/react）：ChatArea 气泡流式渲染 + 光标 + 工具卡 + ask_user + 发送禁用 + 发送/停止双态按钮（busy 时变“■ 停止”、点击发 `reply.abort`、busy 中 Enter 不叠发）+ 语音状态条（voiceActive 显示阶段文案 + 打断/退出按钮）；LeftSidebar 面板切换 + 列表渲染 + 模式高亮（文本/实时/语音三按钮）+ 语音中 footer 标记；RightSidebar 指标；TitleBar 窗口控制 IPC |
-| `test/renderer/backendStore.test.ts` | 半双工语音指令路由：`toggleVoice`（未激活→置 voice 模式 + `voice.start`；已激活→`voice.stop`）、`interruptVoice`（`voice.interrupt`）；停止回复：`abortReply`（发 `reply.abort`、状态栏“正在停止...”、不改 busy）；未连接（client 为 null）降级不抛异常 |
+| `test/renderer/chatStore.test.ts` | 消息流 store 全部 action：流式增量、thinking/text 分累、finishAssistant、工具卡建卡与按 id 回填、乱序补卡、ask_user、replayHistory、clear、addUser 缩略图 images 字段 |
+| `test/renderer/dispatcher.test.ts` | `dispatchServerEvent` 全事件路由 → chat/left/metrics/right store 与状态栏回调（含 `assistant_done` 撤销 busy + 刷 `cost.get`，init 六路刷新右栏三指令）；列表类型守卫；`proactive_notify` 主动播报（briefing/reminder/deadline 上屏、reminder 带 task_id 回 ack、系统通知调用、window 缺失降级、briefing 进右栏最近简报 + 刷 `schedule.list`）；半双工语音 `voice_*` 事件（started/stopped/state 迁移/user_transcript/ai_text_delta→ai_text 全量替换、talk_started 权威复位 talk 模式） |
+| `test/renderer/components.test.tsx` | React 组件（@testing-library/react）：ChatArea 气泡流式渲染 + 光标 + 工具卡 + ask_user + 发送/附件/截屏禁用 + 发送/停止双态按钮（busy 时变“■ 停止”、点击发 `reply.abort`、busy 中 Enter 不叠发）+ 📎 附件链路（file input 变更 → chips → 发送 payload 带 files）+ 用户气泡缩略图 + AI 气泡复制按钮（流式结束后出现、写剪贴板变「已复制」）+ 📸 截屏入附件 chips + 语音状态条（voiceActive 显示阶段文案 + 打断/退出按钮）；LeftSidebar 面板切换 + 列表渲染 + 模式高亮（文本/实时/语音三按钮）+ 语音中 footer 标记；RightSidebar 指标 + 设置面板（主题/语言分段控件、切浅色写 `<html data-theme>`、切英文文案联动）+ 任务中心（提醒/截止日期/简报折叠块）+ 用量卡 + 运行健康（MCP 快照、日志流倒序）；TitleBar 窗口控制 IPC |
+| `test/renderer/settingsStore.test.ts` | settingsStore（主题/语言默认值、setTheme 写 `<html data-theme>` + localStorage 持久化、setLanguage 持久化并驱动 translate）+ i18n 查键（模板插值、缺参留占位、缺键回退键名/中文） |
+| `test/renderer/backendStore.test.ts` | 半双工语音指令路由：`toggleVoice`（未激活→置 voice 模式 + `voice.start`；已激活→`voice.stop`）、`interruptVoice`（`voice.interrupt`）；停止回复：`abortReply`（发 `reply.abort`、状态栏“正在停止...”、不改 busy）；sendMessage 附件（payload 带 images/files、气泡缩略图 data URL、纯图片可发、全空不发）；右栏刷新动作（`refreshSchedule`/`refreshCost`/`refreshState` 发 `schedule.list`/`cost.get`/`state.get` 并映射进 rightStore）；未连接（client 为 null）降级不抛异常 |
 
 > 组件测试不渲染 `App` / `ReactorCanvas`（会挂载 canvas 动画，jsdom 无 2D 上下文），逐个渲染纯展示组件；后端 client 默认 null，组件不会真正发起 WS 连接。
 
@@ -91,11 +92,16 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 - [ ] **启动**：`npm run dev` 弹出无边框深蓝窗口，任务栏/托盘图标为 J.A.R.V.I.S 反应炉图案。
 - [ ] **握手**：启动遮罩短暂显示「正在拉起 jarvis 后端...」后消失（说明 stdout 握手 JSON 解析成功、WS 已连）；`desktop.log` 有「后端就绪: ws_port=... pid=...」。
 - [ ] **发消息**：输入框敲字 → Enter 发送 → 用户气泡立即上屏 → AI 气泡流式增量渲染（带闪烁光标）→ 结束后光标消失。
+- [ ] **消息附件**：📎 选图片 → 输入栏上方出缩略图 chip（可 ✕ 移除）→ 发送后用户气泡带缩略图 → 模型能描述图片内容（vision 生效）；截图 Ctrl+V 直接入 chips；📎 选 .md 文件 → chip 显文件名 → 发送后模型能引用文件内容；历史会话重开后图片以「[图片×N]」标记展示。
 - [ ] **停止回复**：发送后按钮变“■ 停止”→ 回复进行中点击 → 流式中断、系统提示“已停止回复”、按钮恢复“发送”且可继续发新消息；回复中 Enter 不叠发。
 - [ ] **工具卡片**：触发带工具的提问 → 中栏出现可折叠工具卡片（`…` → `✓`/`✗`），展开见入参与输出。
 - [ ] **切模型**：左栏切到「模型」面板 → 列表可滚动 → 点非当前模型 → 提示「模型已切换为 X（下次对话生效）」→ 当前标记移动。
 - [ ] **切音色 / 历史会话**：音色面板同上；历史面板点会话 → 回放历史消息 + 「已恢复会话「X」」。
 - [ ] **右栏指标**：CPU/内存/磁盘每 ~2 秒刷新，CPU>85% 进度条变红。
+- [ ] **右栏设置面板**：点「浅色」→ 界面立即换浅色主题（深色/浅色分段高亮跟随）→ 重启 `npm run dev` 仍保持；点「English」→ 栏标题/按钮/空态等静态文案切英文（状态栏与事件消息仍中文），重启保持。
+- [ ] **复制与截屏**：AI 回复结束后气泡右下出现「📋 复制」→ 点击剪贴板可取（按钮短暂变“✓已复制”）；点输入栏 📸 → 附件 chips 出现截图缩略图 → 发送后模型能描述截图内容。
+- [ ] **右栏任务中心**：对话「10 分钟后提醒我喝水」→ 提醒出现在任务中心列表（时间升序）；到点触发后条目消失、⏰ 气泡上屏；对话设截止日期后可见倒计时（临期黄/逾期红）；每日简报触发后「最近简报」折叠块可展开。
+- [ ] **右栏用量与健康**：发几轮对话后用量卡 token/轮数增长（口径同 REPL `/cost`）；运行健康显示 MCP 连接数与工具数（未启用显示“MCP 未启用”）；日志流随对话/工具调用滚动追加。
 - [ ] **实时语音**（如后端支持）：切「实时」模式 → 反应炉进入聆听/说话律动 → 状态栏文案随 `status` 事件变化。
 - [ ] **半双工语音**（如后端配好 STT/TTS）：切「🎤 语音」模式 → 中栏出现语音状态条「聆听中...」 → 说话自动识别上屏用户气泡 → AI 回复流式上屏 + 本机扬声器 TTS 播报 → 自动回聆听（连续循环）；播报中点「✋ 打断」或直接开口 → 立即停播回聆听（双通道）；点「⏹ 退出语音」或说退下词 → 回文本模式；语音中切「实时」→ 自动停语音（互斥）。
 - [ ] **托盘**：点关闭按钮 → 窗口隐藏到托盘（进程不退）；托盘菜单「显示」→ 窗口恢复；二次运行 `npm run dev` → 聚焦已有窗口（单实例锁）。

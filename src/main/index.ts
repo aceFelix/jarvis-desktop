@@ -12,7 +12,7 @@
  * @author aceFelix
  */
 
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import {
   createBackendManager,
@@ -23,7 +23,7 @@ import { initLogging, log, logError } from './logging'
 import { resolveIconPath } from './appIcon'
 import { showSystemNotification } from './notify'
 import { createTray, destroyTray } from './tray'
-import { IpcChannels, type NotifyRequest, type WindowAction } from '../shared/contracts'
+import { IpcChannels, type NotifyRequest, type ScreenCapture, type WindowAction } from '../shared/contracts'
 
 let mainWindow: BrowserWindow | null = null
 let backend: BackendManager | null = null
@@ -122,6 +122,18 @@ function registerIpc(): void {
   // @author aceFelix
   ipcMain.on(IpcChannels.SystemNotify, (_event, req: NotifyRequest) => {
     showSystemNotification(req, () => mainWindow)
+  })
+  // 截屏桥：右栏「截屏发给贾维斯」——desktopCapturer 取主屏缩略图
+  //（1280×720 足够 vision 识别且控制 base64 体积），无可用屏源时返回 null。
+  // @author aceFelix
+  ipcMain.handle(IpcChannels.CaptureScreen, async (): Promise<ScreenCapture | null> => {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1280, height: 720 }
+    })
+    const primary = sources[0]
+    if (!primary || primary.thumbnail.isEmpty()) return null
+    return { data: primary.thumbnail.toPNG().toString('base64'), media_type: 'image/png' }
   })
 }
 

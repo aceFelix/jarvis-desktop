@@ -15,28 +15,27 @@ import LeftSidebar from './components/LeftSidebar'
 import ChatArea from './components/ChatArea'
 import RightSidebar from './components/RightSidebar'
 import { useBackendStore } from './stores/backendStore'
+import { useT } from './i18n'
 
 /** 后端未就绪时的全屏遮罩（启动进度 / 错误诊断）。 */
 function BootOverlay(): JSX.Element {
   const state = useBackendStore((s) => s.state)
   const error = useBackendStore((s) => s.error)
+  const t = useT()
   return (
     <div id="boot-overlay" data-testid="boot-overlay">
       <div className="boot-card">
         <div className="boot-title">J.A.R.V.I.S</div>
         {state === 'error' || state === 'exited' ? (
           <>
-            <div className="boot-error">后端启动失败</div>
-            <pre className="boot-detail">{error || '后端进程已退出'}</pre>
-            <div className="boot-hint">
-              请检查 Python 环境与 jarvis 仓库路径（JARVIS_PYTHON / JARVIS_REPO），
-              详见日志 userData/logs/desktop.log
-            </div>
+            <div className="boot-error">{t('boot.error')}</div>
+            <pre className="boot-detail">{error || t('boot.exited')}</pre>
+            <div className="boot-hint">{t('boot.errorHint')}</div>
           </>
         ) : (
           <>
             <div className="boot-spinner" />
-            <div className="boot-hint">正在拉起 jarvis 后端（python -m agent.serve）...</div>
+            <div className="boot-hint">{t('boot.loading')}</div>
           </>
         )}
       </div>

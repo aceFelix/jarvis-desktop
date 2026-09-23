@@ -30,6 +30,14 @@ describe('chatStore', () => {
     expect(msgs[0]).toMatchObject({ kind: 'user', text: '你好' })
   })
 
+  it('addUser 带缩略图：images 字段存在；无附件为 undefined', () => {
+    useChatStore.getState().addUser('看图', ['data:image/png;base64,QUJD'])
+    useChatStore.getState().addUser('纯文本')
+    const [withImg, plain] = pick('user')
+    expect(withImg.images).toEqual(['data:image/png;base64,QUJD'])
+    expect(plain.images).toBeUndefined()
+  })
+
   it('流式增量累加到同一 AI 气泡', () => {
     const s = useChatStore.getState()
     s.appendAssistantText('你好')
