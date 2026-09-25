@@ -29,6 +29,44 @@ interface Ripple {
   delay: number
 }
 
+/** 状态配色表（深色蓝系 / 复古绿系）。 */
+type Palette = Record<ReactorStatus, string>
+
+/** 辉光精灵径向渐变的三档色标（0 档恒为白核，此处为 0.25 / 0.6 / 1 档）。 */
+interface SpriteStops {
+  mid: string
+  outer: string
+  outerClear: string
+}
+
+const PALETTE_BLUE: Palette = {
+  standby: '#5bc8ff',
+  listening: '#00f0ff',
+  speaking: '#8fe3ff',
+  error: '#ff5a5a',
+  connecting: '#5bc8ff'
+}
+
+const PALETTE_GREEN: Palette = {
+  standby: '#33ff66',
+  listening: '#66ff99',
+  speaking: '#8fffb0',
+  error: '#ff5555',
+  connecting: '#33ff66'
+}
+
+const SPRITE_BLUE: SpriteStops = {
+  mid: 'rgba(143,227,255,0.55)',
+  outer: 'rgba(91,200,255,0.18)',
+  outerClear: 'rgba(91,200,255,0)'
+}
+
+const SPRITE_GREEN: SpriteStops = {
+  mid: 'rgba(102,255,153,0.55)',
+  outer: 'rgba(51,255,102,0.18)',
+  outerClear: 'rgba(51,255,102,0)'
+}
+
 export class ArcReactor {
   private ctx: CanvasRenderingContext2D
   private dpr = 1
@@ -44,6 +82,10 @@ export class ArcReactor {
   private energy = 0.35
   private time = 0
   private rippleTimer = 0
+  /** 复古模式：低分辨率绘制（renderScale 放大即像素颗粒）+ 绿系配色。 */
+  private retro = false
+  /** backing store 缩放分母：retro=4（1/4 分辨率绘制），其余=1。 */
+  private renderScale = 1
 
   private width = 0
   private height = 0
@@ -55,13 +97,8 @@ export class ArcReactor {
   private ripples: Ripple[] = []
   private sprites: HTMLCanvasElement[] = []
 
-  private readonly colors: Record<ReactorStatus, string> = {
-    standby: '#5bc8ff',
-    listening: '#00f0ff',
-    speaking: '#8fe3ff',
-    error: '#ff5a5a',
-    connecting: '#5bc8ff'
-  }
+  private colors: Palette = PALETTE_BLUE
+  private spriteStops: SpriteStops = SPRITE_BLUE
   private readonly coilCount = 10
   private hasConic: boolean
 
@@ -88,11 +125,14 @@ export class ArcReactor {
   private resize(): void {
     this.width = window.innerWidth
     this.height = window.innerHeight
-    this.canvas.width = this.width * this.dpr
-    this.canvas.height = this.height * this.dpr
+    // retro 下 backing store 缩到 1/renderScale，CSS 尺寸不变由浏览器放大
+    // （配合 theme-retro.css 的 image-rendering: pixelated 得到像素颗粒）。
+    const scale = this.dpr / this.renderScale
+    this.canvas.width = Math.max(1, Math.round(this.width * scale))
+    this.canvas.height = Math.max(1, Math.round(this.height * scale))
     this.canvas.style.width = `${this.width}px`
     this.canvas.style.height = `${this.height}px`
-    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
+    this.ctx.setTransform(scale, 0, 0, scale, 0, 0)
     this.cx = this.width / 2
     this.cy = this.height / 2
     this.baseRadius = Math.min(this.width, this.height) * 0.3
@@ -110,9 +150,9 @@ export class ArcReactor {
       const g = c.getContext('2d')!
       const grad = g.createRadialGradient(size, size, 0, size, size, size)
       grad.addColorStop(0, 'rgba(255,255,255,0.95)')
-      grad.addColorStop(0.25, 'rgba(143,227,255,0.55)')
-      grad.addColorStop(0.6, 'rgba(91,200,255,0.18)')
-      grad.addColorStop(1, 'rgba(91,200,255,0)')
+      grad.addColorStop(0.25, this.spriteStops.mid)
+      grad.addColorStop(0.6, this.spriteStops.outer)
+      grad.addColorStop(1, this.spriteStops.outerClear)
       g.fillStyle = grad
       g.fillRect(0, 0, size * 2, size * 2)
       return c
@@ -172,6 +212,19 @@ export class ArcReactor {
     for (let i = 0; i < count; i++) {
       this.ripples.push({ radius: this.baseRadius * 0.22, alpha: 0.55, delay: i * 9 })
     }
+  }
+
+  /**
+   * 切换复古模式：换绿系配色表 + 1/4 分辨率绘制 + 重建辉光精灵。
+   * resize() 依 renderScale 重算 backing store 并连带重建精灵。
+   */
+  setRetro(on: boolean): void {
+    if (this.retro === on) return
+    this.retro = on
+    this.colors = on ? PALETTE_GREEN : PALETTE_BLUE
+    this.spriteStops = on ? SPRITE_GREEN : SPRITE_BLUE
+    this.renderScale = on ? 4 : 1
+    this.resize()
   }
 
   // ================= 绘制 =================

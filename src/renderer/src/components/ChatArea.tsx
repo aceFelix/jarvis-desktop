@@ -18,6 +18,7 @@ import { useLeftStore } from '../stores/leftStore'
 import { useAttachStore } from '../stores/attachStore'
 import { voiceStatusLabels } from '../api/dispatcher'
 import { useT } from '../i18n'
+import { useGlyphs } from '../glyphs'
 
 // 📎 可选类型：图片走 vision；其余按文本文件读内容拼进消息
 // @author aceFelix
@@ -28,6 +29,7 @@ const ATTACH_ACCEPT =
 function CopyRow({ text }: { text: string }): JSX.Element {
   const [copied, setCopied] = useState(false)
   const t = useT()
+  const g = useGlyphs()
 
   const doCopy = async (): Promise<void> => {
     try {
@@ -47,7 +49,7 @@ function CopyRow({ text }: { text: string }): JSX.Element {
         title={t('chat.copyTip')}
         onClick={() => void doCopy()}
       >
-        {copied ? t('chat.copied') : t('chat.copy')}
+        {copied ? t('chat.copied') : `${g.copy} ${t('chat.copy')}`}
       </button>
     </div>
   )
@@ -182,6 +184,7 @@ export default function ChatArea(): JSX.Element {
   }
 
   const t = useT()
+  const g = useGlyphs()
 
   /** 截屏 → 附件区（主进程 desktopCapturer 抓主屏缩略图，复用附件 vision 链路）。 */
   const doCapture = async (): Promise<void> => {
@@ -239,7 +242,7 @@ export default function ChatArea(): JSX.Element {
             onClick={() => void interruptVoice()}
             disabled={!wsConnected}
           >
-            {t('chat.interrupt')}
+            {g.interrupt} {t('chat.interrupt')}
           </button>
           <button
             className="action-btn"
@@ -261,7 +264,7 @@ export default function ChatArea(): JSX.Element {
                 <img src={p.dataUrl} alt={p.name} title={p.name} />
               ) : (
                 <span className="chip-name" title={p.name}>
-                  📄 {p.name}
+                  {g.fileChip} {p.name}
                 </span>
               )}
               <button
@@ -298,7 +301,7 @@ export default function ChatArea(): JSX.Element {
           onClick={() => fileInputRef.current?.click()}
           disabled={!wsConnected || busy}
         >
-          📎
+          {g.attach}
         </button>
         {/* 📸 截屏入口（自右栏快捷操作迁入输入栏）：截图入附件区随消息上送 */}
         <button
@@ -308,7 +311,7 @@ export default function ChatArea(): JSX.Element {
           onClick={() => void doCapture()}
           disabled={!wsConnected || busy}
         >
-          📸
+          {g.capture}
         </button>
         <textarea
           ref={inputRef}
@@ -364,7 +367,7 @@ export default function ChatArea(): JSX.Element {
           onClick={() => void toggleTalk()}
           disabled={!wsConnected}
         >
-          🎙️
+          {g.modeTalk}
         </button>
       </footer>
     </main>

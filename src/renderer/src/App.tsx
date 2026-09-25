@@ -14,7 +14,9 @@ import TitleBar from './components/TitleBar'
 import LeftSidebar from './components/LeftSidebar'
 import ChatArea from './components/ChatArea'
 import RightSidebar from './components/RightSidebar'
+import SettingsPanel from './components/SettingsPanel'
 import { useBackendStore } from './stores/backendStore'
+import { useUiStore } from './stores/uiStore'
 import { useT } from './i18n'
 
 /** 后端未就绪时的全屏遮罩（启动进度 / 错误诊断）。 */
@@ -47,6 +49,8 @@ export default function App(): JSX.Element {
   const applyBackendStatus = useBackendStore((s) => s.applyBackendStatus)
   const ready = useBackendStore((s) => s.state === 'ready')
   const wsConnected = useBackendStore((s) => s.wsConnected)
+  // 右栏视图：设置面板以组件形式整体替换信息面板（标题栏齿轮进入）
+  const rightView = useUiStore((s) => s.rightView)
 
   useEffect(() => {
     const desktop = window.jarvisDesktop
@@ -69,7 +73,7 @@ export default function App(): JSX.Element {
       <div id="workbench">
         <LeftSidebar />
         <ChatArea />
-        <RightSidebar />
+        {rightView === 'settings' ? <SettingsPanel /> : <RightSidebar />}
       </div>
       {!ready || !wsConnected ? <BootOverlay /> : null}
     </>

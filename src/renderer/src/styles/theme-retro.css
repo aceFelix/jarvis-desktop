@@ -1,0 +1,293 @@
+/* jarvis-desktop 复古 CRT 主题皮肤（设置面板切换，<html data-theme="retro">）
+   策略：与浅色覆盖块同口径——深色字面量保持不动，retro 只覆盖结构性表面色/文本色，
+   再叠一层 CRT 终端质感（黑底荧光绿、扫描线、点阵抖动、硬边像素、等宽字辉光）。
+   选择器统一 [data-theme='retro'] 前缀；:root 变量用 :root[data-theme='retro'] 连写。
+   main.css 之后 import，同特异性下后者胜出，无需 !important。
+   @author aceFelix */
+
+/* ==================== 配色变量 ==================== */
+
+:root[data-theme='retro'] {
+    --edge-strong: #33ff66;
+    --edge-mid: rgba(51, 255, 102, 0.62);
+    --edge-soft: rgba(51, 255, 102, 0.42);
+    /* 荧光绿文本体系 */
+    --retro-text: #c8ffd6;
+    --retro-bright: #66ff99;
+    --retro-dim: #58a06e;
+    --retro-warn: #ffbb33;
+    --retro-error: #ff5555;
+    --retro-panel: rgba(0, 26, 8, 0.72);
+    --retro-glow: 0 0 6px rgba(51, 255, 102, 0.4);
+}
+
+/* ==================== CRT 底：黑绿实底 + 点阵抖动 + 扫描线 ==================== */
+
+[data-theme='retro'] body {
+    background-color: #020602;
+    background-image:
+        radial-gradient(rgba(51, 255, 102, 0.04) 1px, transparent 1px),
+        radial-gradient(ellipse at 50% 40%, rgba(20, 80, 40, 0.35), transparent 70%);
+    background-size: 3px 3px, 100% 100%;
+    color: var(--retro-text);
+    /* 等宽栈：Windows 宋体小字号自带点阵笔画，零新资源即得终端味 */
+    font-family: Consolas, 'Courier New', NSimSun, SimSun, monospace;
+}
+
+/* 全屏扫描线叠层：repeating 渐变画水平线，无需图片资源 */
+[data-theme='retro'] body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.28) 0px,
+        rgba(0, 0, 0, 0.28) 1px,
+        transparent 1px,
+        transparent 3px
+    );
+}
+
+/* 反应炉像素化：低分辨率 backing store 放大成像素颗粒 */
+[data-theme='retro'] #reactor-canvas {
+    image-rendering: pixelated;
+}
+
+/* ==================== 硬边像素感：去圆角 + 去玻璃模糊 ==================== */
+
+[data-theme='retro'] :where(
+    button, input, textarea, .glass-col, .glass-bar, .message, .tool-card,
+    .list-item, .metric-card, .usage-card, .attach-chip, .seg-btn, .win-btn,
+    .toggle, .task-item, .briefing-block, .log-feed, .boot-card, .settings-back,
+    .msg-action-btn, .action-btn
+) {
+    border-radius: 0;
+    backdrop-filter: none;
+}
+
+/* ==================== 标题栏 / 窗口控制 ==================== */
+
+[data-theme='retro'] #title-bar {
+    background: rgba(0, 12, 4, 0.9);
+    border-bottom: 2px solid var(--edge-strong);
+    backdrop-filter: none;
+}
+
+[data-theme='retro'] #title-logo {
+    color: var(--retro-bright);
+    text-shadow: var(--retro-glow);
+}
+[data-theme='retro'] #title-sub { color: var(--retro-dim); }
+[data-theme='retro'] .win-btn { color: var(--retro-dim); }
+[data-theme='retro'] .win-btn:hover { background: var(--retro-bright); color: #020602; }
+[data-theme='retro'] .win-btn.active { background: rgba(51, 255, 102, 0.22); color: var(--retro-bright); }
+[data-theme='retro'] .win-btn.close:hover { background: var(--retro-error); color: #1a0000; }
+
+/* ==================== 三栏容器 ==================== */
+
+[data-theme='retro'] .glass-col {
+    background: var(--retro-panel);
+    border: 1px solid var(--edge-mid);
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+}
+
+[data-theme='retro'] .col-title { color: var(--retro-bright); text-shadow: var(--retro-glow); }
+
+[data-theme='retro'] #center-col {
+    background: rgba(0, 18, 6, 0.6);
+    border: 1px solid var(--edge-soft);
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* ==================== 分段按钮（模式 / 面板 / 主题 / 语言） ==================== */
+
+[data-theme='retro'] .seg-btn {
+    color: var(--retro-dim);
+    background: rgba(0, 30, 10, 0.6);
+    border: 1px solid var(--edge-soft);
+}
+[data-theme='retro'] .seg-btn:hover { background: var(--retro-bright); color: #020602; }
+[data-theme='retro'] .seg-btn.active {
+    color: #020602;
+    background: var(--retro-bright);
+    border-color: var(--edge-strong);
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+}
+
+/* ==================== 设置面板 / 开关 ==================== */
+
+[data-theme='retro'] .panel-label { color: var(--retro-dim); }
+[data-theme='retro'] .setting-label { color: var(--retro-bright); }
+[data-theme='retro'] .setting-hint { color: var(--retro-dim); }
+[data-theme='retro'] .settings-back {
+    color: var(--retro-bright);
+    border: 1px solid var(--edge-mid);
+    background: rgba(0, 30, 10, 0.6);
+}
+[data-theme='retro'] .settings-back:hover { background: var(--retro-bright); color: #020602; }
+
+[data-theme='retro'] .toggle { border: 1px solid var(--edge-mid); background: rgba(0, 30, 10, 0.7); }
+[data-theme='retro'] .toggle::after { background: var(--retro-dim); border-radius: 0; }
+[data-theme='retro'] .toggle.on { background: rgba(51, 255, 102, 0.35); border-color: var(--edge-strong); }
+[data-theme='retro'] .toggle.on::after { background: var(--retro-bright); }
+
+/* 时间输入/滑杆：荧光绿硬边口径（方角 + 暗底）。@author aceFelix */
+[data-theme='retro'] .setting-time {
+    border-radius: 0;
+    border: 1px solid var(--edge-mid);
+    background: rgba(0, 30, 10, 0.7);
+    color: var(--retro-bright);
+    font-family: inherit;
+}
+[data-theme='retro'] .setting-range input[type='range'] { accent-color: var(--edge-strong); }
+[data-theme='retro'] .setting-range-value { color: var(--retro-dim); }
+
+/* ==================== 列表项（会话 / 模型 / 音色） ==================== */
+
+[data-theme='retro'] .list-item {
+    color: var(--retro-text);
+    background: rgba(0, 24, 8, 0.6);
+    border: 1px solid transparent;
+}
+[data-theme='retro'] .list-item:hover { background: var(--retro-bright); color: #020602; }
+[data-theme='retro'] .list-item.current {
+    color: var(--retro-bright);
+    border-color: var(--edge-strong);
+    background: rgba(51, 255, 102, 0.12);
+}
+[data-theme='retro'] .list-item .sub { color: var(--retro-dim); }
+[data-theme='retro'] .list-item:hover .sub { color: #020602; }
+
+[data-theme='retro'] #left-footer { color: var(--retro-dim); }
+[data-theme='retro'] .status-dot { border-radius: 0; }
+
+/* ==================== 消息四态 ==================== */
+
+[data-theme='retro'] .message.user {
+    background: rgba(0, 40, 14, 0.7);
+    border: 1px solid var(--edge-mid);
+    color: var(--retro-text);
+}
+[data-theme='retro'] .message.ai {
+    background: rgba(0, 20, 6, 0.7);
+    border: 1px solid var(--edge-soft);
+    color: var(--retro-text);
+}
+[data-theme='retro'] .message.system {
+    color: var(--retro-dim);
+    background: rgba(0, 16, 6, 0.6);
+    border: 1px solid var(--edge-soft);
+}
+[data-theme='retro'] .message.error-msg { border-color: var(--retro-error); color: var(--retro-error); }
+[data-theme='retro'] .message.user .message-label { color: var(--retro-bright); }
+[data-theme='retro'] .message.ai .message-label { color: var(--retro-bright); }
+[data-theme='retro'] .cursor-blink { color: var(--retro-bright); }
+[data-theme='retro'] .thinking-block { color: var(--retro-dim); border-left-color: var(--edge-mid); }
+
+[data-theme='retro'] .msg-action-btn { color: var(--retro-dim); background: rgba(0, 30, 10, 0.6); }
+[data-theme='retro'] .msg-action-btn:hover { color: #020602; background: var(--retro-bright); }
+
+/* ==================== 工具卡片 ==================== */
+
+[data-theme='retro'] .tool-card {
+    color: var(--retro-text);
+    background: rgba(0, 20, 6, 0.6);
+    border: 1px solid var(--edge-soft);
+}
+[data-theme='retro'] .tool-card.error { border-color: var(--retro-error); }
+
+/* ==================== 输入栏 ==================== */
+
+[data-theme='retro'] .glass-bar {
+    background: rgba(0, 16, 6, 0.82);
+    border: 1px solid var(--edge-mid);
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+}
+[data-theme='retro'] .glass-bar textarea { color: var(--retro-text); }
+[data-theme='retro'] .glass-bar textarea::placeholder { color: var(--retro-dim); }
+
+[data-theme='retro'] .attach-chip { background: rgba(0, 30, 10, 0.7); color: var(--retro-text); border: 1px solid var(--edge-soft); }
+[data-theme='retro'] .attach-chip .chip-remove { color: var(--retro-dim); }
+[data-theme='retro'] .attach-chip .chip-remove:hover { color: var(--retro-error); }
+
+[data-theme='retro'] #ask-user-bar { background: rgba(60, 44, 0, 0.5); border: 1px solid var(--retro-warn); }
+[data-theme='retro'] #ask-user-text { color: var(--retro-warn); }
+[data-theme='retro'] #ask-user-bar input { background: rgba(0, 20, 6, 0.8); color: var(--retro-text); border: 1px solid var(--edge-soft); }
+
+[data-theme='retro'] #voice-bar .voice-state { color: var(--retro-bright); }
+
+[data-theme='retro'] .action-btn { color: var(--retro-text); background: rgba(0, 30, 10, 0.7); border: 1px solid var(--edge-soft); }
+[data-theme='retro'] .action-btn:hover { background: var(--retro-bright); color: #020602; }
+[data-theme='retro'] .action-btn.primary { border-color: var(--edge-strong); color: var(--retro-bright); }
+[data-theme='retro'] .action-btn.danger { color: var(--retro-error); border-color: rgba(255, 85, 85, 0.5); background: rgba(60, 0, 0, 0.4); }
+
+/* ==================== 指标卡 / 用量 / gauge ==================== */
+
+[data-theme='retro'] .metric-card,
+[data-theme='retro'] .usage-card {
+    background: rgba(0, 20, 6, 0.6);
+    border: 1px solid var(--edge-soft);
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.4);
+}
+[data-theme='retro'] .metric-head { color: var(--retro-dim); }
+[data-theme='retro'] .metric-value { color: var(--retro-bright); }
+[data-theme='retro'] .gauge { background: rgba(0, 40, 14, 0.6); border-radius: 0; }
+[data-theme='retro'] .gauge-fill { background: var(--retro-bright); border-radius: 0; }
+[data-theme='retro'] .metric-detail { color: var(--retro-dim); }
+
+[data-theme='retro'] .side-empty { color: var(--retro-dim); }
+
+/* ==================== 任务中心 ==================== */
+
+[data-theme='retro'] .task-item { background: rgba(0, 20, 6, 0.6); border: 1px solid var(--edge-soft); }
+[data-theme='retro'] .task-time { color: var(--retro-bright); }
+[data-theme='retro'] .task-time.due-soon { color: var(--retro-warn); }
+[data-theme='retro'] .task-time.due-over { color: var(--retro-error); }
+[data-theme='retro'] .task-text { color: var(--retro-text); }
+[data-theme='retro'] .task-tag { color: var(--retro-dim); }
+
+[data-theme='retro'] .briefing-block { background: rgba(0, 20, 6, 0.5); border: 1px solid var(--edge-soft); }
+[data-theme='retro'] .briefing-block summary { color: var(--retro-bright); }
+[data-theme='retro'] .briefing-text { color: var(--retro-text); }
+
+[data-theme='retro'] .usage-row { color: var(--retro-dim); }
+[data-theme='retro'] .usage-value { color: var(--retro-text); }
+
+/* ==================== 健康日志 / MCP ==================== */
+
+[data-theme='retro'] .mcp-ok { color: var(--retro-bright); }
+[data-theme='retro'] .mcp-warn { color: var(--retro-warn); }
+[data-theme='retro'] .mcp-failed { color: var(--retro-error); }
+
+[data-theme='retro'] .log-feed { background: rgba(0, 12, 4, 0.7); border: 1px solid var(--edge-soft); }
+[data-theme='retro'] .log-line { color: var(--retro-dim); }
+
+/* ==================== 启动遮罩 ==================== */
+
+[data-theme='retro'] #boot-overlay { background: rgba(2, 6, 2, 0.92); }
+[data-theme='retro'] .boot-card {
+    background: var(--retro-panel);
+    border: 2px solid var(--edge-strong);
+    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.7);
+}
+[data-theme='retro'] .boot-title { color: var(--retro-bright); text-shadow: var(--retro-glow); }
+[data-theme='retro'] .boot-hint { color: var(--retro-dim); }
+[data-theme='retro'] .boot-error { color: var(--retro-error); }
+[data-theme='retro'] .boot-detail { color: var(--retro-error); }
+[data-theme='retro'] .boot-spinner { border-color: var(--edge-soft); border-top-color: var(--retro-bright); border-radius: 0; }
+
+/* ==================== 粗滚动条 + 方块滑块 ==================== */
+
+[data-theme='retro'] ::-webkit-scrollbar { width: 10px; height: 10px; }
+[data-theme='retro'] ::-webkit-scrollbar-track { background: rgba(0, 16, 6, 0.6); }
+[data-theme='retro'] ::-webkit-scrollbar-thumb {
+    background: var(--retro-dim);
+    border: 1px solid var(--edge-soft);
+    border-radius: 0;
+}
+[data-theme='retro'] ::-webkit-scrollbar-thumb:hover { background: var(--retro-bright); }
