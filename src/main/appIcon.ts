@@ -3,8 +3,10 @@
  *
  * 背景（aceFelix）：此前仅 tray.ts 自行加载反应炉图标，BrowserWindow 未设 icon，
  * dev 模式任务栏显示 Electron 内置原子 logo，与托盘反应炉不一致（2026-09-10
- * 用户实机截图反馈）。现统一收敛到本模块：候选顺序为用户目录实底版 →
- * 本仓库 build 资源，窗口与托盘都从这里取，杜绝再次分叉。
+ * 用户实机截图反馈）。现统一收敛到本模块，窗口与托盘都从这里取，杜绝再次分叉。
+ * 2026-09-25：默认主题改复古后图标同步换身份——候选顺序改为本仓库复古像素
+ * 反应炉（build/icon.ico）优先，用户目录深蓝旧版（~/.jarvis/jarvis_window.ico）
+ * 仅兜底，保证实机任务栏/托盘与默认复古主题同一视觉身份。
  *
  * @author aceFelix
  */
@@ -23,11 +25,11 @@ export function pickIconPath(candidates: string[]): string | null {
   return candidates.find((p) => existsSync(p)) ?? null
 }
 
-/** 图标候选路径（按优先级）：用户目录实底版 → 本仓库 build 资源。 */
+/** 图标候选路径（按优先级）：本仓库复古像素反应炉 → 用户目录深蓝旧版兜底。 */
 export function iconCandidates(): string[] {
   return [
-    join(app.getPath('home'), '.jarvis', 'jarvis_window.ico'),
-    join(__dirname, '../../build/icon.ico')
+    join(__dirname, '../../build/icon.ico'),
+    join(app.getPath('home'), '.jarvis', 'jarvis_window.ico')
   ]
 }
 

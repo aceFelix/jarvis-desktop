@@ -45,18 +45,18 @@ describe('pickIconPath', () => {
 })
 
 describe('resolveIconPath / loadAppIcon', () => {
-  it('候选顺序：用户目录实底版优先，build/icon.ico 兜底', () => {
-    const [userDir, buildDir] = iconCandidates()
-    expect(userDir).toContain('.jarvis')
-    expect(userDir).toContain('jarvis_window.ico')
+  it('候选顺序：仓库复古像素图标优先，用户目录深蓝旧版兜底', () => {
+    const [buildDir, userDir] = iconCandidates()
     expect(buildDir).toContain('build')
     expect(buildDir).toContain('icon.ico')
+    expect(userDir).toContain('.jarvis')
+    expect(userDir).toContain('jarvis_window.ico')
   })
 
-  it('build/icon.ico 已入库：home 缺失时兜底命中仓库图标', () => {
+  it('build/icon.ico 已入库：候选首位命中仓库复古图标', () => {
     // 守卫图标资源入库（scripts/gen_icon.py 生成）：若被误删/误 gitignore，
     // 窗口与托盘会同时退化为系统默认图标，这里提前报错
-    expect(resolveIconPath()).toBe(iconCandidates()[1])
+    expect(resolveIconPath()).toBe(iconCandidates()[0])
   })
 
   it('图标加载失败（isEmpty）时 loadAppIcon 返回 null', () => {
