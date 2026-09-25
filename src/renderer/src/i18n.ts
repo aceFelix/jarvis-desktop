@@ -20,6 +20,7 @@ const zh: Dict = {
   'app.subtitle': '· 桌面工作台',
   'app.minimize': '最小化',
   'app.closeTip': '关闭（隐藏到托盘）',
+  'app.settingsTip': '设置（右栏切换为设置面板）',
   'boot.error': '后端启动失败',
   'boot.exited': '后端进程已退出',
   'boot.errorHint': '请检查 Python 环境与 jarvis 仓库路径（JARVIS_PYTHON / JARVIS_REPO），详见日志 userData/logs/desktop.log',
@@ -27,22 +28,23 @@ const zh: Dict = {
 
   // ---- 左栏 ----
   'left.console': '控制台',
-  'left.mode.text': '💬 文本',
-  'left.mode.talk': '🎙️ 实时',
-  'left.mode.voice': '🎤 语音',
+  'left.mode.text': '文本',
+  'left.mode.talk': '实时',
+  'left.mode.voice': '语音',
   'left.mode.text.tip': '文本对话',
   'left.mode.talk.tip': '实时语音（/talk）',
   'left.mode.voice.tip': '半双工语音（/voice：说话→回复→再听）',
-  'left.panel.history': '📜 历史会话',
-  'left.panel.model': '🤖 模型',
-  'left.panel.voice': '🎵 音色',
+  'left.panel.history': '历史会话',
+  'left.panel.model': '模型',
+  'left.panel.voice': '音色',
   'left.newSession': '＋ 新建会话',
+  'left.deleteSession': '删除会话',
   'left.modelTitle': '对话模型',
   'left.voiceTitle': 'TTS 音色',
   'left.current': '当前',
   'left.messagesCount': '{n} 条消息',
-  'left.talkActive': '🎙️ 实时中',
-  'left.voiceActive': '🎤 语音中',
+  'left.talkActive': '实时中',
+  'left.voiceActive': '语音中',
 
   // ---- 中栏对话区 ----
   'chat.you': '你',
@@ -58,11 +60,11 @@ const zh: Dict = {
   'chat.askPlaceholder': '输入回答...',
   'chat.voiceDefault': '语音中...',
   'chat.voiceOn': '语音已开启',
-  'chat.interrupt': '✋ 打断',
+  'chat.interrupt': '打断',
   'chat.interruptTip': '打断当前播报/识别（不停会话）',
   'chat.exitVoice': '⏹ 退出语音',
   'chat.exitVoiceTip': '退出语音，回文本模式',
-  'chat.copy': '📋 复制',
+  'chat.copy': '复制',
   'chat.copied': '✓ 已复制',
   'chat.copyTip': '复制这条回复',
   'chat.copyFail': '✗ 复制失败',
@@ -71,7 +73,6 @@ const zh: Dict = {
   'chat.captureFail': '✗ 截屏失败：{reason}',
 
   // ---- 右栏 ----
-  'right.settings': '设置',
   'right.tasks': '任务中心',
   'right.usage': '会话与用量',
   'right.system': '系统状态',
@@ -101,10 +102,28 @@ const zh: Dict = {
   'right.disk': '磁盘',
 
   // ---- 设置面板 ----
+  'settings.title': '设置',
+  'settings.back': '返回信息面板',
+  'settings.appearance': '外观',
   'settings.theme': '主题',
   'settings.theme.dark': '深色',
   'settings.theme.light': '浅色',
-  'settings.language': '语言'
+  'settings.theme.retro': '复古',
+  'settings.language': '语言',
+  'settings.voiceSection': '语音播报',
+  'settings.proactiveTts': '主动播报语音朗读',
+  'settings.proactiveTtsHint': '简报/提醒/截止日期到期时用本机语音并行朗读；对话或语音会话中跳过不打断',
+  'settings.ttsVolume': '播报音量',
+  'settings.ttsSpeechRate': '播报语速',
+  'settings.briefingSection': '每日简报',
+  'settings.briefingEnabled': '启用每日简报',
+  'settings.briefingEnabledHint': '每天定时播报今日概览（提醒/节假日/截止日期/日程）',
+  'settings.briefingTime': '简报时间',
+  'settings.deadlineSection': '截止日期追踪',
+  'settings.deadlineEnabled': '启用截止日期提醒',
+  'settings.deadlineEnabledHint': '每天定时检查截止日期，分级提醒（7/3/1/0 天 + 逾期每天）',
+  'settings.deadlineCheckTime': '检查时间',
+  'settings.offline': '未连接后端，暂不可改'
 }
 
 const en: Dict = {
@@ -112,6 +131,7 @@ const en: Dict = {
   'app.subtitle': '· Desktop Workbench',
   'app.minimize': 'Minimize',
   'app.closeTip': 'Close (hide to tray)',
+  'app.settingsTip': 'Settings (switch right column to settings panel)',
   'boot.error': 'Backend failed to start',
   'boot.exited': 'Backend process exited',
   'boot.errorHint': 'Check the Python env and jarvis repo path (JARVIS_PYTHON / JARVIS_REPO); see userData/logs/desktop.log',
@@ -119,22 +139,23 @@ const en: Dict = {
 
   // ---- Left sidebar ----
   'left.console': 'Console',
-  'left.mode.text': '💬 Text',
-  'left.mode.talk': '🎙️ Live',
-  'left.mode.voice': '🎤 Voice',
+  'left.mode.text': 'Text',
+  'left.mode.talk': 'Live',
+  'left.mode.voice': 'Voice',
   'left.mode.text.tip': 'Text chat',
   'left.mode.talk.tip': 'Real-time voice (/talk)',
   'left.mode.voice.tip': 'Half-duplex voice (/voice: speak → reply → listen)',
-  'left.panel.history': '📜 History',
-  'left.panel.model': '🤖 Models',
-  'left.panel.voice': '🎵 Voices',
+  'left.panel.history': 'History',
+  'left.panel.model': 'Models',
+  'left.panel.voice': 'Voices',
   'left.newSession': '＋ New Session',
+  'left.deleteSession': 'Delete session',
   'left.modelTitle': 'Chat Models',
   'left.voiceTitle': 'TTS Voices',
   'left.current': 'current',
   'left.messagesCount': '{n} messages',
-  'left.talkActive': '🎙️ Live',
-  'left.voiceActive': '🎤 Voice',
+  'left.talkActive': 'Live',
+  'left.voiceActive': 'Voice',
 
   // ---- Chat area ----
   'chat.you': 'You',
@@ -150,11 +171,11 @@ const en: Dict = {
   'chat.askPlaceholder': 'Type your answer...',
   'chat.voiceDefault': 'Voice...',
   'chat.voiceOn': 'Voice on',
-  'chat.interrupt': '✋ Interrupt',
+  'chat.interrupt': 'Interrupt',
   'chat.interruptTip': 'Interrupt current playback/recognition (session keeps running)',
   'chat.exitVoice': '⏹ Exit Voice',
   'chat.exitVoiceTip': 'Exit voice mode, back to text',
-  'chat.copy': '📋 Copy',
+  'chat.copy': 'Copy',
   'chat.copied': '✓ Copied',
   'chat.copyTip': 'Copy this reply',
   'chat.copyFail': '✗ Copy failed',
@@ -163,7 +184,6 @@ const en: Dict = {
   'chat.captureFail': '✗ Capture failed: {reason}',
 
   // ---- Right sidebar ----
-  'right.settings': 'Settings',
   'right.tasks': 'Task Center',
   'right.usage': 'Session & Usage',
   'right.system': 'System Status',
@@ -193,10 +213,28 @@ const en: Dict = {
   'right.disk': 'Disk',
 
   // ---- Settings panel ----
+  'settings.title': 'Settings',
+  'settings.back': 'Back to dashboard',
+  'settings.appearance': 'Appearance',
   'settings.theme': 'Theme',
   'settings.theme.dark': 'Dark',
   'settings.theme.light': 'Light',
-  'settings.language': 'Language'
+  'settings.theme.retro': 'Retro',
+  'settings.language': 'Language',
+  'settings.voiceSection': 'Voice Broadcast',
+  'settings.proactiveTts': 'Proactive broadcast read-aloud',
+  'settings.proactiveTtsHint': 'Read due briefings/reminders/deadlines aloud with local TTS; skipped (not interrupted) while chatting or in a voice session',
+  'settings.ttsVolume': 'Broadcast volume',
+  'settings.ttsSpeechRate': 'Broadcast speed',
+  'settings.briefingSection': 'Daily Briefing',
+  'settings.briefingEnabled': 'Enable daily briefing',
+  'settings.briefingEnabledHint': 'Broadcast today’s overview at a fixed time (reminders/holidays/deadlines/calendar)',
+  'settings.briefingTime': 'Briefing time',
+  'settings.deadlineSection': 'Deadline Tracking',
+  'settings.deadlineEnabled': 'Enable deadline reminders',
+  'settings.deadlineEnabledHint': 'Check deadlines daily and remind in tiers (7/3/1/0 days + daily when overdue)',
+  'settings.deadlineCheckTime': 'Check time',
+  'settings.offline': 'Backend not connected'
 }
 
 const dicts: Record<Language, Dict> = { zh, en }

@@ -87,6 +87,51 @@ export interface ProactiveNotifyPayload {
 export type WindowAction = 'minimize' | 'close'
 
 /**
+ * 后端联动设置镜像（settings.get 白名单键，与 jarvis 侧
+ * agent/config/desktop_settings.py 的 DESKTOP_SETTING_SPECS 同口径）。
+ *
+ * 第一批：主动播报 TTS / 每日简报 / 截止日期追踪 / TTS 音量语速；
+ * null = 尚未拉取/后端未连接（面板据此显离线态）。
+ * 主题/语言等纯前端偏好不入此协议（桌面壳 localStorage 自治）。
+ */
+export interface BackendSettings {
+  proactive_tts_enabled: boolean | null
+  briefing_enabled: boolean | null
+  briefing_time: string | null
+  deadline_enabled: boolean | null
+  deadline_check_time: string | null
+  tts_volume: number | null
+  tts_speech_rate: number | null
+}
+
+/** BackendSettings 的键集合（面板渲染/测试遍历用）。 */
+export type BackendSettingKey = keyof BackendSettings
+
+/** settings.get 回执 result 的宽容解析：类型不符/缺字段一律置 null（离线态）。 */
+export function parseBackendSettings(payload: unknown): BackendSettings {
+  const p = (payload ?? {}) as Record<string, unknown>
+  const asBool = (v: unknown): boolean | null => (typeof v === 'boolean' ? v : null)
+  const asStr = (v: unknown): string | null => (typeof v === 'string' ? v : null)
+  const asNum = (v: unknown): number | null =>
+    typeof v === 'number' && Number.isFinite(v) ? v : null
+  return {
+    proactive_tts_enabled: asBool(p.proactive_tts_enabled),
+    briefing_enabled: asBool(p.briefing_enabled),
+    briefing_time: asStr(p.briefing_time),
+    deadline_enabled: asBool(p.deadline_enabled),
+    deadline_check_time: asStr(p.deadline_check_time),
+    tts_volume: asNum(p.tts_volume),
+    tts_speech_rate: asNum(p.tts_speech_rate)
+  }
+}
+
+/**
+ * 旧名兼容别名：设置面板 payload 即白名单键镜像。
+ * @deprecated 新代码直接用 BackendSettings。
+ */
+export type SettingsPayload = Partial<BackendSettings>
+
+/**
  * 半双工语音会话状态（镜像 voice_events.STATE_*）。
  *
  * voice_state 事件的 payload 即此字符串：dialog=对话中 / listening=聆听 /
@@ -106,6 +151,8 @@ export const Cmd = {
   SessionsList: 'sessions.list',
   SessionsOpen: 'sessions.open',
   SessionsNew: 'sessions.new',
+  SessionsRename: 'sessions.rename',
+  SessionsDelete: 'sessions.delete',
   ModelsList: 'models.list',
   ModelsSelect: 'models.select',
   VoicesList: 'voices.list',
@@ -123,6 +170,10 @@ export const Cmd = {
   VoiceStop: 'voice.stop',
   VoiceInterrupt: 'voice.interrupt',
   ProactiveAck: 'proactive.ack',
+  /** 设置面板数据源：用户可改开关的运行时值（settings.get）。 */
+  SettingsGet: 'settings.get',
+  /** 设置面板写回：修改并持久化用户可改开关（settings.set）。 */
+  SettingsSet: 'settings.set',
   /** 停止当前回复（发送按钮二次点击）：服务端线程安全取消引擎 send 任务。 */
   ReplyAbort: 'reply.abort'
 } as const

@@ -1,8 +1,10 @@
 /**
- * 右栏：设置 / 任务中心 / 会话与用量 / 系统状态 / 运行健康 五区块。
+ * 右栏信息面板：任务中心 / 会话与用量 / 系统状态 / 运行健康 四区块。
+ *
+ * 设置已独立为 SettingsPanel 组件（标题栏齿轮进入，整体替换本面板），
+ * 本组件只留运行时信息展示。
  *
  * 数据源：
- * - 设置：settingsStore（主题/语言，localStorage 持久化，纯渲染层偏好）；
  * - 任务中心/用量/运行健康：rightStore（dispatcher 在 init /
  *   assistant_done / proactive_notify 时触发刷新）；
  * - 系统状态：metrics 事件每 2 秒推送进 useMetricsStore；
@@ -13,8 +15,8 @@
 
 import { useMetricsStore } from '../stores/metricsStore'
 import { useRightStore, type DeadlineItem } from '../stores/rightStore'
-import { useSettingsStore } from '../stores/settingsStore'
 import { useT } from '../i18n'
+import { useGlyphs } from '../glyphs'
 
 function gb(detail: { used_gb?: number; total_gb?: number } | null): string {
   if (!detail?.total_gb) return ''
@@ -54,67 +56,13 @@ function fmtNum(n: number): string {
   return n.toLocaleString('en-US')
 }
 
-/**
- * 设置面板：主题切换（深色/浅色）+ 界面语言（中文/English）。
- * 行式布局（标签 + 分段控件），后续新增设置项按行追加即可。
- */
-function SettingsPanel(): JSX.Element {
-  const theme = useSettingsStore((s) => s.theme)
-  const language = useSettingsStore((s) => s.language)
-  const setTheme = useSettingsStore((s) => s.setTheme)
-  const setLanguage = useSettingsStore((s) => s.setLanguage)
-  const t = useT()
-
-  return (
-    <div className="settings-panel" data-testid="settings-panel">
-      <div className="setting-row">
-        <span className="setting-label">{t('settings.theme')}</span>
-        <div className="segmented">
-          <button
-            className={`seg-btn${theme === 'dark' ? ' active' : ''}`}
-            data-testid="btn-theme-dark"
-            onClick={() => setTheme('dark')}
-          >
-            {t('settings.theme.dark')}
-          </button>
-          <button
-            className={`seg-btn${theme === 'light' ? ' active' : ''}`}
-            data-testid="btn-theme-light"
-            onClick={() => setTheme('light')}
-          >
-            {t('settings.theme.light')}
-          </button>
-        </div>
-      </div>
-      <div className="setting-row">
-        <span className="setting-label">{t('settings.language')}</span>
-        <div className="segmented">
-          <button
-            className={`seg-btn${language === 'zh' ? ' active' : ''}`}
-            data-testid="btn-lang-zh"
-            onClick={() => setLanguage('zh')}
-          >
-            中文
-          </button>
-          <button
-            className={`seg-btn${language === 'en' ? ' active' : ''}`}
-            data-testid="btn-lang-en"
-            onClick={() => setLanguage('en')}
-          >
-            English
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 /** 任务中心：待触发提醒 + 活跃截止日期 + 最近简报。 */
 function TaskCenter(): JSX.Element {
   const reminders = useRightStore((s) => s.reminders)
   const deadlines = useRightStore((s) => s.deadlines)
   const briefing = useRightStore((s) => s.latestBriefing)
   const t = useT()
+  const g = useGlyphs()
 
   return (
     <div data-testid="task-center">
@@ -125,7 +73,7 @@ function TaskCenter(): JSX.Element {
           {reminders.slice(0, 5).map((r) => (
             <li key={r.id} className="task-item" title={r.content}>
               <span className="task-time">{fmtTriggerAt(r.trigger_at)}</span>
-              <span className="task-text">⏰ {r.content}</span>
+              <span className="task-text">{g.taskReminder} {r.content}</span>
               {repeatLabel(r.repeat, t) ? (
                 <span className="task-tag">{repeatLabel(r.repeat, t)}</span>
               ) : null}
@@ -136,7 +84,7 @@ function TaskCenter(): JSX.Element {
             return (
               <li key={d.id} className="task-item" title={`${d.title}（${d.due_date}）`}>
                 <span className={`task-time due-${label.tone}`}>{label.text}</span>
-                <span className="task-text">📋 {d.title}</span>
+                <span className="task-text">{g.taskDeadline} {d.title}</span>
               </li>
             )
           })}
@@ -235,11 +183,6 @@ export default function RightSidebar(): JSX.Element {
 
   return (
     <aside id="right-col" className="glass-col">
-      <div className="col-header">
-        <span className="col-title">{t('right.settings')}</span>
-      </div>
-      <SettingsPanel />
-
       <div className="col-header">
         <span className="col-title">{t('right.tasks')}</span>
       </div>

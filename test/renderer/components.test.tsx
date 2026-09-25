@@ -14,6 +14,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import ChatArea from '@renderer/components/ChatArea'
 import LeftSidebar from '@renderer/components/LeftSidebar'
 import RightSidebar from '@renderer/components/RightSidebar'
+import SettingsPanel from '@renderer/components/SettingsPanel'
 import TitleBar from '@renderer/components/TitleBar'
 import { useChatStore } from '@renderer/stores/chatStore'
 import { useLeftStore } from '@renderer/stores/leftStore'
@@ -21,7 +22,8 @@ import { useMetricsStore } from '@renderer/stores/metricsStore'
 import { useBackendStore } from '@renderer/stores/backendStore'
 import { useRightStore } from '@renderer/stores/rightStore'
 import { useAttachStore } from '@renderer/stores/attachStore'
-import { useSettingsStore } from '@renderer/stores/settingsStore'
+import { EMPTY_BACKEND_SETTINGS, useSettingsStore } from '@renderer/stores/settingsStore'
+import { useUiStore } from '@renderer/stores/uiStore'
 import { Cmd } from '../../src/shared/contracts'
 import type { JarvisWsClient } from '@renderer/api/ws'
 
@@ -43,6 +45,10 @@ beforeEach(() => {
   // 设置面板改动会持久化到 localStorage：每个用例复位默认，避免语言/主题串场
   useSettingsStore.getState().setTheme('dark')
   useSettingsStore.getState().setLanguage('zh')
+  // 后端联动设置镜像与右栏视图为瞬态：复位避免用例间串场。@author aceFelix
+  useSettingsStore.setState({ backendSettings: { ...EMPTY_BACKEND_SETTINGS } })
+  useUiStore.setState({ rightView: 'dashboard' })
+  useBackendStore.setState({ client: null })
 })
 
 afterEach(() => {
@@ -232,9 +238,12 @@ describe('LeftSidebar 面板切换', () => {
     expect(screen.queryByTestId('panel-model')).toBeNull()
   })
 
-  it('渲染会话 / 模型 / 音色列表项', () => {
+  it('渲染会话 / 模型 / 音色列表项', async () => {
     useLeftStore.setState({
-      sessions: [{ name: '会话A', updated_at: 1_700_000_000, message_count: 3, model: 'gpt' }],
+      sessions: [
+        { name: '会话A', updated_at: 1_700_000_000, message_count: 3, model: 'gpt', current: true },
+        { name: '会话B', updated_at: 1_700_000_100, message_count: 1, model: 'gpt' }
+      ],
       models: [{ name: 'gpt-4', current: true }],
       voices: [{ name: '晓晓', current: false }],
       activePanel: 'history',
@@ -242,11 +251,85 @@ describe('LeftSidebar 面板切换', () => {
       talkActive: false
     })
     render(<LeftSidebar />)
-    expect(screen.getByText('会话A')).toBeInTheDocument()
+    // 当前会话带选中态（与模型/音色 current 口径一致，sessions.list 后端现比标记）
+    expect(screen.getByText('会话A').closest('.list-item')).toHaveClass('current')
+    expect(screen.getByText('会话B').closest('.list-item')).not.toHaveClass('current')
+    // 选中项点击不发 sessions.open（重复恢复无意义）；非选中项延时到点后发指令
+    const openSpy = vi.spyOn(useBackendStore.getState(), 'openSession')
+    fireEvent.click(screen.getByText('会话A'))
+    fireEvent.click(screen.getByText('会话B'))
+    // 单击 220ms 延时让位双击：到点后仅非选中的 会话B 发 open，当前 会话A 不发
+    await vi.waitFor(() => expect(openSpy).toHaveBeenCalledWith('会话B'))
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    openSpy.mockRestore()
     fireEvent.click(screen.getByText('🤖 模型'))
     expect(screen.getByText('gpt-4')).toBeInTheDocument()
     fireEvent.click(screen.getByText('🎵 音色'))
     expect(screen.getByText('晓晓')).toBeInTheDocument()
+  })
+
+  it('右键会话项显示删除按钮，点击发 sessions.delete', () => {
+    useLeftStore.setState({
+      sessions: [{ name: '待删会话', updated_at: 1_700_000_000, message_count: 2, model: 'gpt' }],
+      activePanel: 'history',
+      mode: 'text',
+      talkActive: false
+    })
+    render(<LeftSidebar />)
+    const delSpy = vi.spyOn(useBackendStore.getState(), 'deleteSession')
+    // 右键前无删除按钮（二次确认：右键才显、再点才删）
+    expect(screen.queryByTestId('session-del-btn')).toBeNull()
+    fireEvent.contextMenu(screen.getByText('待删会话'))
+    const btn = screen.getByTestId('session-del-btn')
+    expect(btn).toBeInTheDocument()
+    fireEvent.click(btn)
+    expect(delSpy).toHaveBeenCalledWith('待删会话')
+    delSpy.mockRestore()
+  })
+
+  it('双击会话项进入内联改名，回车发 sessions.rename 且不误触发 open', () => {
+    useLeftStore.setState({
+      sessions: [{ name: '旧标题', updated_at: 1_700_000_000, message_count: 2, model: 'gpt' }],
+      activePanel: 'history',
+      mode: 'text',
+      talkActive: false
+    })
+    render(<LeftSidebar />)
+    const renameSpy = vi.spyOn(useBackendStore.getState(), 'renameSession')
+    const openSpy = vi.spyOn(useBackendStore.getState(), 'openSession')
+    // 真实双击序列：先单击（起 220ms open 定时器）再双击（清定时器 + 进编辑）
+    fireEvent.click(screen.getByText('旧标题'))
+    fireEvent.doubleClick(screen.getByText('旧标题'))
+    const input = screen.getByTestId('session-rename-input')
+    expect(input).toBeInTheDocument()
+    expect(input).toHaveValue('旧标题')
+    fireEvent.change(input, { target: { value: '新标题' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(renameSpy).toHaveBeenCalledWith('旧标题', '新标题')
+    // 双击已清掉单击定时器：不应误发 open
+    expect(openSpy).not.toHaveBeenCalled()
+    renameSpy.mockRestore()
+    openSpy.mockRestore()
+  })
+
+  it('改名输入框 Esc 取消，不发 sessions.rename', () => {
+    useLeftStore.setState({
+      sessions: [{ name: '保持原名', updated_at: 1_700_000_000, message_count: 2, model: 'gpt' }],
+      activePanel: 'history',
+      mode: 'text',
+      talkActive: false
+    })
+    render(<LeftSidebar />)
+    const renameSpy = vi.spyOn(useBackendStore.getState(), 'renameSession')
+    fireEvent.doubleClick(screen.getByText('保持原名'))
+    const input = screen.getByTestId('session-rename-input')
+    fireEvent.change(input, { target: { value: '改了又反悔' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(renameSpy).not.toHaveBeenCalled()
+    // 退出编辑态：输入框消失、标题恢复
+    expect(screen.queryByTestId('session-rename-input')).toBeNull()
+    expect(screen.getByText('保持原名')).toBeInTheDocument()
+    renameSpy.mockRestore()
   })
 
   it('切换到实时模式后按钮高亮', () => {
@@ -266,6 +349,16 @@ describe('LeftSidebar 面板切换', () => {
     render(<LeftSidebar />)
     expect(screen.getByText('🎤 语音中')).toBeInTheDocument()
   })
+
+  it('retro 主题下模式按钮显 [TXT]，切回 dark 恢复 💬', () => {
+    useSettingsStore.getState().setTheme('retro')
+    render(<LeftSidebar />)
+    expect(screen.getByText('[TXT] 文本')).toBeInTheDocument()
+    cleanup()
+    useSettingsStore.getState().setTheme('dark')
+    render(<LeftSidebar />)
+    expect(screen.getByText('💬 文本')).toBeInTheDocument()
+  })
 })
 
 describe('RightSidebar 指标', () => {
@@ -282,29 +375,119 @@ describe('RightSidebar 指标', () => {
   })
 })
 
-describe('RightSidebar 设置面板', () => {
-  // 设置区块（替代原快捷操作）：主题/语言分段控件，行式布局可扩展。@author aceFelix
-  it('渲染主题与语言分段控件（默认深色/中文高亮）', () => {
-    render(<RightSidebar />)
+describe('SettingsPanel 设置面板', () => {
+  // 设置独立成面板：标题栏齿轮进入，整体替换右栏信息面板。@author aceFelix
+  it('渲染主题与语言分段控件（深色/中文高亮）', () => {
+    render(<SettingsPanel />)
     expect(screen.getByTestId('settings-panel')).toBeInTheDocument()
     expect(screen.getByTestId('btn-theme-dark').className).toContain('active')
     expect(screen.getByTestId('btn-lang-zh').className).toContain('active')
   })
 
   it('点击浅色：settingsStore 切 light 且 <html data-theme> 生效', () => {
-    render(<RightSidebar />)
+    render(<SettingsPanel />)
     fireEvent.click(screen.getByTestId('btn-theme-light'))
     expect(useSettingsStore.getState().theme).toBe('light')
     expect(document.documentElement.dataset.theme).toBe('light')
     expect(screen.getByTestId('btn-theme-light').className).toContain('active')
   })
 
+  it('点击复古：settingsStore 切 retro、<html data-theme=retro> 且分段高亮', () => {
+    render(<SettingsPanel />)
+    fireEvent.click(screen.getByTestId('btn-theme-retro'))
+    expect(useSettingsStore.getState().theme).toBe('retro')
+    expect(document.documentElement.dataset.theme).toBe('retro')
+    expect(screen.getByTestId('btn-theme-retro').className).toContain('active')
+  })
+
   it('点击 English：静态界面文案切换为英文', () => {
-    render(<RightSidebar />)
+    render(<SettingsPanel />)
     fireEvent.click(screen.getByTestId('btn-lang-en'))
     expect(useSettingsStore.getState().language).toBe('en')
-    expect(screen.getByText('Task Center')).toBeInTheDocument()
-    expect(screen.getByText('Settings')).toBeInTheDocument()
+    expect(screen.getByText('Voice Broadcast')).toBeInTheDocument()
+  })
+
+  it('后端设置未拉取时四组均显离线态；回填后渲染开关/时间/滑杆', () => {
+    render(<SettingsPanel />)
+    expect(screen.getByTestId('proactive-tts-offline')).toBeInTheDocument()
+    expect(screen.getByTestId('briefing-offline')).toBeInTheDocument()
+    expect(screen.getByTestId('briefing-time-offline')).toBeInTheDocument()
+    expect(screen.getByTestId('deadline-offline')).toBeInTheDocument()
+    expect(screen.getByTestId('deadline-check-time-offline')).toBeInTheDocument()
+    expect(screen.getByTestId('tts-volume-offline')).toBeInTheDocument()
+    expect(screen.getByTestId('tts-speech-rate-offline')).toBeInTheDocument()
+    cleanup()
+    useSettingsStore.getState().applyBackendSettings({
+      proactive_tts_enabled: true,
+      briefing_enabled: false,
+      briefing_time: '07:15',
+      deadline_enabled: true,
+      deadline_check_time: '21:00',
+      tts_volume: 60,
+      tts_speech_rate: 1.25
+    })
+    render(<SettingsPanel />)
+    const toggle = screen.getByTestId('toggle-proactive-tts')
+    expect(toggle.className).toContain('on')
+    expect(toggle.getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByTestId('toggle-briefing').className).not.toContain('on')
+    expect(screen.getByTestId('time-briefing-time')).toHaveValue('07:15')
+    expect(screen.getByTestId('time-deadline-check-time')).toHaveValue('21:00')
+    expect(screen.getByTestId('range-tts-volume')).toHaveValue('60')
+    expect(screen.getByTestId('tts-volume-value')).toHaveTextContent('60')
+    expect(screen.getByTestId('range-tts-speech-rate')).toHaveValue('1.25')
+    expect(screen.getByTestId('tts-speech-rate-value')).toHaveTextContent('1.25×')
+  })
+
+  it('点击开关乐观翻转并发 settings.set', () => {
+    const client = {
+      sendCommand: vi.fn().mockResolvedValue({ ok: true, result: { proactive_tts_enabled: false } })
+    }
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+    useSettingsStore
+      .getState()
+      .applyBackendSettings({ ...EMPTY_BACKEND_SETTINGS, proactive_tts_enabled: true })
+    render(<SettingsPanel />)
+    fireEvent.click(screen.getByTestId('toggle-proactive-tts'))
+    expect(useSettingsStore.getState().backendSettings.proactive_tts_enabled).toBe(false)
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.SettingsSet, {
+      proactive_tts_enabled: false
+    })
+  })
+
+  it('改简报时间：HH:MM 提交发 settings.set，非法值不发', () => {
+    const client = { sendCommand: vi.fn().mockResolvedValue({ ok: true, result: {} }) }
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+    useSettingsStore
+      .getState()
+      .applyBackendSettings({ ...EMPTY_BACKEND_SETTINGS, briefing_time: '08:30' })
+    render(<SettingsPanel />)
+    const input = screen.getByTestId('time-briefing-time')
+    fireEvent.change(input, { target: { value: '06:45' } })
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.SettingsSet, { briefing_time: '06:45' })
+    // 清空/半填不是合法 HH:MM → 不发指令（后端不被脏值敲）
+    fireEvent.change(input, { target: { value: '' } })
+    expect(client.sendCommand).toHaveBeenCalledTimes(1)
+  })
+
+  it('拖音量滑杆乐观写回并发 settings.set', () => {
+    const client = { sendCommand: vi.fn().mockResolvedValue({ ok: true, result: {} }) }
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+    useSettingsStore
+      .getState()
+      .applyBackendSettings({ ...EMPTY_BACKEND_SETTINGS, tts_volume: 50 })
+    render(<SettingsPanel />)
+    fireEvent.change(screen.getByTestId('range-tts-volume'), { target: { value: '75' } })
+    expect(useSettingsStore.getState().backendSettings.tts_volume).toBe(75)
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.SettingsSet, { tts_volume: 75 })
+    expect(screen.getByTestId('tts-volume-value')).toHaveTextContent('75')
+  })
+
+  it('返回按钮回信息面板（uiStore.rightView 回 dashboard）', () => {
+    useUiStore.getState().openSettings()
+    render(<SettingsPanel />)
+    fireEvent.click(screen.getByTestId('btn-settings-back'))
+    expect(useUiStore.getState().rightView).toBe('dashboard')
   })
 })
 
@@ -392,5 +575,14 @@ describe('TitleBar 窗口控制', () => {
     fireEvent.click(screen.getByTitle('关闭（隐藏到托盘）'))
     expect(windowControl).toHaveBeenCalledWith('minimize')
     expect(windowControl).toHaveBeenCalledWith('close')
+  })
+
+  it('齿轮按钮进入设置面板，再点一次回信息面板（toggle）', () => {
+    render(<TitleBar />)
+    fireEvent.click(screen.getByTestId('btn-open-settings'))
+    expect(useUiStore.getState().rightView).toBe('settings')
+    expect(screen.getByTestId('btn-open-settings').className).toContain('active')
+    fireEvent.click(screen.getByTestId('btn-open-settings'))
+    expect(useUiStore.getState().rightView).toBe('dashboard')
   })
 })

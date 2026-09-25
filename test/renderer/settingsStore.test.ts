@@ -6,20 +6,31 @@
  * @author aceFelix
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
-import { useSettingsStore } from '@renderer/stores/settingsStore'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { EMPTY_BACKEND_SETTINGS, useSettingsStore } from '@renderer/stores/settingsStore'
+import { parseBackendSettings } from '../../src/shared/contracts'
 import { translate } from '@renderer/i18n'
 
 beforeEach(() => {
   window.localStorage.clear()
   useSettingsStore.getState().setTheme('dark')
   useSettingsStore.getState().setLanguage('zh')
+  useSettingsStore.setState({ backendSettings: { ...EMPTY_BACKEND_SETTINGS } })
 })
 
 describe('settingsStore 主题/语言', () => {
-  it('默认深色 + 中文', () => {
-    expect(useSettingsStore.getState().theme).toBe('dark')
-    expect(useSettingsStore.getState().language).toBe('zh')
+  it('首启默认复古 + 中文（无持久化/非法值均回退 retro）', async () => {
+    // 重置模块注册表重新加载：store 初始值来自 loadPersisted 的回退路径
+    vi.resetModules()
+    window.localStorage.clear()
+    const fresh = await import('@renderer/stores/settingsStore')
+    expect(fresh.useSettingsStore.getState().theme).toBe('retro')
+    expect(fresh.useSettingsStore.getState().language).toBe('zh')
+    // 非法持久化值同样回退默认，不落到 dark
+    window.localStorage.setItem('jarvis-desktop-settings', JSON.stringify({ theme: 'nonsense' }))
+    vi.resetModules()
+    const again = await import('@renderer/stores/settingsStore')
+    expect(again.useSettingsStore.getState().theme).toBe('retro')
   })
 
   it('setTheme 应用到 <html data-theme> 并持久化 localStorage', () => {
@@ -29,11 +40,63 @@ describe('settingsStore 主题/语言', () => {
     expect(JSON.parse(raw ?? '{}')).toMatchObject({ theme: 'light', language: 'zh' })
   })
 
+  it('setTheme(retro) 写 <html data-theme=retro> 并持久化', () => {
+    useSettingsStore.getState().setTheme('retro')
+    expect(document.documentElement.dataset.theme).toBe('retro')
+    const raw = window.localStorage.getItem('jarvis-desktop-settings')
+    expect(JSON.parse(raw ?? '{}')).toMatchObject({ theme: 'retro', language: 'zh' })
+  })
+
   it('setLanguage 持久化并立即驱动 translate', () => {
     useSettingsStore.getState().setLanguage('en')
     expect(translate('chat.send')).toBe('Send')
     const raw = window.localStorage.getItem('jarvis-desktop-settings')
     expect(JSON.parse(raw ?? '{}')).toMatchObject({ theme: 'dark', language: 'en' })
+  })
+})
+
+describe('settingsStore 后端联动镜像 backendSettings', () => {
+  it('applyBackendSettings 局部合并，不进 localStorage（真源在 jarvis settings.toml）', () => {
+    useSettingsStore.getState().applyBackendSettings({ proactive_tts_enabled: true, tts_volume: 80 })
+    const s = useSettingsStore.getState().backendSettings
+    expect(s.proactive_tts_enabled).toBe(true)
+    expect(s.tts_volume).toBe(80)
+    expect(s.briefing_time).toBe(null) // 未触及的键保持未拉取态
+    const raw = window.localStorage.getItem('jarvis-desktop-settings')
+    expect(raw === null || !raw.includes('backendSettings')).toBe(true)
+  })
+
+  it('clearBackendSetting 单键回到未拉取态（回滚离线场景）', () => {
+    useSettingsStore.getState().applyBackendSettings({ briefing_enabled: true })
+    useSettingsStore.getState().clearBackendSetting('briefing_enabled')
+    expect(useSettingsStore.getState().backendSettings.briefing_enabled).toBe(null)
+  })
+
+  it('parseBackendSettings 宽容解析：全键回填，类型不符/缺字段置 null', () => {
+    const full = parseBackendSettings({
+      proactive_tts_enabled: false,
+      briefing_enabled: true,
+      briefing_time: '07:15',
+      deadline_enabled: true,
+      deadline_check_time: '21:00',
+      tts_volume: 60,
+      tts_speech_rate: 1.25
+    })
+    expect(full).toEqual({
+      proactive_tts_enabled: false,
+      briefing_enabled: true,
+      briefing_time: '07:15',
+      deadline_enabled: true,
+      deadline_check_time: '21:00',
+      tts_volume: 60,
+      tts_speech_rate: 1.25
+    })
+    // 旧版后端只回 proactive_tts_enabled / 脏数据类型不符 → 其余键 null 显离线态
+    const partial = parseBackendSettings({ proactive_tts_enabled: true, tts_volume: '50' })
+    expect(partial.proactive_tts_enabled).toBe(true)
+    expect(partial.tts_volume).toBe(null)
+    expect(partial.briefing_time).toBe(null)
+    expect(parseBackendSettings(null)).toEqual({ ...EMPTY_BACKEND_SETTINGS })
   })
 })
 
