@@ -50,31 +50,31 @@ npm run test:watch # vitest 监听模式
 
 ### 图标资源（build/icon.ico）
 
-`electron-builder.yml` 的 `win.icon` 与 `tray.ts` 的兜底图标路径都指向 `build/icon.ico`（多尺寸 16~256，深蓝实底反应炉图案）。该文件由脚本生成并入库，重生成方式（需 jarvis 环境已装 Pillow）：
+`electron-builder.yml` 的 `win.icon` 与 `tray.ts` 的兜底图标路径都指向 `build/icon.ico`（多尺寸 16~256，**复古荧光绿像素反应炉**：32×32 像素网格程序化绘制——同心环带 + 八扇区线圈 + 高光内核，NEAREST 放大保持像素颗粒；配色与 theme-retro.css 同源、黑绿实底 `#020602`）。该文件由脚本自包含生成并入库（仅依赖 Pillow，不再复用 jarvis 仓库绘制逻辑——jarvis --gui 窗口仍用深蓝版，两者身份有意分叉），重生成方式：
 
 ```powershell
-# 复用 jarvis agent/daemon/autostart.py 的反应炉绘制逻辑，单一图案来源
-python scripts/gen_icon.py
+python scripts/gen_icon.py   # 任一装了 Pillow 的环境（如 jarvis 的 venv）
 ```
 
-**窗口与托盘同源**：任务栏/Alt-Tab 图标（`BrowserWindow.icon`）与托盘图标都经 `src/main/appIcon.ts` 解析（候选顺序：`~/.jarvis/jarvis_window.ico` → `build/icon.ico`），杜绝「任务栏 Electron 原子 logo、托盘反应炉」的分叉（2026-09-10 实机反馈修复）。
+**窗口与托盘同源**：任务栏/Alt-Tab 图标（`BrowserWindow.icon`）与托盘图标都经 `src/main/appIcon.ts` 解析（候选顺序：`build/icon.ico` 仓库复古版 → `~/.jarvis/jarvis_window.ico` 深蓝旧版兜底；2026-09-25 起仓库版优先，与默认复古主题同一视觉身份），杜绝「任务栏 Electron 原子 logo、托盘反应炉」的分叉（2026-09-10 实机反馈修复）。
 
 ## 4. 测试
 
-vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **150 用例**：
+vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **170 用例**：
 
 | 测试文件 | 覆盖 |
 |---|---|
 | `test/main/backend.test.ts` | `parseHandshakeLine`（正常/残缺/超时行）、`resolvePythonEnv`、`BackendManager` 状态机（spawn→ready、stderr 噪声、仓库缺失、spawn 抛错、提前退出、握手超时、stop 杀进程树、意外退出、重复 start 复用） |
-| `test/main/appIcon.test.ts` | 图标候选优先级（用户目录实底版 → build/icon.ico）、全缺失降级 null、build/icon.ico 入库守卫、加载失败降级 |
+| `test/main/appIcon.test.ts` | 图标候选优先级（仓库复古像素版 → 用户目录深蓝旧版兜底）、全缺失降级 null、build/icon.ico 入库守卫、加载失败降级 |
 | `test/main/notify.test.ts` | `showSystemNotification`（主动播报系统通知）：isSupported 弹窗、title 空回退 J.A.R.V.I.S、title+body 全空不弹、构造异常吞掉、窗口未聚焦 flashFrame / 已聚焦不闪 / 无窗口降级 |
 | `test/preload/index.test.ts` | preload 暴露面契约：`jarvisDesktop` 键、notify 通道存在、notify 走 SystemNotify 通道原样 send、通道名稳定契约、既有能力（log/windowControl/onBackendStatus）未被挤掉 |
 | `test/renderer/ws.test.ts` | `JarvisWsClient`：URL 构造与 token 编码、handleRaw 事件分发、sendCommand 回执兑现、同类型 FIFO 匹配、send 只发不等、断线拒绝 pending + 退避重连、close 不重连 |
 | `test/renderer/chatStore.test.ts` | 消息流 store 全部 action：流式增量、thinking/text 分累、finishAssistant、工具卡建卡与按 id 回填、乱序补卡、ask_user、replayHistory、clear、addUser 缩略图 images 字段 |
-| `test/renderer/dispatcher.test.ts` | `dispatchServerEvent` 全事件路由 → chat/left/metrics/right store 与状态栏回调（含 `assistant_done` 撤销 busy + 刷 `cost.get`，init 六路刷新右栏三指令）；列表类型守卫；`proactive_notify` 主动播报（briefing/reminder/deadline 上屏、reminder 带 task_id 回 ack、系统通知调用、window 缺失降级、briefing 进右栏最近简报 + 刷 `schedule.list`）；半双工语音 `voice_*` 事件（started/stopped/state 迁移/user_transcript/ai_text_delta→ai_text 全量替换、talk_started 权威复位 talk 模式） |
-| `test/renderer/components.test.tsx` | React 组件（@testing-library/react）：ChatArea 气泡流式渲染 + 光标 + 工具卡 + ask_user + 发送/附件/截屏禁用 + 发送/停止双态按钮（busy 时变“■ 停止”、点击发 `reply.abort`、busy 中 Enter 不叠发）+ 📎 附件链路（file input 变更 → chips → 发送 payload 带 files）+ 用户气泡缩略图 + AI 气泡复制按钮（流式结束后出现、写剪贴板变「已复制」）+ 📸 截屏入附件 chips + 语音状态条（voiceActive 显示阶段文案 + 打断/退出按钮）；LeftSidebar 面板切换 + 列表渲染 + 模式高亮（文本/实时/语音三按钮）+ 语音中 footer 标记；RightSidebar 指标 + 设置面板（主题/语言分段控件、切浅色写 `<html data-theme>`、切英文文案联动）+ 任务中心（提醒/截止日期/简报折叠块）+ 用量卡 + 运行健康（MCP 快照、日志流倒序）；TitleBar 窗口控制 IPC |
-| `test/renderer/settingsStore.test.ts` | settingsStore（主题/语言默认值、setTheme 写 `<html data-theme>` + localStorage 持久化、setLanguage 持久化并驱动 translate）+ i18n 查键（模板插值、缺参留占位、缺键回退键名/中文） |
-| `test/renderer/backendStore.test.ts` | 半双工语音指令路由：`toggleVoice`（未激活→置 voice 模式 + `voice.start`；已激活→`voice.stop`）、`interruptVoice`（`voice.interrupt`）；停止回复：`abortReply`（发 `reply.abort`、状态栏“正在停止...”、不改 busy）；sendMessage 附件（payload 带 images/files、气泡缩略图 data URL、纯图片可发、全空不发）；右栏刷新动作（`refreshSchedule`/`refreshCost`/`refreshState` 发 `schedule.list`/`cost.get`/`state.get` 并映射进 rightStore）；未连接（client 为 null）降级不抛异常 |
+| `test/renderer/dispatcher.test.ts` | `dispatchServerEvent` 全事件路由 → chat/left/metrics/right store 与状态栏回调（含 `assistant_done` 撤销 busy + 刷 `cost.get`，init 七路刷新（右栏三指令 + 设置回填）、会话管理事件（`session_new` 清屏+提示、`session_ready`/`session_renamed`/`session_deleted` 只刷列表不清屏））；列表类型守卫；`proactive_notify` 主动播报（briefing/reminder/deadline 上屏、reminder 带 task_id 回 ack、系统通知调用、window 缺失降级、briefing 进右栏最近简报 + 刷 `schedule.list`）；半双工语音 `voice_*` 事件（started/stopped/state 迁移/user_transcript/ai_text_delta→ai_text 全量替换、talk_started 权威复位 talk 模式） |
+| `test/renderer/components.test.tsx` | React 组件（@testing-library/react）：ChatArea 气泡流式渲染 + 光标 + 工具卡 + ask_user + 发送/附件/截屏禁用 + 发送/停止双态按钮（busy 时变“■ 停止”、点击发 `reply.abort`、busy 中 Enter 不叠发）+ 📎 附件链路（file input 变更 → chips → 发送 payload 带 files）+ 用户气泡缩略图 + AI 气泡复制按钮（流式结束后出现、写剪贴板变「已复制」）+ 📸 截屏入附件 chips + 语音状态条（voiceActive 显示阶段文案 + 打断/退出按钮）；LeftSidebar 面板切换 + 列表渲染 + 模式高亮（文本/实时/语音三按钮）+ 语音中 footer 标记 + 会话项交互（单击 220ms 延时发 `sessions.open`、当前会话不发；右键显删除按钮点击发 `sessions.delete`；双击进内联改名、回车发 `sessions.rename` 且不误触 open、Esc 取消不发）；RightSidebar 指标 + 任务中心（提醒/截止日期/简报折叠块）+ 用量卡 + 运行健康（MCP 快照、日志流倒序）；SettingsPanel 独立设置面板（外观主题/语言分段控件、切浅色/复古写 `<html data-theme>`、切英文文案联动、后端联动四组未拉取时全显离线态、回填后渲染开关/时间/滑杆、TTS 开关乐观翻转发 `settings.set`、简报时间 HH:MM 合法才提交、音量滑杆拖动写回、← 返回）；LeftSidebar retro 主题模式按钮显 `[TXT]`、切回 dark 恢复 💬；TitleBar 窗口控制 IPC + 齿轮切换设置面板（激活态高亮） |
+| `test/renderer/settingsStore.test.ts` | settingsStore（首启默认复古/中文——无持久化/非法值均回退 retro、setTheme 写 `<html data-theme>` + localStorage 持久化（含 retro）、setLanguage 持久化并驱动 translate、backendSettings 局部合并不进 localStorage + clearBackendSetting 单键回未拉取态、parseBackendSettings 宽容解析（全键回填/脏数据置 null/旧版后端兼容））+ i18n 查键（模板插值、缺参留占位、缺键回退键名/中文） |
+| `test/renderer/glyphs.test.ts` | Glyph 符号系统：`glyphsFor` 三主题映射（retro→RETRO、dark/light→EMOJI）、RETRO 表全为纯 ASCII（无 emoji）、EMOJI/RETRO 两表键集合一致 |
+| `test/renderer/backendStore.test.ts` | 半双工语音指令路由：`toggleVoice`（未激活→置 voice 模式 + `voice.start`；已激活→`voice.stop`）、`interruptVoice`（`voice.interrupt`）；停止回复：`abortReply`（发 `reply.abort`、状态栏“正在停止...”、不改 busy）；sendMessage 附件（payload 带 images/files、气泡缩略图 data URL、纯图片可发、全空不发）；右栏刷新动作（`refreshSchedule`/`refreshCost`/`refreshState` 发 `schedule.list`/`cost.get`/`state.get` 并映射进 rightStore）；设置面板（`refreshSettings` 发 `settings.get` 全量回填 backendSettings（脏数据置 null）、`setBackendSetting` 乐观更新发 `settings.set`（布尔/数值/时间键通用）、值未变不发指令、回执失败回滚原值、未连接回滚到 null）；未连接（client 为 null）降级不抛异常；会话改名/删除指令（`renameSession` 发 `sessions.rename` 带 name/new_name、`deleteSession` 发 `sessions.delete` 带 name；未连接/回错 ok=false 落系统错误提示） |
 
 > 组件测试不渲染 `App` / `ReactorCanvas`（会挂载 canvas 动画，jsdom 无 2D 上下文），逐个渲染纯展示组件；后端 client 默认 null，组件不会真正发起 WS 连接。
 
@@ -96,9 +96,12 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 - [ ] **停止回复**：发送后按钮变“■ 停止”→ 回复进行中点击 → 流式中断、系统提示“已停止回复”、按钮恢复“发送”且可继续发新消息；回复中 Enter 不叠发。
 - [ ] **工具卡片**：触发带工具的提问 → 中栏出现可折叠工具卡片（`…` → `✓`/`✗`），展开见入参与输出。
 - [ ] **切模型**：左栏切到「模型」面板 → 列表可滚动 → 点非当前模型 → 提示「模型已切换为 X（下次对话生效）」→ 当前标记移动。
-- [ ] **切音色 / 历史会话**：音色面板同上；历史面板点会话 → 回放历史消息 + 「已恢复会话「X」」。
+- [ ] **切音色 / 历史会话**：音色面板同上；历史面板点会话 → 回放历史消息 + 「已恢复会话「X」」→ 该会话项在左栏高亮选中（`sessions.list` 的 `current` 标记，与模型/音色选中态同口径；选中项再点不重复恢复，新建/标题改名后选中态随列表刷新自愈）。
+- [ ] **会话删除 / 改名**：右键会话项 → 项右侧出现删除按钮（retro `[DEL]` / emoji 🗑️）→ 点击后会话从列表消失（删当前会话时中栏一并清空开新会话）；列表空白处右键 → 删除按钮收起；双击会话项 → 标题变为可编辑输入框（光标选中）→ 改名后 Enter 或点击别处提交（列表刷新为新名、不再被自动标题覆盖），Esc 或改回原名则取消；单击与双击不相互误触（想改名不会先加载一次）。
 - [ ] **右栏指标**：CPU/内存/磁盘每 ~2 秒刷新，CPU>85% 进度条变红。
-- [ ] **右栏设置面板**：点「浅色」→ 界面立即换浅色主题（深色/浅色分段高亮跟随）→ 重启 `npm run dev` 仍保持；点「English」→ 栏标题/按钮/空态等静态文案切英文（状态栏与事件消息仍中文），重启保持。
+- [ ] **设置面板**：点标题栏齿轮 ⚙ → 右栏整体切为设置面板（齿轮高亮，再点或面板内 ← 返回信息面板）；点「浅色」→ 界面立即换浅色主题（深色/浅色/复古分段高亮跟随）→ 重启 `npm run dev` 仍保持；点「English」→ 栏标题/按钮/空态等静态文案切英文（状态栏与事件消息仍中文），重启保持。
+- [ ] **复古主题（默认）**：全新启动（无 localStorage 持久化）默认即复古——CRT 荧光绿终端风（黑底绿字、扫描线叠层、点阵抖动背景、硬边无圆角、等宽字辉光、方块滚动条）+ emoji 换 ASCII 括号牌（左栏 `[TXT]/[LIV]/[VOX]`、面板 `[HIS]/[MOD]/[VOC]`、输入栏 `[ATT]/[CAP]` 等）+ 反应炉绿系像素颗粒（低分辨率放大）；设置面板切「深色/浅色」→ 重启后仍保持所选（用户显式选择优先）→ 切回「深色」完全复原蓝系玻璃拟态与 emoji（无残留）。
+- [ ] **语音播报与后端联动设置**：连接后端后进设置面板 → 四组控件在线可改：「主动播报语音」拨动开关（立即生效，关闭后到期提醒不再 TTS 朗读，事件气泡/通知不受影响）、播报音量/语速滑杆（下一次播报即按新值）、每日简报开关 + 简报时间、截止日期开关 + 检查时间（改时间/开关后调度热重注册，无需重启）→ 重启后全部保持（已外科式落盘 settings.toml 对应节，注释与其他字段不丢）；未连接时对应行显离线态文案；后端拒绝（超范围/非法值）时控件回滚原值且聊天流出现错误文案。
 - [ ] **复制与截屏**：AI 回复结束后气泡右下出现「📋 复制」→ 点击剪贴板可取（按钮短暂变“✓已复制”）；点输入栏 📸 → 附件 chips 出现截图缩略图 → 发送后模型能描述截图内容。
 - [ ] **右栏任务中心**：对话「10 分钟后提醒我喝水」→ 提醒出现在任务中心列表（时间升序）；到点触发后条目消失、⏰ 气泡上屏；对话设截止日期后可见倒计时（临期黄/逾期红）；每日简报触发后「最近简报」折叠块可展开。
 - [ ] **右栏用量与健康**：发几轮对话后用量卡 token/轮数增长（口径同 REPL `/cost`）；运行健康显示 MCP 连接数与工具数（未启用显示“MCP 未启用”）；日志流随对话/工具调用滚动追加。

@@ -54,7 +54,7 @@ app.whenReady()
 ```
 
 Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
-`ProactiveHub` + `ChatEngine`（registry_hook 挂载提醒/截止日期工具）+ `MetricsCollector` + `WorkbenchAPI` + `DesktopBridgeServer` → `server.start()` → `engine.start()` → `metrics.start()` → `start_event_pump()` → `hub.start()`（主动播报，事件泵启动后）→ 投递 `init` 事件 → **打印握手 JSON** → 监视 stdin EOF 等待停机（停机反序：`hub.stop()` → `server.stop()` → `metrics.stop()` → `engine.stop()`）。
+`ProactiveHub` + `ChatEngine`（registry_hook 挂载提醒/截止日期工具）+ `MetricsCollector` + `WorkbenchAPI` + `DesktopBridgeServer` → `server.start()` → `engine.start()` → `metrics.start()` → `start_event_pump()` → `hub.start()`（主动播报，事件泵启动后）→ **打印握手 JSON** → 监视 stdin EOF 等待停机（停机反序：`hub.stop()` → `server.stop()` → `metrics.stop()` → `engine.stop()`）。`init` 事件不在启动期投递（无在线客户端时 broadcast 静默丢弃），改为每连接首帧：`DesktopBridgeServer._on_client_connected` 在新 WS 认证通过后直发（payload 同 `state.get`，重连同覆盖）。
 
 ### 后端生命周期状态机
 
@@ -97,14 +97,16 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 - 回执（request/response 型指令）：`{"event": "reply", "data": {"type", "ok", "result" | "error"}}`。
 - 握手（stdout 单行）：`{"type": "jarvis-serve-ready", "port", "http_port", "token", "pid"}`。
 
-### 指令一览（20 条）
+### 指令一览（24 条）
 
 | 指令 | 参数 | result |
 |---|---|---|
 | `message` | `text`［, `images` / `files` 附件］ | null（结果走流式事件） |
-| `sessions.list` | — | `[{name, updated_at, message_count, model}]` |
+| `sessions.list` | — | `[{name, updated_at, message_count, model, current}]`（`current`=引擎当前会话，左栏选中态数据源） |
 | `sessions.open` | `name` | null（结果走 `session_loaded`） |
 | `sessions.new` | — | null（结果走 `session_new`） |
+| `sessions.rename` | `name`, `new_name` | null（结果走 `session_renamed`；目标名占用/源不存在走 `warn`；改当前会话名会取消未落地的自动标题任务） |
+| `sessions.delete` | `name` | null（结果走 `session_deleted`；删当前会话另走 `session_new` 清聊天区） |
 | `models.list` | — | `[{name, vendor, desc, current}]` |
 | `models.select` | `name` | bool（是否持久化成功） |
 | `voices.list` | — | `[{name, description, current}]` |
@@ -121,6 +123,8 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `voice.stop` | — | null（结果走 `voice_stopped`） |
 | `voice.interrupt` | — | bool（打断当前播报/识别，不停会话；与麦克风 barge-in 双通道） |
 | `proactive.ack` | `task_id` | bool（确认主动提醒已读、停升级重发；serve 侧 hub 未装配时 ok=false） |
+| `settings.get` | — | `{proactive_tts_enabled, briefing_enabled, briefing_time, deadline_enabled, deadline_check_time, tts_volume, tts_speech_rate}`（后端联动设置白名单，与 jarvis 侧 `agent/config/desktop_settings.py` 同口径；主题/语言为纯前端偏好不入协议） |
+| `settings.set` | 单个白名单键 | `{key: value}`（serve 侧校验→先外科式落盘 settings.toml 对应节→再改运行时 Settings；简报/截止日期键额外触发 ProactiveHub 调度热重注册；落盘失败 ok=false 且不动运行时，壳侧回滚镜像） |
 
 ### 消息附件（📎 / 粘贴）
 
@@ -134,16 +138,10 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 - 纯图片消息（空文本）可发送；历史回放（`session_loaded`）不传 base64，图片块折叠为
   `[图片×N]` 标记。
 
-### 右栏五区块（设置 / 任务中心 / 用量 / 系统状态 / 运行健康）
+### 右栏四区块（任务中心 / 用量 / 系统状态 / 运行健康）与设置面板
 
-右栏（`RightSidebar.tsx`）自上而下五区块；任务/用量/健康数据集中在 `stores/rightStore.ts`，
-设置区块走独立的 `stores/settingsStore.ts`（纯渲染层偏好，不走后端指令）：
+右栏信息面板（`RightSidebar.tsx`）自上而下四区块；任务/用量/健康数据集中在 `stores/rightStore.ts`：
 
-- **设置**：主题（深色/浅色）+ 界面语言（中文/English），行式布局（标签 + 分段控件）便于
-  追加新设置项。主题经 `applyTheme` 写 `<html data-theme>`，main.css 末尾浅色覆盖块依选择器
-  生效（深色字面量不动，只覆盖结构性表面色与文本色）；语言经 `i18n.ts` 的 zh/en 字典 +
-  `useT()` 驱动，v1 覆盖静态界面文案（栏标题/按钮/空态/placeholder/设置项），运行时状态
-  文本（状态栏、语音阶段）与后端事件消息暂保持中文。两者 localStorage 持久化、重启保持。
 - **任务中心**：`schedule.list` 的待触发提醒（时间升序）+ 活跃截止日期（`days_left`
   倒计时，≤3 天标黄、逾期标红）+ 最近简报折叠块（`proactive_notify` kind=briefing 时更新）；
 - **会话与用量**：`cost.get` 的当前模型 + token 四类累计（输入/输出/缓存读/缓存写合并展示）
@@ -152,7 +150,7 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 - **运行健康**：`state.get` 的 `mcp` 连接快照（成功/失败名单 + 工具数，null 显示未启用）
   + 事件日志流（滚动 30 条：回复完成/工具调用/info/warn/error/主动播报）。
 
-刷新时机（`dispatcher.ts` 接线）：`init` 六路齐刷（左栏三面板 + schedule/cost/state）；
+刷新时机（`dispatcher.ts` 接线）：`init` 七路齐刷（左栏三面板 + schedule/cost/state + 设置回填）；
 `assistant_done` 刷 `cost.get`（一轮对话消耗了 token）；`proactive_notify` 刷 `schedule.list`
 （fired 任务离列、days_left 更新）。待发送附件集中在 `stores/attachStore.ts`（从 ChatArea
 提升），截屏与 📎/粘贴共用同一份 chips 列表。
@@ -163,10 +161,43 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 （`CopyRow`，流式结束后才出现，复制成功短暂变「已复制」）；＋新会话沿用左栏「新建会话」，
 ■停止回复沿用输入栏发送/停止双态按钮。
 
+### 设置面板（独立组件，2026-09）
+
+设置从右栏信息面板中独立出来：`SettingsPanel.tsx` 整体替换右栏（`App.tsx` 按
+`stores/uiStore.ts` 的 `rightView: 'dashboard' | 'settings'` 条件渲染，瞬态不持久化，
+重启回信息面板），入口为标题栏齿轮按钮（`TitleBar.tsx`，兼 toggle，激活态高亮），
+面板内 ← 返回。四节（外观 + 语音播报 + 每日简报 + 截止日期追踪）：
+
+- **外观**：主题（深色/浅色/复古，首启默认复古——无持久化/非法值时回退 retro，用户显式选择经 localStorage 优先）+ 界面语言（中文/English），行式布局（标签 + 分段控件）。
+  纯前端偏好（`stores/settingsStore.ts`，不走后端指令）：主题经 `applyTheme` 写
+  `<html data-theme>`，main.css 末尾浅色覆盖块与 `styles/theme-retro.css` 复古覆盖块依
+  选择器生效；语言经 `i18n.ts` 的 zh/en 字典 + `useT()` 驱动。两者 localStorage 持久化、重启保持。
+  主进程 `BrowserWindow.backgroundColor` 为复古黑绿底 `#020602`（与新默认主题一致，防启动白闪）。
+  - **复古（CRT 荧光绿）皮肤层**：`styles/theme-retro.css`（`[data-theme='retro']` 覆盖块，
+    与浅色同口径，在 `main.tsx` 于 main.css 之后 import）——黑底荧光绿、扫描线叠层、点阵抖动、
+    硬边像素（去圆角/去玻璃模糊）、等宽字辉光、方块滚动条，纯 CSS 无图片资源。
+  - **Glyph 符号系统**：`glyphs.ts` 两张表（EMOJI / RETRO 终端风括号牌），`useGlyphs()` 订阅
+    主题返回对应表；i18n 文案剥离 emoji 前缀只留纯文字，组件侧 `{g.xxx} {t(key)}` 组合，切主题自动重渲染。
+  - **反应炉像素化**：`reactor.ts::setRetro(on)` 切绿系配色表 + 1/4 分辨率绘制（backing store 缩放，
+    配合 CSS `image-rendering: pixelated` 放大成像素颗粒）；`ReactorCanvas.tsx` 订阅主题调 `setRetro`。
+- **后端联动设置（三组，2026-09 第一批扩键）**：真源在 jarvis 侧 settings.toml
+  （白名单 schema 见 jarvis `agent/config/desktop_settings.py`，密钥/自由路径永不入协议），
+  镜像在 `settingsStore.backendSettings`（单键 null=未拉取/未连接，对应行显离线态文案，
+  不进 localStorage）：init 时 `settings.get` 经 `parseBackendSettings` 宽容解析全量回填
+  （类型不符/缺字段置 null，兼容旧版后端）；改动时 `backendStore.setBackendSetting(key, value)`
+  乐观更新 + 发 `settings.set`（值未变不发指令），回执失败回滚原值（prev=null 回滚到
+  null，错误写聊天流）。三组控件：
+  - **语音播报**：主动播报待机 TTS 开关（拨动开关 role=switch）+ 播报音量（0-100）/
+    语速（0.5-2.0×）滑杆——TTS 参数每次播报现读 Settings，改完立即生效；
+  - **每日简报**：启用开关 + 简报时间（`<input type="time">` 本地暂存，HH:MM 合法才提交）；
+  - **截止日期追踪**：启用开关 + 每日检查时间。
+  简报/截止日期是调度键：serve 侧改完运行时后额外经 `ProactiveHub.hot_update_schedule`
+  撤旧任务重注册（调度任务是启动快照，不重注册新时间/新开关要重启才生效）。
+
 ### 事件一览
 
 - **对话流**：`user_message` / `assistant_text`（流式增量）/ `assistant_thinking` / `tool_use` / `tool_result` / `assistant_done`
-- **会话**：`init` / `session_ready` / `session_loaded` / `session_new`
+- **会话**：`init` / `session_ready` / `session_loaded` / `session_new` / `session_renamed` / `session_deleted`
 - **提示**：`info` / `warn` / `error` / `status` / `ask_user`
 - **指标**：`metrics`（每 2 秒推送）
 - **实时语音**：`talk_started` / `talk_stopped` / `volume` / `user_speaking` / `ai_speaking` / `user_transcript` / `ai_transcript` / `ai_transcript_delta`
@@ -174,3 +205,25 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 - **主动播报**：`proactive_notify`（payload `{kind: briefing｜reminder｜deadline, title, text, task_id}`；由 serve 侧 `ProactiveHub` 装配的每日简报 / 对话提醒 / 截止日期触发，仅 `--serve` / 桌面壳运行期间生效）
 
 渲染侧 `api/dispatcher.ts` 把上述事件映射进 Zustand store（`chatStore` / `leftStore` / `metricsStore` / `rightStore`）与反应炉动画实例，组件只订阅 store 切片——与 workbench 前端 `app.js::dispatchEvent` 口径一致。其中 `proactive_notify` 除上屏聊天气泡外，还调 `window.jarvisDesktop.notify` 经主进程弹 Windows 原生通知（`src/main/notify.ts`），reminder 带 `task_id` 时回发 `proactive.ack`。
+
+`session_ready` 仅为引擎装配完成通知（只刷新会话列表，不清屏）：该事件由 `_ensure_session`
+在首轮回合中途发出，带清屏语义会吞掉乐观上屏的首发用户气泡（实测启动后首条消息只剩
+AI 回复）。「清屏初始化」语义由 `backendStore.applyBackendStatus` 接管：检测到后端进程
+pid 换代（崩溃重启）时清旧气泡；workbench `app.js` 同口径，清屏初始化由页面加载空屏与
+`session_new` 兜底（fixlog: `session-ready-first-bubble-swallow`）。
+
+### 左栏会话项交互（删除 / 改名）
+
+`LeftSidebar.tsx::SessionItem` 与 workbench `app.js::refreshSessionList` 同口径：
+
+- **单击**：220ms 延时后发 `sessions.open` 加载会话（当前会话不发）；延时用于让位双击，
+  双击会先清掉该定时器，避免「想改名却先加载一次」。
+- **双击**：标题就地换成 `input`（`session-rename-input`）内联改名，`Enter` / 失焦提交发
+  `sessions.rename`，`Esc` 取消；空名或未变化视为取消。改当前会话名时引擎置
+  `_title_generated=True` 并取消未落地的自动标题任务，防自动标题覆盖用户自定义名。
+- **右键**：项右侧切出删除按钮（`session-del-btn`，retro 主题显 `[DEL]`、emoji 主题显 🗑️），
+  点击才真删发 `sessions.delete`（二次确认）；列表空白处右键收起删除按钮。
+
+改名 / 删除均只发指令，列表刷新由回流事件 `session_renamed` / `session_deleted` 驱动（只刷列表
+不清屏）；删当前会话时引擎复用新建语义另发 `session_new` 清聊天区。目标名已占用（存盘
+文件存在）一律拒绝，不覆盖。
