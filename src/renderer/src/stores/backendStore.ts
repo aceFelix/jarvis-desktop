@@ -11,7 +11,14 @@
  */
 
 import { create } from 'zustand'
-import { Cmd, type BackendInfo, type BackendState } from '../../../shared/contracts'
+import {
+  Cmd,
+  parseBackendSettings,
+  type BackendInfo,
+  type BackendSettingKey,
+  type BackendSettings,
+  type BackendState
+} from '../../../shared/contracts'
 import { JarvisWsClient } from '../api/ws'
 import {
   asModelList,
@@ -22,6 +29,7 @@ import {
 } from '../api/dispatcher'
 import { useChatStore } from './chatStore'
 import { useLeftStore } from './leftStore'
+import { useSettingsStore } from './settingsStore'
 import { useMetricsStore, type MetricsPayload } from './metricsStore'
 import {
   useRightStore,
@@ -51,6 +59,8 @@ export interface JarvisConnection {
   refreshCost: () => Promise<void>
   /** 右栏运行健康刷新（state.get 的 mcp 快照 → rightStore）。 */
   refreshState: () => Promise<void>
+  /** 设置面板刷新（settings.get → settingsStore.backendSettings 全量回填）。 */
+  refreshSettings: () => Promise<void>
   /** 提醒已读回执（proactive.ack）：fire-and-forget，失败静默。 */
   ackProactive: (taskId: string) => void
 }
@@ -102,6 +112,10 @@ export interface BackendStoreState {
   abortReply: () => Promise<void>
   newSession: () => Promise<void>
   openSession: (name: string) => Promise<void>
+  /** 会话改名（成功由 session_renamed 事件刷列表）。@author aceFelix */
+  renameSession: (name: string, newName: string) => Promise<void>
+  /** 会话删除（成功由 session_deleted 事件刷列表；删当前会话另收 session_new）。@author aceFelix */
+  deleteSession: (name: string) => Promise<void>
   selectModel: (name: string) => Promise<void>
   selectVoice: (name: string) => Promise<void>
   answerUser: (text: string) => Promise<void>
@@ -116,6 +130,9 @@ export interface BackendStoreState {
   refreshSchedule: () => Promise<void>
   refreshCost: () => Promise<void>
   refreshState: () => Promise<void>
+  refreshSettings: () => Promise<void>
+  /** 设置面板写回单个后端联动设置项（乐观更新 + 回执失败回滚）。 */
+  setBackendSetting: <K extends BackendSettingKey>(key: K, value: NonNullable<BackendSettings[K]>) => Promise<void>
   fetchMetrics: () => Promise<void>
 }
 
@@ -128,6 +145,7 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     refreshSchedule: () => get().refreshSchedule(),
     refreshCost: () => get().refreshCost(),
     refreshState: () => get().refreshState(),
+    refreshSettings: () => get().refreshSettings(),
     ackProactive: (taskId) => {
       // 提醒已读回执：只发不等（send），失败静默——不因回执问题把错误
       // 写进聊天流（与 runCommand 的显式指令不同，这是后台自动确认）。
@@ -177,8 +195,13 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     client: null,
 
     applyBackendStatus: (state, info, error) => {
-      set({ state, info: info ?? get().info, error: error ?? '' })
+      const prevInfo = get().info
+      set({ state, info: info ?? prevInfo, error: error ?? '' })
       if (state === 'ready' && info) {
+        // 接管原 session_ready 携带的「清屏初始化」语义：后端进程换代
+        // （崩溃重启，pid 变化）时清掉上一后端的旧气泡。放在 session_ready
+        // 里清会吞首发用户气泡（该事件总在首轮回合中途到达）。@author aceFelix
+        if (prevInfo && prevInfo.pid !== info.pid) useChatStore.getState().clear()
         get().connect(info)
       } else if (state === 'error' || state === 'exited') {
         // 后端崩溃/退出：断开 WS，状态栏提示（重连由主进程重启后端驱动）
@@ -273,6 +296,18 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
       await runCommand(Cmd.SessionsOpen, { name })
     },
 
+    renameSession: async (name, newName) => {
+      // 列表刷新由 session_renamed 事件驱动，这里只管指令与错误出口。
+      // @author aceFelix
+      await runCommand(Cmd.SessionsRename, { name, new_name: newName })
+    },
+
+    deleteSession: async (name) => {
+      // 同上：session_deleted / session_new 事件驱动列表与聊天区收尾。
+      // @author aceFelix
+      await runCommand(Cmd.SessionsDelete, { name })
+    },
+
     selectModel: async (name) => {
       const result = await runCommand(Cmd.ModelsSelect, { name })
       if (result !== null) {
@@ -359,6 +394,34 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
       const result = await runCommand(Cmd.StateGet)
       if (result !== null) {
         useRightStore.getState().setMcp((result as { mcp?: McpStatus | null }).mcp ?? null)
+      }
+    },
+
+    refreshSettings: async () => {
+      // 设置面板：settings.get → backendSettings 全量回填（白名单键宽容解析，
+      // 类型不符/缺字段置 null 显离线态）。@author aceFelix
+      const result = await runCommand(Cmd.SettingsGet)
+      if (result !== null) {
+        useSettingsStore.getState().applyBackendSettings(parseBackendSettings(result))
+      }
+    },
+
+    setBackendSetting: async (key, value) => {
+      // 乐观更新 + 失败回滚：先写本地镜像保证手感，settings.set 回执失败时
+      // 恢复原值（错误文案已由 runCommand 统一写进聊天流）；从未拉取过
+      // 真源（prev=null，离线/未初始化）时失败回滚到 null，避免界面谎报
+      // 一个无法写回后端的设置态。@author aceFelix
+      const store = useSettingsStore.getState()
+      const prev = store.backendSettings[key]
+      if (prev === value) return
+      store.applyBackendSettings({ [key]: value } as Partial<BackendSettings>)
+      const result = await runCommand(Cmd.SettingsSet, { [key]: value })
+      if (result === null) {
+        if (prev === null) useSettingsStore.getState().clearBackendSetting(key)
+        else
+          useSettingsStore
+            .getState()
+            .applyBackendSettings({ [key]: prev } as Partial<BackendSettings>)
       }
     },
 

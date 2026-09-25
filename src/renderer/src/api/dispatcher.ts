@@ -64,7 +64,7 @@ export function dispatchServerEvent(
   const payload = msg.data
 
   switch (msg.event) {
-    // ---- 初始化：刷新左栏三面板 + 右栏任务中心/用量/运行健康 ----
+    // ---- 初始化：刷新左栏三面板 + 右栏任务中心/用量/运行健康 + 设置面板 ----
     case 'init':
       void conn.refreshSessions()
       void conn.refreshModels()
@@ -72,6 +72,7 @@ export function dispatchServerEvent(
       void conn.refreshSchedule()
       void conn.refreshCost()
       void conn.refreshState()
+      void conn.refreshSettings()
       break
 
     // ---- 文本对话流 ----
@@ -125,14 +126,15 @@ export function dispatchServerEvent(
 
     // ---- 会话管理 ----
     case 'session_renamed':
-      // 标题生成改名通知：只刷新左栏会话列表，绝不清空气泡。
-      // session_ready 带"清空初始化"语义（引擎装配完成），复用它会把
-      // 刚流式渲染完的回复擦掉（实测首轮回复后整屏空白）。
-      // @author aceFelix
+      // 标题生成改名通知：只刷新左栏会话列表，绝不清空气泡。@author aceFelix
       void conn.refreshSessions()
       break
     case 'session_ready':
-      chat.clear()
+      // 引擎装配完成通知：只刷新会话列表，绝不清屏。
+      // 首条 send 触发 _ensure_session 发本事件，清屏语义会吞掉乐观上屏的
+      // 首发用户气泡（实测：启动后首条消息只剩 AI 回复、用户气泡消失）。
+      // 「清屏初始化」语义已迁移到 backendStore 连接生命周期：后端进程
+      // pid 换代时清旧气泡。@author aceFelix
       void conn.refreshSessions()
       break
     case 'session_new':
@@ -147,6 +149,11 @@ export function dispatchServerEvent(
       void conn.refreshSessions()
       break
     }
+    case 'session_deleted':
+      // 会话删除完成：只刷列表（删当前会话时引擎另发 session_new 清聊天区）。
+      // @author aceFelix
+      void conn.refreshSessions()
+      break
     case 'status':
       if (typeof payload === 'string' && talkStatusLabels[payload]) {
         getReactor()?.setStatus(payload as ReactorStatus)

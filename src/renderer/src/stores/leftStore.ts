@@ -15,6 +15,8 @@ export interface SessionItem {
   updated_at: number
   message_count: number
   model: string
+  /** 是否引擎当前会话（后端 sessions.list 现比标记，左栏选中态数据源）。 */
+  current?: boolean
 }
 
 export interface ModelItem {

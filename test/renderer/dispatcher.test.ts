@@ -23,7 +23,7 @@ import { useMetricsStore } from '@renderer/stores/metricsStore'
 import { useRightStore } from '@renderer/stores/rightStore'
 import type { JarvisConnection } from '@renderer/stores/backendStore'
 
-/** 假连接门面：六个刷新动作 + 提醒已读回执均为 spy。 */
+/** 假连接门面：七个刷新动作 + 提醒已读回执均为 spy。 */
 function makeConn(): JarvisConnection {
   return {
     refreshSessions: vi.fn().mockResolvedValue(undefined),
@@ -32,6 +32,7 @@ function makeConn(): JarvisConnection {
     refreshSchedule: vi.fn().mockResolvedValue(undefined),
     refreshCost: vi.fn().mockResolvedValue(undefined),
     refreshState: vi.fn().mockResolvedValue(undefined),
+    refreshSettings: vi.fn().mockResolvedValue(undefined),
     ackProactive: vi.fn()
   }
 }
@@ -125,7 +126,7 @@ describe('dispatchServerEvent · 文本对话流', () => {
 })
 
 describe('dispatchServerEvent · 会话与初始化', () => {
-  it('init 触发六路刷新（左栏三面板 + 右栏任务/用量/运行健康）', () => {
+  it('init 触发七路刷新（左栏三面板 + 右栏任务/用量/运行健康 + 设置回填）', () => {
     const conn = makeConn()
     dispatchServerEvent({ event: 'init', data: null }, conn)
     expect(conn.refreshSessions).toHaveBeenCalled()
@@ -134,6 +135,7 @@ describe('dispatchServerEvent · 会话与初始化', () => {
     expect(conn.refreshSchedule).toHaveBeenCalled()
     expect(conn.refreshCost).toHaveBeenCalled()
     expect(conn.refreshState).toHaveBeenCalled()
+    expect(conn.refreshSettings).toHaveBeenCalled()
   })
 
   it('session_new 清空并提示', () => {
@@ -143,6 +145,41 @@ describe('dispatchServerEvent · 会话与初始化', () => {
     const msgs = useChatStore.getState().messages
     expect(msgs).toHaveLength(1)
     expect(msgs[0]).toMatchObject({ kind: 'system', text: '已开启新会话' })
+    expect(conn.refreshSessions).toHaveBeenCalled()
+  })
+
+  it('session_ready 只刷新会话列表不清空气泡（保护首发用户气泡）', () => {
+    // 首条 send 触发引擎 _ensure_session 发本事件；若带清屏语义会吞掉
+    // 乐观上屏的首发用户气泡（fixlog: session-ready-first-bubble-swallow）。
+    // @author aceFelix
+    const conn = makeConn()
+    useChatStore.getState().addUser('你好jarvis')
+    dispatchServerEvent({ event: 'session_ready', data: { name: 'session-x' } }, conn)
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0]).toMatchObject({ kind: 'user', text: '你好jarvis' })
+    expect(conn.refreshSessions).toHaveBeenCalled()
+  })
+
+  it('session_deleted 只刷列表不清屏（删当前会话另由 session_new 收尾）', () => {
+    // 删除完成通知：仅刷新会话列表，保留当前气泡（删当前会话时
+    // 引擎另发 session_new 清聊天区）。@author aceFelix
+    const conn = makeConn()
+    useChatStore.getState().addUser('还在看的消息')
+    dispatchServerEvent({ event: 'session_deleted', data: { name: 's1' } }, conn)
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0]).toMatchObject({ kind: 'user', text: '还在看的消息' })
+    expect(conn.refreshSessions).toHaveBeenCalled()
+  })
+
+  it('session_renamed 只刷列表不清屏', () => {
+    const conn = makeConn()
+    useChatStore.getState().addUser('改名中的消息')
+    dispatchServerEvent({ event: 'session_renamed', data: { name: '新名' } }, conn)
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0]).toMatchObject({ kind: 'user', text: '改名中的消息' })
     expect(conn.refreshSessions).toHaveBeenCalled()
   })
 
