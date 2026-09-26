@@ -2,8 +2,8 @@
  * 反应炉背景动画组件：挂载 canvas + ArcReactor 实例，并注册到 reactorRef
  * （dispatcher 经 ref 驱动说话律动）。
  *
- * 订阅主题：复古主题下切 setRetro(true)（绿系配色 + 1/4 分辨率像素化绘制），
- * 其余主题 setRetro(false) 复原蓝系全分辨率。
+ * 订阅主题：荧光绿（retro）切 setRetro(true) 换绿系配色，其余蓝系；
+ * 三主题同为 Y2K 像素复古风，setPixelated(true) 恒开（1/4 分辨率像素化绘制）。
  *
  * @author aceFelix
  */
@@ -23,6 +23,7 @@ export default function ReactorCanvas(): JSX.Element {
     const reactor = new ArcReactor(canvasRef.current)
     reactorRef.current = reactor
     reactor.setRetro(theme === 'retro')
+    reactor.setPixelated(true)
     setReactor(reactor)
     return () => {
       setReactor(null)
@@ -33,7 +34,7 @@ export default function ReactorCanvas(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 主题变化：切复古像素化 / 复原（实例已建，仅换配色与分辨率）。
+  // 主题变化：仅切配色表（像素化三主题恒开，实例已建不重建 canvas）。
   useEffect(() => {
     reactorRef.current?.setRetro(theme === 'retro')
   }, [theme])

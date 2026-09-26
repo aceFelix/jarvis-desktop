@@ -50,7 +50,7 @@ npm run test:watch # vitest 监听模式
 
 ### 图标资源（build/icon.ico）
 
-`electron-builder.yml` 的 `win.icon` 与 `tray.ts` 的兜底图标路径都指向 `build/icon.ico`（多尺寸 16~256，**复古荧光绿像素反应炉**：32×32 像素网格程序化绘制——同心环带 + 八扇区线圈 + 高光内核，NEAREST 放大保持像素颗粒；配色与 theme-retro.css 同源、黑绿实底 `#020602`）。该文件由脚本自包含生成并入库（仅依赖 Pillow，不再复用 jarvis 仓库绘制逻辑——jarvis --gui 窗口仍用深蓝版，两者身份有意分叉），重生成方式：
+`electron-builder.yml` 的 `win.icon` 与 `tray.ts` 的兜底图标路径都指向 `build/icon.ico`（多尺寸 16~256，**复古荧光绿像素反应炉**：32×32 像素网格程序化绘制——同心环带 + 八扇区线圈 + 高光内核，NEAREST 放大保持像素颗粒；配色与 theme-retro.css 同源；**圆外区域全透明**——此前黑绿实底 `#020602` 铺满方形画布，导致 Windows 任务栏图标外出现黑色正方形边框，2026-09-26 改为圆形透明轮廓）。该文件由脚本自包含生成并入库（仅依赖 Pillow，不再复用 jarvis 仓库绘制逻辑——jarvis --gui 窗口仍用深蓝版，两者身份有意分叉），重生成方式：
 
 ```powershell
 python scripts/gen_icon.py   # 任一装了 Pillow 的环境（如 jarvis 的 venv）
@@ -71,9 +71,9 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 | `test/renderer/ws.test.ts` | `JarvisWsClient`：URL 构造与 token 编码、handleRaw 事件分发、sendCommand 回执兑现、同类型 FIFO 匹配、send 只发不等、断线拒绝 pending + 退避重连、close 不重连 |
 | `test/renderer/chatStore.test.ts` | 消息流 store 全部 action：流式增量、thinking/text 分累、finishAssistant、工具卡建卡与按 id 回填、乱序补卡、ask_user、replayHistory、clear、addUser 缩略图 images 字段 |
 | `test/renderer/dispatcher.test.ts` | `dispatchServerEvent` 全事件路由 → chat/left/metrics/right store 与状态栏回调（含 `assistant_done` 撤销 busy + 刷 `cost.get`，init 七路刷新（右栏三指令 + 设置回填）、会话管理事件（`session_new` 清屏+提示、`session_ready`/`session_renamed`/`session_deleted` 只刷列表不清屏））；列表类型守卫；`proactive_notify` 主动播报（briefing/reminder/deadline 上屏、reminder 带 task_id 回 ack、系统通知调用、window 缺失降级、briefing 进右栏最近简报 + 刷 `schedule.list`）；半双工语音 `voice_*` 事件（started/stopped/state 迁移/user_transcript/ai_text_delta→ai_text 全量替换、talk_started 权威复位 talk 模式） |
-| `test/renderer/components.test.tsx` | React 组件（@testing-library/react）：ChatArea 气泡流式渲染 + 光标 + 工具卡 + ask_user + 发送/附件/截屏禁用 + 发送/停止双态按钮（busy 时变“■ 停止”、点击发 `reply.abort`、busy 中 Enter 不叠发）+ 📎 附件链路（file input 变更 → chips → 发送 payload 带 files）+ 用户气泡缩略图 + AI 气泡复制按钮（流式结束后出现、写剪贴板变「已复制」）+ 📸 截屏入附件 chips + 语音状态条（voiceActive 显示阶段文案 + 打断/退出按钮）；LeftSidebar 面板切换 + 列表渲染 + 模式高亮（文本/实时/语音三按钮）+ 语音中 footer 标记 + 会话项交互（单击 220ms 延时发 `sessions.open`、当前会话不发；右键显删除按钮点击发 `sessions.delete`；双击进内联改名、回车发 `sessions.rename` 且不误触 open、Esc 取消不发）；RightSidebar 指标 + 任务中心（提醒/截止日期/简报折叠块）+ 用量卡 + 运行健康（MCP 快照、日志流倒序）；SettingsPanel 独立设置面板（外观主题/语言分段控件、切浅色/复古写 `<html data-theme>`、切英文文案联动、后端联动四组未拉取时全显离线态、回填后渲染开关/时间/滑杆、TTS 开关乐观翻转发 `settings.set`、简报时间 HH:MM 合法才提交、音量滑杆拖动写回、← 返回）；LeftSidebar retro 主题模式按钮显 `[TXT]`、切回 dark 恢复 💬；TitleBar 窗口控制 IPC + 齿轮切换设置面板（激活态高亮） |
+| `test/renderer/components.test.tsx` | React 组件（@testing-library/react）：ChatArea 气泡流式渲染 + 光标 + 工具卡 + ask_user + 发送/附件/截屏禁用 + 发送/停止双态按钮（busy 时变“■ 停止”、点击发 `reply.abort`、busy 中 Enter 不叠发）+ 📎 附件链路（file input 变更 → chips → 发送 payload 带 files）+ 用户气泡缩略图 + AI 气泡复制按钮（流式结束后出现、写剪贴板变「已复制」）+ 📸 截屏入附件 chips + 语音状态条（voiceActive 显示阶段文案 + 打断/退出按钮）；LeftSidebar 面板切换 + 列表渲染 + 模式高亮（文本/实时/语音三按钮）+ 语音中 footer 标记 + 会话项交互（单击 220ms 延时发 `sessions.open`、当前会话不发；右键显删除按钮点击发 `sessions.delete`；双击进内联改名、回车发 `sessions.rename` 且不误触 open、Esc 取消不发）；RightSidebar 指标 + 任务中心（提醒/截止日期/简报折叠块）+ 用量卡 + 运行健康（MCP 快照、日志流倒序）；SettingsPanel 独立设置面板（外观主题/语言分段控件、切浅色/复古写 `<html data-theme>`、切英文文案联动、后端联动四组未拉取时全显离线态、回填后渲染开关/时间/滑杆、TTS 开关乐观翻转发 `settings.set`、简报时间 HH:MM 合法才提交、音量滑杆拖动写回、← 返回）；LeftSidebar retro 主题模式按钮显 `[TXT]`、切回 dark 恢复 Y2K 尖括号牌 `<TXT>`；TitleBar 窗口控制 IPC + 齿轮切换设置面板（激活态高亮） |
 | `test/renderer/settingsStore.test.ts` | settingsStore（首启默认复古/中文——无持久化/非法值均回退 retro、setTheme 写 `<html data-theme>` + localStorage 持久化（含 retro）、setLanguage 持久化并驱动 translate、backendSettings 局部合并不进 localStorage + clearBackendSetting 单键回未拉取态、parseBackendSettings 宽容解析（全键回填/脏数据置 null/旧版后端兼容））+ i18n 查键（模板插值、缺参留占位、缺键回退键名/中文） |
-| `test/renderer/glyphs.test.ts` | Glyph 符号系统：`glyphsFor` 三主题映射（retro→RETRO、dark/light→EMOJI）、RETRO 表全为纯 ASCII（无 emoji）、EMOJI/RETRO 两表键集合一致 |
+| `test/renderer/glyphs.test.ts` | Glyph 符号系统：`glyphsFor` 三主题映射（retro→RETRO、dark→Y2K、light→SILVER）、RETRO/Y2K/SILVER 三表全为纯 ASCII 括号牌、三表键集合一致 |
 | `test/renderer/backendStore.test.ts` | 半双工语音指令路由：`toggleVoice`（未激活→置 voice 模式 + `voice.start`；已激活→`voice.stop`）、`interruptVoice`（`voice.interrupt`）；停止回复：`abortReply`（发 `reply.abort`、状态栏“正在停止...”、不改 busy）；sendMessage 附件（payload 带 images/files、气泡缩略图 data URL、纯图片可发、全空不发）；右栏刷新动作（`refreshSchedule`/`refreshCost`/`refreshState` 发 `schedule.list`/`cost.get`/`state.get` 并映射进 rightStore）；设置面板（`refreshSettings` 发 `settings.get` 全量回填 backendSettings（脏数据置 null）、`setBackendSetting` 乐观更新发 `settings.set`（布尔/数值/时间键通用）、值未变不发指令、回执失败回滚原值、未连接回滚到 null）；未连接（client 为 null）降级不抛异常；会话改名/删除指令（`renameSession` 发 `sessions.rename` 带 name/new_name、`deleteSession` 发 `sessions.delete` 带 name；未连接/回错 ok=false 落系统错误提示） |
 
 > 组件测试不渲染 `App` / `ReactorCanvas`（会挂载 canvas 动画，jsdom 无 2D 上下文），逐个渲染纯展示组件；后端 client 默认 null，组件不会真正发起 WS 连接。
@@ -88,8 +88,9 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 ## 5. 人工走查清单（实机验收）
 
 自动化测试覆盖纯逻辑，以下端到端链路需在实机 `npm run dev` 后人工走查：
+清单中的括号牌为界面符号示意，实机显示随主题变化（荧光绿方括号牌 / 电光蓝尖括号牌 / 金属银花括号牌，见 `glyphs.ts`）。
 
-- [ ] **启动**：`npm run dev` 弹出无边框深蓝窗口，任务栏/托盘图标为 J.A.R.V.I.S 反应炉图案。
+- [ ] **启动**：`npm run dev` 弹出无边框黑绿窗口，任务栏/托盘图标为 J.A.R.V.I.S 反应炉图案。
 - [ ] **握手**：启动遮罩短暂显示「正在拉起 jarvis 后端...」后消失（说明 stdout 握手 JSON 解析成功、WS 已连）；`desktop.log` 有「后端就绪: ws_port=... pid=...」。
 - [ ] **发消息**：输入框敲字 → Enter 发送 → 用户气泡立即上屏 → AI 气泡流式增量渲染（带闪烁光标）→ 结束后光标消失。
 - [ ] **消息附件**：📎 选图片 → 输入栏上方出缩略图 chip（可 ✕ 移除）→ 发送后用户气泡带缩略图 → 模型能描述图片内容（vision 生效）；截图 Ctrl+V 直接入 chips；📎 选 .md 文件 → chip 显文件名 → 发送后模型能引用文件内容；历史会话重开后图片以「[图片×N]」标记展示。
@@ -97,10 +98,10 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 - [ ] **工具卡片**：触发带工具的提问 → 中栏出现可折叠工具卡片（`…` → `✓`/`✗`），展开见入参与输出。
 - [ ] **切模型**：左栏切到「模型」面板 → 列表可滚动 → 点非当前模型 → 提示「模型已切换为 X（下次对话生效）」→ 当前标记移动。
 - [ ] **切音色 / 历史会话**：音色面板同上；历史面板点会话 → 回放历史消息 + 「已恢复会话「X」」→ 该会话项在左栏高亮选中（`sessions.list` 的 `current` 标记，与模型/音色选中态同口径；选中项再点不重复恢复，新建/标题改名后选中态随列表刷新自愈）。
-- [ ] **会话删除 / 改名**：右键会话项 → 项右侧出现删除按钮（retro `[DEL]` / emoji 🗑️）→ 点击后会话从列表消失（删当前会话时中栏一并清空开新会话）；列表空白处右键 → 删除按钮收起；双击会话项 → 标题变为可编辑输入框（光标选中）→ 改名后 Enter 或点击别处提交（列表刷新为新名、不再被自动标题覆盖），Esc 或改回原名则取消；单击与双击不相互误触（想改名不会先加载一次）。
+- [ ] **会话删除 / 改名**：右键会话项 → 项右侧出现删除按钮（荧光绿 `[DEL]` / 电光蓝 `<DEL>` / 金属银 `{DEL}`）→ 点击后会话从列表消失（删当前会话时中栏一并清空开新会话）；列表空白处右键 → 删除按钮收起；双击会话项 → 标题变为可编辑输入框（光标选中）→ 改名后 Enter 或点击别处提交（列表刷新为新名、不再被自动标题覆盖），Esc 或改回原名则取消；单击与双击不相互误触（想改名不会先加载一次）。
 - [ ] **右栏指标**：CPU/内存/磁盘每 ~2 秒刷新，CPU>85% 进度条变红。
-- [ ] **设置面板**：点标题栏齿轮 ⚙ → 右栏整体切为设置面板（齿轮高亮，再点或面板内 ← 返回信息面板）；点「浅色」→ 界面立即换浅色主题（深色/浅色/复古分段高亮跟随）→ 重启 `npm run dev` 仍保持；点「English」→ 栏标题/按钮/空态等静态文案切英文（状态栏与事件消息仍中文），重启保持。
-- [ ] **复古主题（默认）**：全新启动（无 localStorage 持久化）默认即复古——CRT 荧光绿终端风（黑底绿字、扫描线叠层、点阵抖动背景、硬边无圆角、等宽字辉光、方块滚动条）+ emoji 换 ASCII 括号牌（左栏 `[TXT]/[LIV]/[VOX]`、面板 `[HIS]/[MOD]/[VOC]`、输入栏 `[ATT]/[CAP]` 等）+ 反应炉绿系像素颗粒（低分辨率放大）；设置面板切「深色/浅色」→ 重启后仍保持所选（用户显式选择优先）→ 切回「深色」完全复原蓝系玻璃拟态与 emoji（无残留）。
+- [ ] **设置面板**：点标题栏齿轮 ⚙ → 右栏整体切为设置面板（齿轮高亮，再点或面板内 ← 返回信息面板）；点「金属银」→ 界面立即换金属银主题（荧光绿/电光蓝/金属银分段高亮跟随，荧光绿排第一）→ 重启 `npm run dev` 仍保持；点「English」→ 栏标题/按钮/空态等静态文案切英文（状态栏与事件消息仍中文），重启保持。
+- [ ] **荧光绿主题（默认）**：全新启动（无 localStorage 持久化）默认即荧光绿——CRT 荧光绿终端风（黑底绿字、扫描线叠层、点阵抖动背景、硬边无圆角、等宽字辉光、方块滚动条）+ ASCII 方括号牌（左栏 `[TXT]/[LIV]/[VOX]`、面板 `[HIS]/[MOD]/[VOC]`、输入栏 `[ATT]/[CAP]` 等）+ 反应炉绿系像素颗粒（低分辨率放大）；设置面板切「电光蓝/金属银」→ 重启后仍保持所选（用户显式选择优先）→ 切「电光蓝」为 Y2K 像素复古电光蓝皮肤（电光蓝霓虹 + 铬金属渐变标题/选中态/主按钮 + 赛博网格底 + 像素切角 + 扫描线，尖括号牌 `<TXT>/<LIV>/<VOX>` 等，反应炉蓝系像素颗粒），切「金属银」为 Y2K 像素复古铬银亮色皮肤（铬银金属渐变 + 黑色描边/文字（无蓝相、与电光蓝区分）+ 亮底网格/点阵/扫描线，花括号牌 `{TXT}/{LIV}/{VOX}` 等）；三主题同风格仅配色不同，互切无残留。
 - [ ] **语音播报与后端联动设置**：连接后端后进设置面板 → 四组控件在线可改：「主动播报语音」拨动开关（立即生效，关闭后到期提醒不再 TTS 朗读，事件气泡/通知不受影响）、播报音量/语速滑杆（下一次播报即按新值）、每日简报开关 + 简报时间、截止日期开关 + 检查时间（改时间/开关后调度热重注册，无需重启）→ 重启后全部保持（已外科式落盘 settings.toml 对应节，注释与其他字段不丢）；未连接时对应行显离线态文案；后端拒绝（超范围/非法值）时控件回滚原值且聊天流出现错误文案。
 - [ ] **复制与截屏**：AI 回复结束后气泡右下出现「📋 复制」→ 点击剪贴板可取（按钮短暂变“✓已复制”）；点输入栏 📸 → 附件 chips 出现截图缩略图 → 发送后模型能描述截图内容。
 - [ ] **右栏任务中心**：对话「10 分钟后提醒我喝水」→ 提醒出现在任务中心列表（时间升序）；到点触发后条目消失、⏰ 气泡上屏；对话设截止日期后可见倒计时（临期黄/逾期红）；每日简报触发后「最近简报」折叠块可展开。

@@ -1,5 +1,5 @@
-/* jarvis-desktop 复古 CRT 主题皮肤（设置面板切换，<html data-theme="retro">）
-   策略：与浅色覆盖块同口径——深色字面量保持不动，retro 只覆盖结构性表面色/文本色，
+/* jarvis-desktop 荧光绿（复古 CRT）主题皮肤（设置面板切换，<html data-theme="retro">）
+   策略：与电光蓝/金属银覆盖块同口径——深色字面量保持不动，retro 只覆盖结构性表面色/文本色，
    再叠一层 CRT 终端质感（黑底荧光绿、扫描线、点阵抖动、硬边像素、等宽字辉光）。
    选择器统一 [data-theme='retro'] 前缀；:root 变量用 :root[data-theme='retro'] 连写。
    main.css 之后 import，同特异性下后者胜出，无需 !important。
@@ -19,6 +19,9 @@
     --retro-error: #ff5555;
     --retro-panel: rgba(0, 26, 8, 0.72);
     --retro-glow: 0 0 6px rgba(51, 255, 102, 0.4);
+    /* 滚动条随主题：暗绿滑块 + 黑绿轨道（main.css scrollbar-color 变量驱动）。@author aceFelix */
+    --scroll-thumb: var(--retro-dim);
+    --scroll-track: rgba(0, 16, 6, 0.6);
 }
 
 /* ==================== CRT 底：黑绿实底 + 点阵抖动 + 扫描线 ==================== */

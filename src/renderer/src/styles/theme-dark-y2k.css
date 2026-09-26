@@ -1,0 +1,365 @@
+/* jarvis-desktop 深色主题皮肤：Y2K + 像素复古 · 电光蓝（<html data-theme="dark">）
+   定位：三主题同风格（Y2K 像素复古）仅配色不同，本皮肤为电光蓝一档；与荧光绿
+   （theme-retro.css）、金属银（theme-light-y2k.css）同族——硬边无圆角、扫描线、
+   点阵抖动、等宽字辉光、方块滚动条一律对齐；差异在视觉身份：
+   电光蓝霓虹（#00e5ff 系）+ Y2K 铬金属渐变（标题/选中态/主按钮）+ 赛博网格底 +
+   像素切角（clip-path 缺角 + drop-shadow 像素投影）+ 斜角浮雕边框（bevel）。
+   策略与金属银/荧光绿覆盖块同口径：main.css 字面量不动，本文件只按 [data-theme='dark']
+   覆盖结构性表面色/文本色；main.css 之后 import，同特异性下后者胜出，无需 !important。
+   @author aceFelix */
+
+/* ==================== 配色变量 ==================== */
+
+:root[data-theme='dark'] {
+    --edge-strong: #00e5ff;
+    --edge-mid: rgba(0, 229, 255, 0.6);
+    --edge-soft: rgba(0, 229, 255, 0.38);
+    /* 电光蓝文本体系 */
+    --y2k-text: #d9f8ff;
+    --y2k-bright: #35f0ff;
+    --y2k-dim: #4f93b8;
+    --y2k-warn: #ffcc4d;
+    --y2k-error: #ff4d6a;
+    --y2k-panel: rgba(3, 14, 30, 0.8);
+    --y2k-deep: #030614;
+    --y2k-glow: 0 0 8px rgba(0, 229, 255, 0.45);
+    /* 滚动条随主题：电光蓝暗滑块 + 深蓝黑轨道（main.css scrollbar-color 变量驱动）。@author aceFelix */
+    --scroll-thumb: var(--y2k-dim);
+    --scroll-track: rgba(2, 10, 22, 0.7);
+    /* Y2K 铬金属渐变：亮-暗-亮三段模拟金属反光（渐变文字/选中态/主按钮共用） */
+    --y2k-chrome: linear-gradient(180deg, #f2ffff 0%, #9ff6ff 28%, #0094cf 52%, #00c8ec 72%, #7deeff 100%);
+    /* 像素切角：四角各缺 6px 台阶，clip-path 裁出 8-bit 轮廓 */
+    --y2k-notch: polygon(
+        0 6px, 6px 6px, 6px 0,
+        calc(100% - 6px) 0, calc(100% - 6px) 6px, 100% 6px,
+        100% calc(100% - 6px), calc(100% - 6px) calc(100% - 6px), calc(100% - 6px) 100%,
+        6px 100%, 6px calc(100% - 6px), 0 calc(100% - 6px)
+    );
+}
+
+/* ==================== 赛博底：深蓝黑实底 + 网格 + 点阵抖动 + 扫描线 ==================== */
+
+[data-theme='dark'] body {
+    background-color: var(--y2k-deep);
+    background-image:
+        repeating-linear-gradient(0deg, rgba(0, 229, 255, 0.05) 0 1px, transparent 1px 28px),
+        repeating-linear-gradient(90deg, rgba(0, 229, 255, 0.05) 0 1px, transparent 1px 28px),
+        radial-gradient(rgba(0, 229, 255, 0.05) 1px, transparent 1px),
+        radial-gradient(ellipse at 50% 35%, rgba(0, 90, 160, 0.4), transparent 70%);
+    background-size: auto, auto, 3px 3px, 100% 100%;
+    color: var(--y2k-text);
+    /* 等宽栈与复古皮肤同源：像素终端味，零新资源 */
+    font-family: Consolas, 'Courier New', NSimSun, SimSun, monospace;
+}
+
+/* 全屏扫描线叠层：与复古皮肤同构，CRT 族身份标记 */
+[data-theme='dark'] body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.24) 0px,
+        rgba(0, 0, 0, 0.24) 1px,
+        transparent 1px,
+        transparent 3px
+    );
+}
+
+[data-theme='dark'] ::selection { background: rgba(0, 229, 255, 0.35); color: #eaffff; }
+
+/* 像素风焦点环：虚线电光蓝 */
+[data-theme='dark'] :focus-visible {
+    outline: 1px dashed var(--y2k-bright);
+    outline-offset: 2px;
+}
+
+/* 表单控件继承等宽字栈 */
+[data-theme='dark'] :where(button, input, textarea) { font-family: inherit; }
+
+/* 反应炉像素化：与复古同口径，低分辨率 backing store 放大成像素颗粒 */
+[data-theme='dark'] #reactor-canvas { image-rendering: pixelated; }
+
+/* ==================== 硬边像素感：去圆角 + 去玻璃模糊 ==================== */
+
+[data-theme='dark'] :where(
+    button, input, textarea, .glass-col, .glass-bar, .message, .tool-card,
+    .list-item, .metric-card, .usage-card, .attach-chip, .seg-btn, .win-btn,
+    .toggle, .task-item, .briefing-block, .log-feed, .boot-card, .settings-back,
+    .msg-action-btn, .action-btn
+) {
+    border-radius: 0;
+    backdrop-filter: none;
+}
+
+/* 像素切角 + 像素投影：大表面四角缺台阶，drop-shadow 跟随裁剪形状出硬投影
+   （box-shadow 会被 clip-path 裁掉，故投影走 filter）。@author aceFelix */
+[data-theme='dark'] :where(.glass-col, #center-col, .glass-bar, .boot-card) {
+    clip-path: var(--y2k-notch);
+    filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.55));
+}
+
+/* ==================== 标题栏 / 窗口控制 ==================== */
+
+[data-theme='dark'] #title-bar {
+    background: linear-gradient(180deg, rgba(6, 22, 44, 0.95), rgba(3, 10, 22, 0.95));
+    border-bottom: 2px solid var(--edge-strong);
+    backdrop-filter: none;
+}
+
+/* 铬金属渐变字：Y2K 招牌质感（background-clip: text，投影走 filter 防糊） */
+[data-theme='dark'] #title-logo {
+    background: var(--y2k-chrome);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: none;
+    filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.55));
+}
+[data-theme='dark'] #title-sub { color: var(--y2k-dim); }
+[data-theme='dark'] .win-btn { color: var(--y2k-dim); }
+[data-theme='dark'] .win-btn:hover { background: var(--y2k-bright); color: #031018; }
+[data-theme='dark'] .win-btn.active { background: rgba(0, 229, 255, 0.22); color: var(--y2k-bright); }
+[data-theme='dark'] .win-btn.close:hover { background: var(--y2k-error); color: #1a0006; }
+
+/* ==================== 三栏容器 ==================== */
+
+/* 面板底：电光蓝 4px 棋盘抖动（dither）叠半透明实底，像素复古颗粒感 */
+[data-theme='dark'] .glass-col {
+    background:
+        repeating-conic-gradient(rgba(0, 229, 255, 0.045) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px,
+        var(--y2k-panel);
+    border: 1px solid var(--edge-mid);
+    box-shadow: none;
+}
+
+[data-theme='dark'] .col-title { color: var(--y2k-bright); text-shadow: var(--y2k-glow); }
+
+[data-theme='dark'] #center-col {
+    background: rgba(2, 12, 26, 0.66);
+    border: 1px solid var(--edge-soft);
+    box-shadow: none;
+}
+
+/* ==================== 分段按钮（模式 / 面板 / 主题 / 语言） ==================== */
+
+/* 斜角浮雕（bevel）：上左亮、下右暗，Win 像素控件味 */
+[data-theme='dark'] .seg-btn {
+    color: var(--y2k-dim);
+    background: rgba(2, 16, 34, 0.7);
+    border: 2px solid;
+    border-color: rgba(0, 229, 255, 0.45) rgba(0, 70, 110, 0.9) rgba(0, 70, 110, 0.9) rgba(0, 229, 255, 0.45);
+}
+[data-theme='dark'] .seg-btn:hover { background: rgba(0, 229, 255, 0.18); color: var(--y2k-bright); }
+/* 选中态：铬金属渐变填充 + 霓虹外辉光 */
+[data-theme='dark'] .seg-btn.active {
+    color: #02141c;
+    background: var(--y2k-chrome);
+    border-color: var(--edge-strong);
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6), 0 0 10px rgba(0, 229, 255, 0.4);
+    font-weight: 700;
+}
+
+/* ==================== 设置面板 / 开关 ==================== */
+
+[data-theme='dark'] .panel-label { color: var(--y2k-dim); }
+[data-theme='dark'] .setting-label { color: var(--y2k-bright); }
+[data-theme='dark'] .setting-hint { color: var(--y2k-dim); }
+[data-theme='dark'] .settings-back {
+    color: var(--y2k-bright);
+    border: 1px solid var(--edge-mid);
+    background: rgba(2, 16, 34, 0.7);
+}
+[data-theme='dark'] .settings-back:hover { background: var(--y2k-bright); color: #031018; }
+
+/* 方块像素开关：on 态带电光蓝辉光 */
+[data-theme='dark'] .toggle { border: 1px solid var(--edge-mid); background: rgba(2, 16, 34, 0.8); }
+[data-theme='dark'] .toggle::after { background: var(--y2k-dim); border-radius: 0; }
+[data-theme='dark'] .toggle.on {
+    background: rgba(0, 229, 255, 0.3);
+    border-color: var(--edge-strong);
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.35);
+}
+[data-theme='dark'] .toggle.on::after { background: var(--y2k-bright); }
+
+/* 时间输入/滑杆：电光蓝硬边口径（方角 + 暗底）。@author aceFelix */
+[data-theme='dark'] .setting-time {
+    border-radius: 0;
+    border: 1px solid var(--edge-mid);
+    background: rgba(2, 16, 34, 0.8);
+    color: var(--y2k-bright);
+    font-family: inherit;
+}
+[data-theme='dark'] .setting-range input[type='range'] { accent-color: var(--edge-strong); }
+[data-theme='dark'] .setting-range-value { color: var(--y2k-dim); }
+
+/* ==================== 列表项（会话 / 模型 / 音色） ==================== */
+
+[data-theme='dark'] .list-item {
+    color: var(--y2k-text);
+    background: rgba(2, 18, 38, 0.7);
+    border: 1px solid transparent;
+}
+[data-theme='dark'] .list-item:hover { background: var(--y2k-bright); color: #031018; }
+[data-theme='dark'] .list-item.current {
+    color: var(--y2k-bright);
+    border-color: var(--edge-strong);
+    background: rgba(0, 229, 255, 0.12);
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.25);
+}
+[data-theme='dark'] .list-item .sub { color: var(--y2k-dim); }
+[data-theme='dark'] .list-item:hover .sub { color: #031018; }
+
+[data-theme='dark'] #left-footer { color: var(--y2k-dim); }
+[data-theme='dark'] .status-dot { border-radius: 0; }
+
+/* ==================== 消息四态 ==================== */
+
+[data-theme='dark'] .message.user {
+    background: rgba(0, 64, 112, 0.42);
+    border: 1px solid var(--edge-mid);
+    color: var(--y2k-text);
+}
+[data-theme='dark'] .message.ai {
+    background: rgba(2, 14, 30, 0.78);
+    border: 1px solid var(--edge-soft);
+    color: var(--y2k-text);
+}
+[data-theme='dark'] .message.system {
+    color: var(--y2k-dim);
+    background: rgba(2, 10, 22, 0.6);
+    border: 1px solid var(--edge-soft);
+}
+[data-theme='dark'] .message.error-msg { border-color: var(--y2k-error); color: var(--y2k-error); }
+[data-theme='dark'] .message.user .message-label { color: var(--y2k-bright); }
+[data-theme='dark'] .message.ai .message-label { color: var(--y2k-bright); }
+[data-theme='dark'] .cursor-blink { color: var(--y2k-bright); }
+[data-theme='dark'] .thinking-block { color: var(--y2k-dim); border-left-color: var(--edge-mid); }
+
+[data-theme='dark'] .msg-action-btn { color: var(--y2k-dim); background: rgba(2, 16, 34, 0.7); }
+[data-theme='dark'] .msg-action-btn:hover { color: #031018; background: var(--y2k-bright); }
+
+/* ==================== 工具卡片 ==================== */
+
+[data-theme='dark'] .tool-card {
+    color: var(--y2k-text);
+    background: rgba(2, 14, 30, 0.7);
+    border: 1px solid var(--edge-soft);
+}
+[data-theme='dark'] .tool-card.error { border-color: var(--y2k-error); }
+
+/* ==================== 输入栏 ==================== */
+
+[data-theme='dark'] .glass-bar {
+    background: rgba(2, 12, 26, 0.86);
+    border: 1px solid var(--edge-mid);
+    box-shadow: none;
+}
+[data-theme='dark'] .glass-bar textarea { color: var(--y2k-text); }
+[data-theme='dark'] .glass-bar textarea::placeholder { color: var(--y2k-dim); }
+
+[data-theme='dark'] .attach-chip { background: rgba(2, 20, 40, 0.8); color: var(--y2k-text); border: 1px solid var(--edge-soft); }
+[data-theme='dark'] .attach-chip .chip-remove { color: var(--y2k-dim); }
+[data-theme='dark'] .attach-chip .chip-remove:hover { color: var(--y2k-error); }
+
+[data-theme='dark'] #ask-user-bar { background: rgba(58, 42, 0, 0.5); border: 1px solid var(--y2k-warn); }
+[data-theme='dark'] #ask-user-text { color: var(--y2k-warn); }
+[data-theme='dark'] #ask-user-bar input { background: rgba(2, 12, 26, 0.85); color: var(--y2k-text); border: 1px solid var(--edge-soft); }
+
+[data-theme='dark'] #voice-bar .voice-state { color: var(--y2k-bright); }
+
+[data-theme='dark'] .action-btn {
+    color: var(--y2k-text);
+    background: rgba(2, 16, 34, 0.8);
+    border: 2px solid;
+    border-color: rgba(0, 229, 255, 0.45) rgba(0, 70, 110, 0.9) rgba(0, 70, 110, 0.9) rgba(0, 229, 255, 0.45);
+}
+[data-theme='dark'] .action-btn:hover { background: rgba(0, 229, 255, 0.18); color: var(--y2k-bright); }
+/* 主按钮（发送）：铬金属渐变 + 霓虹辉光，Y2K 招牌控件 */
+[data-theme='dark'] .action-btn.primary {
+    color: #02141c;
+    background: var(--y2k-chrome);
+    border-color: var(--edge-strong);
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6), 0 0 12px rgba(0, 229, 255, 0.4);
+    font-weight: 700;
+}
+[data-theme='dark'] .action-btn.danger { color: var(--y2k-error); border-color: rgba(255, 77, 106, 0.5); background: rgba(58, 0, 12, 0.45); }
+
+/* ==================== 指标卡 / 用量 / gauge ==================== */
+
+[data-theme='dark'] .metric-card,
+[data-theme='dark'] .usage-card {
+    background: rgba(2, 14, 30, 0.7);
+    border: 1px solid var(--edge-soft);
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.4);
+}
+[data-theme='dark'] .metric-head { color: var(--y2k-dim); }
+[data-theme='dark'] .metric-value { color: var(--y2k-bright); text-shadow: var(--y2k-glow); }
+[data-theme='dark'] .gauge { background: rgba(0, 50, 80, 0.6); border-radius: 0; }
+[data-theme='dark'] .gauge-fill { background: var(--y2k-bright); border-radius: 0; box-shadow: 0 0 8px rgba(0, 229, 255, 0.5); }
+[data-theme='dark'] .metric-detail { color: var(--y2k-dim); }
+
+[data-theme='dark'] .side-empty { color: var(--y2k-dim); }
+
+/* ==================== 任务中心 ==================== */
+
+[data-theme='dark'] .task-item { background: rgba(2, 14, 30, 0.7); border: 1px solid var(--edge-soft); }
+[data-theme='dark'] .task-time { color: var(--y2k-bright); }
+[data-theme='dark'] .task-time.due-soon { color: var(--y2k-warn); }
+[data-theme='dark'] .task-time.due-over { color: var(--y2k-error); }
+[data-theme='dark'] .task-text { color: var(--y2k-text); }
+[data-theme='dark'] .task-tag { color: var(--y2k-dim); }
+
+[data-theme='dark'] .briefing-block { background: rgba(2, 14, 30, 0.6); border: 1px solid var(--edge-soft); }
+[data-theme='dark'] .briefing-block summary { color: var(--y2k-bright); }
+[data-theme='dark'] .briefing-text { color: var(--y2k-text); }
+
+[data-theme='dark'] .usage-row { color: var(--y2k-dim); }
+[data-theme='dark'] .usage-value { color: var(--y2k-text); }
+
+/* ==================== 健康日志 / MCP ==================== */
+
+[data-theme='dark'] .mcp-ok { color: var(--y2k-bright); }
+[data-theme='dark'] .mcp-warn { color: var(--y2k-warn); }
+[data-theme='dark'] .mcp-failed { color: var(--y2k-error); }
+
+[data-theme='dark'] .log-feed { background: rgba(2, 10, 22, 0.75); border: 1px solid var(--edge-soft); }
+[data-theme='dark'] .log-line { color: var(--y2k-dim); }
+
+/* ==================== 启动遮罩 ==================== */
+
+[data-theme='dark'] #boot-overlay { background: rgba(3, 6, 20, 0.92); }
+[data-theme='dark'] .boot-card {
+    background: var(--y2k-panel);
+    border: 2px solid var(--edge-strong);
+    box-shadow: none;
+}
+/* 启动标题同标题栏口径：铬金属渐变字 */
+[data-theme='dark'] .boot-title {
+    background: var(--y2k-chrome);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: none;
+    filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.55));
+}
+[data-theme='dark'] .boot-hint { color: var(--y2k-dim); }
+[data-theme='dark'] .boot-error { color: var(--y2k-error); }
+[data-theme='dark'] .boot-detail { color: var(--y2k-error); }
+[data-theme='dark'] .boot-spinner { border-color: var(--edge-soft); border-top-color: var(--y2k-bright); border-radius: 0; }
+
+/* ==================== 粗滚动条 + 方块滑块 ==================== */
+
+[data-theme='dark'] ::-webkit-scrollbar { width: 10px; height: 10px; }
+[data-theme='dark'] ::-webkit-scrollbar-track { background: rgba(2, 10, 22, 0.7); }
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+    background: var(--y2k-dim);
+    border: 1px solid var(--edge-soft);
+    border-radius: 0;
+}
+[data-theme='dark'] ::-webkit-scrollbar-thumb:hover { background: var(--y2k-bright); }

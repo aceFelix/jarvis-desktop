@@ -4,8 +4,8 @@
  * 本地偏好纯渲染层，不走后端指令：
  * - localStorage 持久化（键 jarvis-desktop-settings），写入失败时静默降级为
  *   会话内生效（隐私模式等场景）；
- * - 主题默认复古（首启/无持久化/非法值时回退），经 <html data-theme="..."> 落地，
- *   main.css 末尾的浅色覆盖块与 theme-retro.css 的复古覆盖块依此生效；
+ * - 主题默认复古=荧光绿（首启/无持久化/非法值时回退），经 <html data-theme="..."> 落地，
+ *   三张皮肤覆盖块（theme-retro / theme-dark-y2k / theme-light-y2k）依此生效；
  * - 语言经 i18n.ts 的 useT() 驱动静态文案切换。
  *
  * 后端联动设置（backendSettings，第一批：主动播报 TTS/简报/截止日期/
@@ -24,7 +24,7 @@ export type Language = 'zh' | 'en'
 
 const STORAGE_KEY = 'jarvis-desktop-settings'
 
-/** 首启默认主题：复古（无持久化/非法值时的回退值）。 */
+/** 首启默认主题：复古即荧光绿（无持久化/非法值时的回退值）；设置面板按钮序亦荧光绿排第一。 */
 const DEFAULT_THEME: Theme = 'retro'
 
 /** 后端联动设置的初始镜像：全键 null（未拉取态）。 */
@@ -79,7 +79,7 @@ function persist(theme: Theme, language: Language): void {
   }
 }
 
-/** 主题落地：<html data-theme="...">，浅色覆盖块（main.css）与复古覆盖块（theme-retro.css）依此选择器生效。 */
+/** 主题落地：<html data-theme="...">，三张皮肤覆盖块（theme-retro / theme-dark-y2k / theme-light-y2k）依此选择器生效。 */
 export function applyTheme(theme: Theme): void {
   document.documentElement.dataset.theme = theme
 }

@@ -168,18 +168,29 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 重启回信息面板），入口为标题栏齿轮按钮（`TitleBar.tsx`，兼 toggle，激活态高亮），
 面板内 ← 返回。四节（外观 + 语音播报 + 每日简报 + 截止日期追踪）：
 
-- **外观**：主题（深色/浅色/复古，首启默认复古——无持久化/非法值时回退 retro，用户显式选择经 localStorage 优先）+ 界面语言（中文/English），行式布局（标签 + 分段控件）。
+- **外观**：主题（荧光绿/电光蓝/金属银——三主题同风格（Y2K 像素复古）仅配色不同，荧光绿排第一
+  且首启默认——无持久化/非法值时回退 retro，用户显式选择经 localStorage 优先）+ 界面语言（中文/English），行式布局（标签 + 分段控件）。
   纯前端偏好（`stores/settingsStore.ts`，不走后端指令）：主题经 `applyTheme` 写
-  `<html data-theme>`，main.css 末尾浅色覆盖块与 `styles/theme-retro.css` 复古覆盖块依
-  选择器生效；语言经 `i18n.ts` 的 zh/en 字典 + `useT()` 驱动。两者 localStorage 持久化、重启保持。
-  主进程 `BrowserWindow.backgroundColor` 为复古黑绿底 `#020602`（与新默认主题一致，防启动白闪）。
-  - **复古（CRT 荧光绿）皮肤层**：`styles/theme-retro.css`（`[data-theme='retro']` 覆盖块，
-    与浅色同口径，在 `main.tsx` 于 main.css 之后 import）——黑底荧光绿、扫描线叠层、点阵抖动、
+  `<html data-theme>`，三张皮肤覆盖块 `styles/theme-retro.css` / `styles/theme-dark-y2k.css` /
+  `styles/theme-light-y2k.css` 依选择器生效；语言经 `i18n.ts` 的 zh/en 字典 + `useT()` 驱动。两者 localStorage 持久化、重启保持。
+  主进程 `BrowserWindow.backgroundColor` 为复古黑绿底 `#020602`（与默认荧光绿一致，防启动白闪）。
+  - **荧光绿（CRT 终端）皮肤层**：`styles/theme-retro.css`（`[data-theme='retro']` 覆盖块，
+    在 `main.tsx` 于 main.css 之后 import）——黑底荧光绿、扫描线叠层、点阵抖动、
     硬边像素（去圆角/去玻璃模糊）、等宽字辉光、方块滚动条，纯 CSS 无图片资源。
-  - **Glyph 符号系统**：`glyphs.ts` 两张表（EMOJI / RETRO 终端风括号牌），`useGlyphs()` 订阅
-    主题返回对应表；i18n 文案剥离 emoji 前缀只留纯文字，组件侧 `{g.xxx} {t(key)}` 组合，切主题自动重渲染。
-  - **反应炉像素化**：`reactor.ts::setRetro(on)` 切绿系配色表 + 1/4 分辨率绘制（backing store 缩放，
-    配合 CSS `image-rendering: pixelated` 放大成像素颗粒）；`ReactorCanvas.tsx` 订阅主题调 `setRetro`。
+  - **电光蓝（Y2K 像素复古）皮肤层**：`styles/theme-dark-y2k.css`（`[data-theme='dark']`
+    覆盖块，2026-09 替换原深蓝玻璃拟态底妆）——与荧光绿同族（硬边/扫描线/点阵抖动/等宽辉光/
+    方块滚动条/反应炉像素化），视觉身份为电光蓝霓虹（#00e5ff 系）+
+    Y2K 铬金属渐变（标题/选中态/主按钮渐变字与填充）+ 赛博网格底 + 像素切角（clip-path 缺角 +
+    drop-shadow 像素投影）+ 斜角浮雕边框，纯 CSS 无图片资源。
+  - **金属银（Y2K 像素复古 · 亮色）皮肤层**：`styles/theme-light-y2k.css`（`[data-theme='light']`
+    覆盖块，2026-09 由原浅色玻璃拟态改造，main.css 末尾旧浅色覆盖块迁入本文件）——与前两张同族结构，
+    视觉身份为铬银金属渐变（白-银-灰三段反光）+ 黑色描边/文字（无蓝相，与电光蓝区分）+ 亮底赛博网格/点阵抖动/中性灰扫描线，纯 CSS 无图片资源。
+  - **Glyph 符号系统**：`glyphs.ts` 三张表（RETRO 方括号牌荧光绿 / Y2K 尖括号牌电光蓝 / SILVER 花括号牌金属银），
+    `useGlyphs()` 订阅主题返回对应表；三表同属括号牌体系、仅括号形变不同（三主题视觉身份呼应）；
+    i18n 文案剥离 emoji 前缀只留纯文字，组件侧 `{g.xxx} {t(key)}` 组合，切主题自动重渲染。
+  - **反应炉像素化**：`reactor.ts::setRetro(on)` 仅切绿系配色表；`setPixelated(on)` 切 1/4 分辨率
+    绘制（backing store 缩放，配合 CSS `image-rendering: pixelated` 放大成像素颗粒）——三主题
+    均像素化（恒开）、配色各随主题；`ReactorCanvas.tsx` 订阅主题调两者。
 - **后端联动设置（三组，2026-09 第一批扩键）**：真源在 jarvis 侧 settings.toml
   （白名单 schema 见 jarvis `agent/config/desktop_settings.py`，密钥/自由路径永不入协议），
   镜像在 `settingsStore.backendSettings`（单键 null=未拉取/未连接，对应行显离线态文案，
@@ -221,7 +232,7 @@ pid 换代（崩溃重启）时清旧气泡；workbench `app.js` 同口径，清
 - **双击**：标题就地换成 `input`（`session-rename-input`）内联改名，`Enter` / 失焦提交发
   `sessions.rename`，`Esc` 取消；空名或未变化视为取消。改当前会话名时引擎置
   `_title_generated=True` 并取消未落地的自动标题任务，防自动标题覆盖用户自定义名。
-- **右键**：项右侧切出删除按钮（`session-del-btn`，retro 主题显 `[DEL]`、emoji 主题显 🗑️），
+- **右键**：项右侧切出删除按钮（`session-del-btn`，荧光绿显 `[DEL]`、电光蓝显 `<DEL>`、金属银显 `{DEL}`），
   点击才真删发 `sessions.delete`（二次确认）；列表空白处右键收起删除按钮。
 
 改名 / 删除均只发指令，列表刷新由回流事件 `session_renamed` / `session_deleted` 驱动（只刷列表

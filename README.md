@@ -98,8 +98,11 @@ push / PR 到 `main` 时 GitHub Actions（[.github/workflows/ci.yml](.github/wor
 **设置面板（独立组件）**：点标题栏齿轮 ⚙ 进入，`SettingsPanel` 整体替换右栏信息面板
 （再点齿轮或面板内 ← 返回）：
 
-- **外观**：主题切换（深色/浅色/复古，**首启默认复古**；`<html data-theme>` + main.css 浅色覆盖块 + theme-retro.css 复古覆盖块；复古为 CRT 荧光绿终端像素风，配 glyph ASCII 符号与反应炉像素化）与界面语言
-  （中文/English，轻量 i18n 字典），localStorage 持久化、重启保持（用户显式选择优先，无持久化/非法值时回退默认复古）；
+- **外观**：主题切换（荧光绿/电光蓝/金属银，三主题同风格（Y2K 像素复古）仅配色不同，
+  **荧光绿排第一且首启默认**；`<html data-theme>` + 三张皮肤覆盖块：
+  theme-retro.css / theme-dark-y2k.css / theme-light-y2k.css；荧光绿=CRT 荧光绿终端、
+  电光蓝=深蓝底电光蓝霓虹、金属银=铬银金属亮色，三者均配 glyph ASCII 括号牌符号与反应炉像素化）与界面语言
+  （中文/English，轻量 i18n 字典），localStorage 持久化、重启保持（用户显式选择优先，无持久化/非法值时回退默认荧光绿）；
 - **语音播报**：主动播报待机 TTS 朗读开关 + 播报音量（0-100）/语速（0.5-2.0×）滑杆；
 - **每日简报**：启用开关 + 简报时间（HH:MM）；
 - **截止日期追踪**：启用开关 + 每日检查时间。
@@ -132,10 +135,10 @@ jarvis-desktop/
 │   │   ├── api/        # ws.ts（WS 客户端）/ dispatcher.ts（事件→store）
 │   │   ├── stores/     # Zustand：chat/left/metrics/backend/right/attach/settings/ui/reactorRef
 │   │   ├── i18n.ts     # 轻量中英文案字典（useT/translate，静态界面文案双语）
-│   │   ├── glyphs.ts   # Glyph 符号系统（emoji ↔ 复古 ASCII 括号牌，随主题切换）
+│   │   ├── glyphs.ts   # Glyph 符号系统（荧光绿方括号牌 / 电光蓝尖括号牌 / 金属银花括号牌，随主题切换）
 │   │   ├── components/ # 三栏组件 + 自绘标题栏 + 反应炉 canvas
 │   │   ├── reactor.ts  # 反应炉动画（移植自 workbench reactor.js）
-│   │   └── styles/     # main.css（深蓝玻璃拟态）+ theme-retro.css（复古 CRT 荧光绿皮肤）
+│   │   └── styles/     # main.css（基础）+ theme-retro.css（荧光绿 CRT 皮肤）+ theme-dark-y2k.css（电光蓝 Y2K 像素皮肤）+ theme-light-y2k.css（金属银 Y2K 像素皮肤）
 │   └── shared/        # contracts.ts：主/preload/渲染共享契约（镜像 protocol.py）
 ├── test/
 │   ├── main/          # 主进程逻辑单测（node 环境）

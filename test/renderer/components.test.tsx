@@ -230,10 +230,10 @@ describe('LeftSidebar 面板切换', () => {
 
   it('点击切换到模型 / 音色面板', () => {
     render(<LeftSidebar />)
-    fireEvent.click(screen.getByText('🤖 模型'))
+    fireEvent.click(screen.getByText('<MOD> 模型'))
     expect(screen.getByTestId('panel-model')).toBeInTheDocument()
     expect(screen.queryByTestId('panel-history')).toBeNull()
-    fireEvent.click(screen.getByText('🎵 音色'))
+    fireEvent.click(screen.getByText('<VOC> 音色'))
     expect(screen.getByTestId('panel-voice')).toBeInTheDocument()
     expect(screen.queryByTestId('panel-model')).toBeNull()
   })
@@ -262,9 +262,9 @@ describe('LeftSidebar 面板切换', () => {
     await vi.waitFor(() => expect(openSpy).toHaveBeenCalledWith('会话B'))
     expect(openSpy).toHaveBeenCalledTimes(1)
     openSpy.mockRestore()
-    fireEvent.click(screen.getByText('🤖 模型'))
+    fireEvent.click(screen.getByText('<MOD> 模型'))
     expect(screen.getByText('gpt-4')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('🎵 音色'))
+    fireEvent.click(screen.getByText('<VOC> 音色'))
     expect(screen.getByText('晓晓')).toBeInTheDocument()
   })
 
@@ -334,30 +334,34 @@ describe('LeftSidebar 面板切换', () => {
 
   it('切换到实时模式后按钮高亮', () => {
     render(<LeftSidebar />)
-    fireEvent.click(screen.getByText('🎙️ 实时'))
-    expect(screen.getByText('🎙️ 实时').className).toContain('active')
+    fireEvent.click(screen.getByText('<LIV> 实时'))
+    expect(screen.getByText('<LIV> 实时').className).toContain('active')
   })
 
   it('切换到语音模式后按钮高亮', () => {
     render(<LeftSidebar />)
-    fireEvent.click(screen.getByText('🎤 语音'))
-    expect(screen.getByText('🎤 语音').className).toContain('active')
+    fireEvent.click(screen.getByText('<VOX> 语音'))
+    expect(screen.getByText('<VOX> 语音').className).toContain('active')
   })
 
   it('voiceActive 时 footer 显示语音中标记', () => {
     useLeftStore.setState({ voiceActive: true, mode: 'voice' })
     render(<LeftSidebar />)
-    expect(screen.getByText('🎤 语音中')).toBeInTheDocument()
+    expect(screen.getByText('<VOX> 语音中')).toBeInTheDocument()
   })
 
-  it('retro 主题下模式按钮显 [TXT]，切回 dark 恢复 💬', () => {
+  it('retro 主题下模式按钮显 [TXT]，切 dark 显电光蓝尖括号牌 <TXT>，切 light 显金属银花括号牌 {TXT}', () => {
     useSettingsStore.getState().setTheme('retro')
     render(<LeftSidebar />)
     expect(screen.getByText('[TXT] 文本')).toBeInTheDocument()
     cleanup()
     useSettingsStore.getState().setTheme('dark')
     render(<LeftSidebar />)
-    expect(screen.getByText('💬 文本')).toBeInTheDocument()
+    expect(screen.getByText('<TXT> 文本')).toBeInTheDocument()
+    cleanup()
+    useSettingsStore.getState().setTheme('light')
+    render(<LeftSidebar />)
+    expect(screen.getByText('{TXT} 文本')).toBeInTheDocument()
   })
 })
 
@@ -501,10 +505,10 @@ describe('RightSidebar 任务中心与用量', () => {
     })
     render(<RightSidebar />)
     const center = screen.getByTestId('task-center')
-    expect(center).toHaveTextContent('⏰ 开会')
+    expect(center).toHaveTextContent('<REM> 开会')
     expect(center).toHaveTextContent('每日')
     expect(center).toHaveTextContent('已逾期 2 天')
-    expect(center).toHaveTextContent('📋 Q3 交付')
+    expect(center).toHaveTextContent('<DUE> Q3 交付')
   })
 
   it('无任务时空态提示；有简报时渲染折叠块', () => {

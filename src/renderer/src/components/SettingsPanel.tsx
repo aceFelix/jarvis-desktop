@@ -181,6 +181,15 @@ export default function SettingsPanel(): JSX.Element {
         <div className="setting-row">
           <span className="setting-label">{t('settings.theme')}</span>
           <div className="segmented">
+            {/* 三主题同风格（Y2K 像素复古）仅配色不同：荧光绿排第一（亦为首启默认）。
+                作者：aceFelix */}
+            <button
+              className={`seg-btn${theme === 'retro' ? ' active' : ''}`}
+              data-testid="btn-theme-retro"
+              onClick={() => setTheme('retro')}
+            >
+              {t('settings.theme.retro')}
+            </button>
             <button
               className={`seg-btn${theme === 'dark' ? ' active' : ''}`}
               data-testid="btn-theme-dark"
@@ -194,13 +203,6 @@ export default function SettingsPanel(): JSX.Element {
               onClick={() => setTheme('light')}
             >
               {t('settings.theme.light')}
-            </button>
-            <button
-              className={`seg-btn${theme === 'retro' ? ' active' : ''}`}
-              data-testid="btn-theme-retro"
-              onClick={() => setTheme('retro')}
-            >
-              {t('settings.theme.retro')}
             </button>
           </div>
         </div>

@@ -29,7 +29,7 @@ interface Ripple {
   delay: number
 }
 
-/** 状态配色表（深色蓝系 / 复古绿系）。 */
+/** 状态配色表（电光蓝蓝系 / 荧光绿绿系）。 */
 type Palette = Record<ReactorStatus, string>
 
 /** 辉光精灵径向渐变的三档色标（0 档恒为白核，此处为 0.25 / 0.6 / 1 档）。 */
@@ -82,9 +82,11 @@ export class ArcReactor {
   private energy = 0.35
   private time = 0
   private rippleTimer = 0
-  /** 复古模式：低分辨率绘制（renderScale 放大即像素颗粒）+ 绿系配色。 */
+  /** 复古模式：绿系配色表（分辨率归 pixelated 管）。 */
   private retro = false
-  /** backing store 缩放分母：retro=4（1/4 分辨率绘制），其余=1。 */
+  /** 像素模式：三主题同为 Y2K 像素复古风，共用 1/4 分辨率像素颗粒，配色各随主题。 */
+  private pixelated = false
+  /** backing store 缩放分母：pixelated=4（1/4 分辨率绘制），其余=1。 */
   private renderScale = 1
 
   private width = 0
@@ -125,8 +127,8 @@ export class ArcReactor {
   private resize(): void {
     this.width = window.innerWidth
     this.height = window.innerHeight
-    // retro 下 backing store 缩到 1/renderScale，CSS 尺寸不变由浏览器放大
-    // （配合 theme-retro.css 的 image-rendering: pixelated 得到像素颗粒）。
+    // 像素模式（三主题恒开）下 backing store 缩到 1/renderScale，CSS 尺寸不变由浏览器放大
+    // （配合三张皮肤文件各自的 image-rendering: pixelated 得到像素颗粒）。
     const scale = this.dpr / this.renderScale
     this.canvas.width = Math.max(1, Math.round(this.width * scale))
     this.canvas.height = Math.max(1, Math.round(this.height * scale))
@@ -215,14 +217,23 @@ export class ArcReactor {
   }
 
   /**
-   * 切换复古模式：换绿系配色表 + 1/4 分辨率绘制 + 重建辉光精灵。
-   * resize() 依 renderScale 重算 backing store 并连带重建精灵。
+   * 切换复古模式：仅换绿系配色表 + 重建辉光精灵（分辨率归 setPixelated 管）。
    */
   setRetro(on: boolean): void {
     if (this.retro === on) return
     this.retro = on
     this.colors = on ? PALETTE_GREEN : PALETTE_BLUE
     this.spriteStops = on ? SPRITE_GREEN : SPRITE_BLUE
+    this.resize()
+  }
+
+  /**
+   * 切换像素化绘制：1/4 分辨率 backing store + 重建辉光精灵。
+   * resize() 依 renderScale 重算 backing store 并连带重建精灵。
+   */
+  setPixelated(on: boolean): void {
+    if (this.pixelated === on) return
+    this.pixelated = on
     this.renderScale = on ? 4 : 1
     this.resize()
   }

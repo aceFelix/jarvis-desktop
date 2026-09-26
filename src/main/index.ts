@@ -44,7 +44,7 @@ function createWindow(): void {
     minHeight: 640,
     show: false,
     frame: false, // 自绘标题栏（渲染进程 WindowControl IPC 控制最小化/关闭）
-    backgroundColor: '#020602', // 复古主题黑绿实底（默认主题），避免启动白闪
+    backgroundColor: '#020602', // 荧光绿（retro）主题黑绿实底（默认主题），避免启动白闪
     icon: iconPath ?? undefined,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

@@ -2,7 +2,9 @@
 
 背景（aceFelix）：桌面壳默认主题改为复古 CRT 荧光绿后，应用图标同步换身份——
 圆形反应炉以 32×32 像素网格程序化绘制（同心环带 + 八扇区线圈 + 高光内核），
-再 NEAREST 放大出各尺寸帧，保持像素颗粒感；配色与 theme-retro.css 同源。
+再 NEAREST 放大出各尺寸帧，保持像素颗粒感；配色与 theme-retro.css 同源；
+圆外区域全透明（2026-09-26：此前黑绿实底铺满画布，Windows 任务栏图标外
+出现黑色正方形边框，改透明轮廓后消除）。
 本脚本自包含（仅依赖 Pillow），不再复用 jarvis 仓库 autostart.py 的深蓝反应炉
 绘制——两者身份有意分叉：jarvis --gui 窗口仍用深蓝版（~/.jarvis/
 jarvis_window.ico，仅兜底），桌面壳用本仓库复古版且候选优先（src/main/appIcon.ts）。
@@ -30,20 +32,26 @@ GRID = 32               # 像素画布网格（32×32），放大后呈像素颗
 CENTER = (GRID - 1) / 2  # 圆心（15.5, 15.5）
 SIZES = (16, 24, 32, 48, 64, 128, 256)
 
-# 复古荧光绿配色（与 theme-retro.css 同源）；实底背景避免任务栏发白
-BG = (2, 6, 2)          # #020602 黑绿实底
+# 复古荧光绿配色（与 theme-retro.css 同源）
+# 圆外区域透明（此前为 BG 实底，导致 Windows 任务栏出现黑色正方形边框——
+# 图标非圆部分全部不透明铺满画布，系统不会自动裁圆）。@author aceFelix
+TRANSPARENT = (0, 0, 0, 0)
+BG = (2, 6, 2)          # #020602 黑绿（仅用于圆内暗底，不再铺满画布）
 RING = (51, 255, 102)   # #33ff66 外环荧光绿
 COIL = (102, 255, 153)  # #66ff99 线圈/内核中绿
 CORE = (200, 255, 214)  # #c8ffd6 内核高光
 GAP = (6, 43, 18)       # #062b12 暗绿间隙（CRT 暗槽，非纯黑）
 
 
-def pixel_at(x: int, y: int) -> tuple[int, int, int]:
-    """按半径环带 + 八扇区交替线圈决定单像素颜色（程序化像素画）。"""
+def pixel_at(x: int, y: int) -> tuple[int, int, int] | None:
+    """按半径环带 + 八扇区交替线圈决定单像素颜色（程序化像素画）。
+
+    返回 None 表示该像素全透明（圆外区域），使图标轮廓为圆形而非方形。
+    """
     dx, dy = x - CENTER, y - CENTER
     r = math.hypot(dx, dy)
     if r > 15.0:
-        return BG
+        return None  # 圆外透明，消除任务栏黑方块
     if r > 12.5:
         return RING  # 外环
     if r > 10.5:
@@ -58,12 +66,13 @@ def pixel_at(x: int, y: int) -> tuple[int, int, int]:
 
 
 def render_base() -> Image.Image:
-    """绘制 32×32 基准像素图（RGBA，不透明实底）。"""
-    img = Image.new("RGBA", (GRID, GRID), BG + (255,))
+    """绘制 32×32 基准像素图（RGBA，圆外透明）。"""
+    img = Image.new("RGBA", (GRID, GRID), TRANSPARENT)
     px = img.load()
     for y in range(GRID):
         for x in range(GRID):
-            px[x, y] = pixel_at(x, y) + (255,)
+            color = pixel_at(x, y)
+            px[x, y] = (color + (255,)) if color else TRANSPARENT
     return img
 
 
