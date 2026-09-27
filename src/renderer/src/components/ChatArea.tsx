@@ -1,17 +1,24 @@
 /**
- * 中栏对话主区：消息流（气泡/工具卡片/系统提示）+ ask_user 条 + 输入区。
+ * 中栏对话主区：消息流（气泡/思考块/工具组/系统提示）+ ask_user 条 + 输入区。
  *
  * 交互口径与 workbench 一致：
  * - Enter 发送、Shift+Enter 换行、输入框自适应高度（封顶 120px）；
  * - 新消息自动滚底；
- * - 工具卡片 details/summary 原生折叠；
  * - AI 气泡完成流式后右下角带「复制」消息级操作（替代原右栏复制回复）；
  * - 输入栏 📎 附件 / 📸 截屏（主进程 desktopCapturer → 附件区，随消息上送）。
+ *
+ * 降噪口径（2026-09，纯渲染层，不动 store / 协议）：
+ * - 思考块：流式中自动展开（实时可见），本轮回复结束（streaming=false）
+ *   自动收起成一行标题，点开可看全文（正文限高内部滚动，超长不撑爆气泡）；
+ * - 工具组：连续的 tool 项聚合成一条可折叠框（单条不包组），执行中展开
+ *   看进度「执行中：Bash」→ 全部完成后自动收起成一行；有失败时仍收起，
+ *   但标题标红计数（扫一眼即知，点开可见是哪条）；
+ * - 自动态与手点不打架：受控 details + onToggle 把用户操作同步回 state。
  *
  * @author aceFelix
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useBackendStore, type SendAttachments } from '../stores/backendStore'
 import { useChatStore, type MessageItem } from '../stores/chatStore'
 import { useLeftStore } from '../stores/leftStore'
@@ -24,6 +31,9 @@ import { useGlyphs } from '../glyphs'
 // @author aceFelix
 const ATTACH_ACCEPT =
   'image/png,image/jpeg,image/webp,image/gif,.md,.txt,.py,.json,.toml,.yaml,.yml,.csv,.log,.js,.ts,.jsx,.tsx,.html,.css,.ini,.xml,.sql,.sh,.bat,.ps1'
+
+/** 工具项（消息判别联合窄化，工具组使用）。 */
+type ToolItem = Extract<MessageItem, { kind: 'tool' }>
 
 /** AI 气泡右下角操作行：复制本条回复（复制成功短暂变「已复制」）。 */
 function CopyRow({ text }: { text: string }): JSX.Element {
@@ -55,6 +65,34 @@ function CopyRow({ text }: { text: string }): JSX.Element {
   )
 }
 
+/**
+ * 思考块（2026-09 折叠化）：流式中自动展开，本轮回复结束自动收起成一行。
+ *
+ * 自动态跟随 streaming（流式结束 effect 收起）；用户手点后 onToggle 同步回
+ * state，React 不会把用户的选择抢回去（此后 streaming 不再变化即不再干预）。
+ *
+ * @author aceFelix
+ */
+function ThinkingBlock({ text, streaming }: { text: string; streaming: boolean }): JSX.Element {
+  const t = useT()
+  const [open, setOpen] = useState(streaming)
+  useEffect(() => setOpen(streaming), [streaming])
+
+  return (
+    <details
+      className="thinking-block"
+      data-testid="thinking-block"
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+    >
+      <summary>
+        {t('chat.thinking')} · {t('chat.thinkingChars', { n: text.length })}
+      </summary>
+      <div className="thinking-body">{text}</div>
+    </details>
+  )
+}
+
 /** 单条消息渲染（按 kind 判别分发）。 */
 function MessageView({ item }: { item: MessageItem }): JSX.Element {
   const t = useT()
@@ -77,7 +115,7 @@ function MessageView({ item }: { item: MessageItem }): JSX.Element {
       return (
         <div className="message ai" data-testid="msg-ai">
           <div className="message-label">{t('chat.jarvis')}</div>
-          {item.thinking ? <div className="thinking-block">{item.thinking}</div> : null}
+          {item.thinking ? <ThinkingBlock text={item.thinking} streaming={item.streaming} /> : null}
           <div>
             {item.text}
             {item.streaming ? <span className="cursor-blink">▍</span> : null}
@@ -108,8 +146,87 @@ function MessageView({ item }: { item: MessageItem }): JSX.Element {
   }
 }
 
+/**
+ * 工具组（2026-09）：连续的工具调用聚合成一条框，消掉「十几个框堆满一屏」。
+ *
+ * - 执行中：自动展开，标题实时显示当前跑的是哪个工具；
+ * - 全部完成：自动收起成一行「⛭ 工具调用 ×N ✓」；
+ * - 有失败：仍收起，但标题标红计数（error class 同步标红边框），
+ *   点开是组内每条原工具卡（可再单独展开看入参/输出，两级折叠）。
+ *
+ * @author aceFelix
+ */
+function ToolGroup({ items }: { items: ToolItem[] }): JSX.Element {
+  const t = useT()
+  const allDone = items.every((i) => i.done)
+  const failed = items.filter((i) => i.isError).length
+  const running = items.find((i) => !i.done)
+  const [open, setOpen] = useState(!allDone)
+  useEffect(() => setOpen(!allDone), [allDone])
+
+  return (
+    <details
+      className={`tool-group${failed ? ' error' : ''}`}
+      data-testid="tool-group"
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+    >
+      <summary>
+        {t('chat.toolGroup', { n: items.length })}
+        {failed ? (
+          <span className="tool-group-fail"> · {t('chat.toolGroupFail', { n: failed })}</span>
+        ) : running ? (
+          <span className="tool-group-run"> · {t('chat.toolGroupRun', { name: running.name })}</span>
+        ) : (
+          ' ✓'
+        )}
+      </summary>
+      <div className="tool-group-body">
+        {items.map((it) => (
+          <MessageView key={it.id} item={it} />
+        ))}
+      </div>
+    </details>
+  )
+}
+
+/** 渲染节点：单条消息，或一个工具组（连续工具项聚合）。 */
+type RenderNode = { key: string; item: MessageItem } | { key: string; tools: ToolItem[] }
+
+/**
+ * 消息流 → 渲染节点分组（纯函数）：
+ * - 连续的 tool 项且 **≥2 条** 聚成一个工具组（单条不包组，少一层点击）；
+ * - 历史回放的工具占位（toolId 为空，本身是「历史工具调用 ×N」汇总卡）不并入组；
+ * - 其余节点（用户/AI/系统提示）保持原序单条渲染；中间夹非 tool 项即切组。
+ *
+ * @author aceFelix
+ */
+function groupMessages(messages: MessageItem[]): RenderNode[] {
+  const nodes: RenderNode[] = []
+  let buf: ToolItem[] = []
+  const flush = (): void => {
+    if (!buf.length) return
+    nodes.push(buf.length === 1 ? { key: `t${buf[0].id}`, item: buf[0] } : { key: `g${buf[0].id}`, tools: buf })
+    buf = []
+  }
+  for (const m of messages) {
+    if (m.kind === 'tool' && m.toolId) {
+      buf.push(m)
+      continue
+    }
+    flush()
+    nodes.push({ key: `m${m.id}`, item: m })
+  }
+  flush()
+  return nodes
+}
+
 export default function ChatArea(): JSX.Element {
   const messages = useChatStore((s) => s.messages)
+  // 渲染分组：连续工具项聚合（groupMessages 纯函数）；useMemo 只为省重算，
+  // 节点 key 由首条消息 id 决定，分组变化不会让工具组重挂载丢折叠态。
+  // @author aceFelix
+  const nodes = useMemo(() => groupMessages(messages), [messages])
   const askPrompt = useChatStore((s) => s.askPrompt)
   // busy：回复进行中（sendMessage 置位，assistant_done 收尾），驱动
   // 发送按钮切换为“停止”态。@author aceFelix
@@ -206,9 +323,13 @@ export default function ChatArea(): JSX.Element {
   return (
     <main id="center-col">
       <div id="chat-history" ref={historyRef}>
-        {messages.map((m) => (
-          <MessageView key={m.id} item={m} />
-        ))}
+        {nodes.map((n) =>
+          'tools' in n ? (
+            <ToolGroup key={n.key} items={n.tools} />
+          ) : (
+            <MessageView key={n.key} item={n.item} />
+          )
+        )}
       </div>
 
       {askPrompt !== null ? (

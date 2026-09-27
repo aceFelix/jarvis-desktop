@@ -27,6 +27,13 @@ body {
     color: #e8f4ff;
 }
 
+/* 文本选中高亮（含输入框内全选）：浏览器默认蓝底会破坏主题配色，
+   三张皮肤各自以 [data-theme] 前缀覆盖本规则。@author aceFelix */
+::selection {
+    background: rgba(91, 200, 255, 0.38);
+    color: #eafaff;
+}
+
 #reactor-canvas {
     position: fixed;
     top: 0;
@@ -245,9 +252,9 @@ body {
     word-break: break-all;
 }
 
-.list-item:hover {
+.list-item:not(.noop):hover {
     background: rgba(91, 200, 255, 0.12);
-    /* 悬停字体变主题蓝（用户要求） */
+    /* 悬停字体变主题蓝（用户要求）；noop 项（当前/待生效）不参与悬停变色 */
     color: #5bc8ff;
 }
 
@@ -256,6 +263,13 @@ body {
 .session-item {
     position: relative;
     padding-right: 56px; /* 给删除按钮预留位，标题不被压到按钮下 */
+}
+
+/* 模型项交互（右键删除 / 双击进编辑表单）：同会话项的定位容器 + 右侧留位，
+   区别是不内联改名单（改配置跳 ModelForm）。@author aceFelix */
+.model-item {
+    position: relative;
+    padding-right: 56px;
 }
 
 .session-item .session-title {
@@ -281,17 +295,6 @@ body {
     background: rgba(255, 107, 107, 0.28);
 }
 
-.session-rename-input {
-    width: 100%;
-    font: inherit;
-    color: #e6f4ff;
-    background: rgba(0, 0, 0, 0.35);
-    border: 1.2px solid #5bc8ff;
-    border-radius: 8px;
-    padding: 4px 6px;
-    outline: none;
-}
-
 .list-item.current {
     /* 选中项（当前模型/音色）字体亮蓝 */
     color: #7fe3ff;
@@ -304,6 +307,41 @@ body {
     margin-top: 3px;
     font-size: 11px;
     color: #9cc4e0;
+}
+
+/* ---- 添加模型：列表末项（表单控件样式已拆至 controls.css） ---- */
+
+.list-item.add-model {
+    /* 末项「＋ 添加模型」：虚线边框与普通模型项区分，提示可新增 */
+    border-style: dashed;
+    text-align: center;
+}
+
+/* 已选中 / 待生效项（模型、音色）：不再响应**点选**。
+
+   注意：这里只去掉手型与悬停高亮（视觉去活化），**不能再用
+   pointer-events: none** —— 当前模型仍需可双击改配置、可右键显删除按钮，
+   屏蔽指针事件会让这两条路彻底失效。点选去重改由各项的 onClick 守卫负责
+   （已选中/待生效时不下发 select 指令）。悬停不变色由各皮肤 :not(.noop) 保证。
+   @author aceFelix */
+.list-item.noop {
+    cursor: default;
+}
+
+.list-item.pending {
+    /* 已点选、重启引擎后加载：虚线框 + 亮蓝字，区别于运行中的「当前」项 */
+    border-style: dashed;
+    color: #7fe3ff;
+}
+
+/* 面板底部操作提示（模型面板的双击/右键为隐式交互，给一行可发现性提示）。 */
+.panel-hint {
+    flex-shrink: 0;
+    padding: 2px 4px 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #9cc4e0;
+    opacity: 0.85;
 }
 
 #left-footer {
@@ -442,14 +480,34 @@ body {
     50% { opacity: 0; }
 }
 
+/* 思考块（2026-09 折叠化）：收起时只剩一行 summary「思考过程 · N 字」，
+   展开后正文限高内部滚动，上千字的思考不再撑爆气泡。@author aceFelix */
 .thinking-block {
+    margin-bottom: 6px;
+    border-left: 2px solid rgba(91, 200, 255, 0.6);
+}
+
+.thinking-block > summary {
+    cursor: pointer;
+    list-style: none;
+    padding-left: 8px;
+    font-size: 12px;
+    color: #8fb8d8;
+    opacity: 0.85;
+}
+
+.thinking-block > summary::before { content: "▸ "; }
+.thinking-block[open] > summary::before { content: "▾ "; }
+
+.thinking-block .thinking-body {
+    padding-left: 8px;
+    margin-top: 4px;
     font-size: 12px;
     color: #8fb8d8;
     font-style: italic;
-    border-left: 2px solid rgba(91, 200, 255, 0.6);
-    padding-left: 8px;
-    margin-bottom: 6px;
     white-space: pre-wrap;
+    max-height: 240px;
+    overflow-y: auto;
 }
 
 .tool-card {
@@ -481,6 +539,44 @@ body {
 }
 
 .tool-card.error { border-color: rgba(255, 90, 90, 0.45); }
+
+/* 工具组（2026-09）：连续工具调用聚合成一条框 —— 执行中展开看进度、全部
+   完成后自动收起成一行；组内保留每条工具卡（可再展开看入参/输出），
+   形成两级折叠。@author aceFelix */
+.tool-group {
+    flex-shrink: 0;
+    align-self: stretch;
+    font-size: 12px;
+    color: #b8d8f0;
+    background: rgba(8, 18, 32, 0.55);
+    border: 1px solid var(--edge-soft);
+    border-radius: 8px;
+    margin: 0 10%;
+    overflow: hidden;
+}
+
+.tool-group > summary {
+    cursor: pointer;
+    padding: 5px 10px;
+    list-style: none;
+}
+
+.tool-group > summary::before { content: "⛭ "; }
+
+.tool-group .tool-group-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 8px;
+    border-top: 1px solid var(--edge-soft);
+}
+
+/* 组内卡片去掉自身外边距（缩进由组框承担），避免双重缩进 */
+.tool-group .tool-card { margin: 0; }
+
+.tool-group.error { border-color: rgba(255, 90, 90, 0.45); }
+.tool-group .tool-group-fail { color: #ff8a8a; }
+.tool-group .tool-group-run { opacity: 0.75; }
 
 /* ---- 输入区 / ask-user 条 ---- */
 /* 中栏内容水平边距统一口径：左右各留 5%（2026-09 由 10% 收窄）。
@@ -821,15 +917,9 @@ body {
     background: #eafaff;
 }
 
-/* 时间输入（简报/截止日期检查时间，HH:MM）：后端联动设置项。@author aceFelix */
-.setting-time {
-    background: rgba(8, 24, 40, 0.6);
-    border: 1px solid rgba(91, 200, 255, 0.35);
-    border-radius: 6px;
-    color: #eafaff;
-    font-size: 12px;
-    padding: 3px 6px;
-}
+/* 时间项（简报/截止日期检查时间，HH:MM）：自绘 ThemedTimePicker（小时/分钟两个
+   .themed-select，样式见 controls.css）。原生 input[type=time] 的弹出面板由
+   Chromium 内部绘制、无法主题化，已弃用。@author aceFelix */
 
 /* 数值滑杆行（TTS 音量/语速）：滑杆 + 当前值读数。@author aceFelix */
 .setting-range {

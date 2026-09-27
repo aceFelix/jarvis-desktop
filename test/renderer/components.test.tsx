@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 /**
  * 渲染层组件测试（@testing-library/react）—— 覆盖计划 B5 要求的
- * "消息气泡流式渲染" 与 "面板切换"，另加标题栏窗口控制与右栏指标。
+ * "消息气泡流式渲染" 与 "面板切换"，另加标题栏窗口控制、右栏指标
+ * 与左栏模型面板流（添加 models.add / 双击改配置 models.edit /
+ * 右键删除 models.remove）。
  *
  * 说明：不渲染 App / ReactorCanvas（会挂载 canvas 动画，jsdom 无 2D 上下文），
  * 逐个渲染纯展示组件；后端 client 默认 null，组件不会真正发起 WS 连接。
@@ -10,7 +12,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
 import ChatArea from '@renderer/components/ChatArea'
 import LeftSidebar from '@renderer/components/LeftSidebar'
 import RightSidebar from '@renderer/components/RightSidebar'
@@ -37,7 +39,14 @@ beforeEach(() => {
     mode: 'text',
     talkActive: false,
     voiceActive: false,
-    voiceState: ''
+    voiceState: '',
+    // 模型表单开关与编辑目标均为瞬态：复位避免「开着表单」的用例把状态串给下一个用例。
+    // @author aceFelix
+    modelFormOpen: false,
+    modelFormTarget: '',
+    // 待生效选择（模型/音色）同为瞬态：复位避免串场。@author aceFelix
+    pendingModel: '',
+    pendingVoice: ''
   })
   useMetricsStore.setState({ cpu: 0, memory: null, disk: null })
   useRightStore.setState({ reminders: [], deadlines: [], latestBriefing: '', cost: null, mcp: null, logs: [] })
@@ -117,6 +126,109 @@ describe('ChatArea', () => {
     render(<ChatArea />)
     expect(screen.getByTestId('tool-card')).toBeInTheDocument()
     expect(screen.getByTestId('msg-system')).toHaveTextContent('已就绪')
+  })
+
+  // ---- 降噪折叠（2026-09）：思考块与工具组在「本轮结束」自动收起 ----
+  // @author aceFelix
+
+  it('思考块：流式中展开、回复结束后自动收起成一行标题', () => {
+    useChatStore.getState().appendAssistantText('好的先生')
+    useChatStore.getState().appendThinking('用户要一个提醒')
+    render(<ChatArea />)
+    const block = screen.getByTestId('thinking-block')
+    // 流式中：展开实时可见，标题带字数
+    expect(block).toHaveAttribute('open')
+    expect(block).toHaveTextContent('思考过程 · 7 字')
+    // assistant_done → finishAssistant：自动收起（正文仍留在 DOM，点开可看）
+    act(() => useChatStore.getState().finishAssistant())
+    const done = screen.getByTestId('thinking-block')
+    expect(done).not.toHaveAttribute('open')
+    expect(done).toHaveTextContent('用户要一个提醒')
+  })
+
+  it('工具组：连续工具调用聚合成一条框，全部完成后自动收起', () => {
+    const s = useChatStore.getState()
+    s.addToolCard('Bash', 'c1', 'echo 1')
+    s.addToolCard('Bash', 'c2', 'echo 2')
+    s.addToolCard('Grep', 'c3', 'foo')
+    render(<ChatArea />)
+    // 执行中：只有一条组框（不再是三个独立框）、自动展开、标题显示在跑的工具
+    const group = screen.getByTestId('tool-group')
+    expect(screen.getAllByTestId('tool-group')).toHaveLength(1)
+    expect(group).toHaveAttribute('open')
+    expect(group).toHaveTextContent('工具调用 ×3')
+    expect(group).toHaveTextContent('执行中：Bash')
+    // 全部完成：自动收起成一行 ✓
+    act(() => {
+      useChatStore.getState().fillToolResult('c1', 'Bash', 'ok', false)
+      useChatStore.getState().fillToolResult('c2', 'Bash', 'ok', false)
+      useChatStore.getState().fillToolResult('c3', 'Grep', 'ok', false)
+    })
+    const done = screen.getByTestId('tool-group')
+    expect(done).not.toHaveAttribute('open')
+    expect(done).toHaveTextContent('✓')
+  })
+
+  it('工具组：有失败时仍收起，但标题标红计数', () => {
+    const s = useChatStore.getState()
+    s.addToolCard('Bash', 'c1', 'x')
+    s.addToolCard('Bash', 'c2', 'y')
+    render(<ChatArea />)
+    act(() => {
+      useChatStore.getState().fillToolResult('c1', 'Bash', 'boom', true)
+      useChatStore.getState().fillToolResult('c2', 'Bash', 'ok', false)
+    })
+    const group = screen.getByTestId('tool-group')
+    expect(group).not.toHaveAttribute('open')
+    expect(group).toHaveClass('error')
+    expect(group).toHaveTextContent('✗1 失败')
+  })
+
+  it('用户手动展开已收起的工具组：折叠态交给用户，不再被自动态抢回', () => {
+    const s = useChatStore.getState()
+    s.addToolCard('Bash', 'c1', 'x')
+    s.addToolCard('Bash', 'c2', 'y')
+    render(<ChatArea />)
+    act(() => {
+      useChatStore.getState().fillToolResult('c1', 'Bash', 'ok', false)
+      useChatStore.getState().fillToolResult('c2', 'Bash', 'ok', false)
+    })
+    expect(screen.getByTestId('tool-group')).not.toHaveAttribute('open')
+    const group = screen.getByTestId('tool-group')
+    act(() => {
+      group.setAttribute('open', '')
+      // jsdom 不会因属性变化自行派发 toggle，手动模拟浏览器的手点链路
+      fireEvent(group, new Event('toggle'))
+    })
+    expect(screen.getByTestId('tool-group')).toHaveAttribute('open')
+  })
+
+  it('单条工具不包组（直接渲染原卡片，少一层点击）', () => {
+    useChatStore.getState().addToolCard('read_file', 'c1', '{"p":1}')
+    render(<ChatArea />)
+    expect(screen.queryByTestId('tool-group')).toBeNull()
+    expect(screen.getByTestId('tool-card')).toBeInTheDocument()
+  })
+
+  it('工具组只吸收连续项：中间夹系统提示则切成两组', () => {
+    const s = useChatStore.getState()
+    s.addToolCard('Bash', 'c1', 'a')
+    s.addToolCard('Bash', 'c2', 'b')
+    s.addSystem('打个岔')
+    s.addToolCard('Bash', 'c3', 'c')
+    s.addToolCard('Bash', 'c4', 'd')
+    render(<ChatArea />)
+    expect(screen.getAllByTestId('tool-group')).toHaveLength(2)
+  })
+
+  it('历史回放的「历史工具调用 ×N」汇总卡不并入工具组（toolId 为空）', () => {
+    useChatStore.getState().replayHistory([
+      { role: 'assistant', tool_count: 3 },
+      { role: 'assistant', tool_count: 5 }
+    ])
+    render(<ChatArea />)
+    expect(screen.queryByTestId('tool-group')).toBeNull()
+    expect(screen.getAllByTestId('tool-card')).toHaveLength(2)
   })
 
   it('ask_user 出现时渲染回答条', () => {
@@ -268,6 +380,63 @@ describe('LeftSidebar 面板切换', () => {
     expect(screen.getByText('晓晓')).toBeInTheDocument()
   })
 
+  it('重复点选同一模型：只发一次指令、不本地弹提示，列表标「待生效」', async () => {
+    // 后端 models.select 写盘后由引擎热切换运行中的模型（落地推 model_switched
+    // 清标记 + 刷列表）；没有本地「待生效」标记就会出现「看不出选没选中 →
+    // 反复点 → 反复写盘」。成功气泡由引擎的 info 事件上屏，本地不再弹。
+    // @author aceFelix
+    const modelsPayload = [
+      { name: 'qwen-flash', vendor: 'dashscope', current: true },
+      { name: 'my-model', vendor: 'dashscope', current: false }
+    ]
+    const sendCommand = vi.fn().mockImplementation((type: string) => {
+      if (type === Cmd.ModelsSelect) return Promise.resolve({ ok: true, result: true })
+      if (type === Cmd.ModelsList) return Promise.resolve({ ok: true, result: modelsPayload })
+      return Promise.resolve({ ok: true, result: null })
+    })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: false
+    })
+    useLeftStore.setState({
+      activePanel: 'model',
+      modelFormOpen: false,
+      pendingModel: '',
+      models: modelsPayload
+    })
+    const selectCalls = (): number =>
+      sendCommand.mock.calls.filter(([t]) => t === Cmd.ModelsSelect).length
+    const switchedTips = (): number =>
+      useChatStore
+        .getState()
+        .messages.filter((m) => m.kind === 'system' && m.text.includes('模型已切换为')).length
+
+    render(<LeftSidebar />)
+    fireEvent.click(screen.getByText('my-model'))
+    await vi.waitFor(() => expect(selectCalls()).toBe(1))
+    expect(sendCommand).toHaveBeenCalledWith(Cmd.ModelsSelect, { name: 'my-model' })
+    // 已点选项标「待生效」；运行中项仍标「当前」（二选一，不叠加）
+    await vi.waitFor(() =>
+      expect(screen.getByText('my-model').closest('.list-item')).toHaveTextContent('待生效')
+    )
+    const currentItem = screen.getByText('qwen-flash').closest('.list-item')
+    expect(currentItem).toHaveTextContent('当前')
+    // 两类项都带 noop（去手型/悬停 = 不可再点），待生效项另带 pending（虚线框区分）
+    expect(currentItem).toHaveClass('noop')
+    expect(screen.getByText('my-model').closest('.list-item')).toHaveClass('pending', 'noop')
+    // 不本地弹气泡：切换成功提示由引擎 info 事件上屏（避免双气泡）
+    expect(switchedTips()).toBe(0)
+
+    // 重复点选：不再发指令；点运行中（current）项同样无动作
+    fireEvent.click(screen.getByText('my-model'))
+    fireEvent.click(screen.getByText('my-model'))
+    fireEvent.click(screen.getByText('qwen-flash'))
+    await Promise.resolve()
+    expect(selectCalls()).toBe(1)
+    expect(switchedTips()).toBe(0)
+    useBackendStore.setState({ client: null, wsConnected: false })
+  })
+
   it('右键会话项显示删除按钮，点击发 sessions.delete', () => {
     useLeftStore.setState({
       sessions: [{ name: '待删会话', updated_at: 1_700_000_000, message_count: 2, model: 'gpt' }],
@@ -365,6 +534,387 @@ describe('LeftSidebar 面板切换', () => {
   })
 })
 
+describe('LeftSidebar 添加模型', () => {
+  // 列表末项「＋ 添加模型」→ ModelForm 独立组件整体替换模型列表（与右栏
+  // SettingsPanel 替换 RightSidebar 同模式），提交走 models.add 指令。
+  // 后端非真机：假 client 只回执指令，不发 WS。@author aceFelix
+
+  it('模型列表末项渲染「＋ 添加模型」，点击进入表单（列表整体替换）', () => {
+    useLeftStore.setState({
+      models: [{ name: 'gpt-4', current: true }],
+      activePanel: 'model',
+      modelFormOpen: false
+    })
+    render(<LeftSidebar />)
+    const addItem = screen.getByTestId('model-add-item')
+    expect(addItem).toHaveTextContent('＋ 添加模型')
+    // 虚线样式类区别于普通模型项
+    expect(addItem.className).toContain('add-model')
+    fireEvent.click(addItem)
+    expect(useLeftStore.getState().modelFormOpen).toBe(true)
+    expect(screen.getByTestId('panel-model-form')).toBeInTheDocument()
+    expect(screen.queryByTestId('panel-model')).toBeNull()
+    // 默认值与 REPL 添加流程口径一致：厂商 deepseek / 接口 openai / 类型 text
+    // 下拉为自绘 ThemedSelect（button 触发器）：值走 data-value，显示文案走文本内容
+    expect(screen.getByTestId('model-form-vendor')).toHaveAttribute('data-value', 'deepseek')
+    expect(screen.getByTestId('model-form-vendor')).toHaveTextContent('DeepSeek')
+    expect(screen.getByTestId('model-form-api-format')).toHaveAttribute('data-value', 'openai')
+    expect(screen.getByTestId('model-form-model-type')).toHaveAttribute('data-value', 'text')
+    expect(screen.getByTestId('model-form-name')).toHaveValue('')
+  })
+
+  it('模型名为空提交：本地校验提示且不发 models.add', () => {
+    const sendCommand = vi.fn().mockResolvedValue({ ok: true, result: null })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: false
+    })
+    useLeftStore.setState({ activePanel: 'model', modelFormOpen: true })
+    render(<LeftSidebar />)
+    fireEvent.click(screen.getByTestId('model-form-submit'))
+    expect(screen.getByTestId('model-form-error')).toHaveTextContent('模型名不能为空')
+    expect(sendCommand).not.toHaveBeenCalled()
+    // 开始输入即清掉提示（用户正在修正）
+    fireEvent.change(screen.getByTestId('model-form-name'), { target: { value: 'x' } })
+    expect(screen.queryByTestId('model-form-error')).toBeNull()
+  })
+
+  it('填写提交：models.add 带裁剪后字段 → 刷模型列表 → 关表单并提示', async () => {
+    const sendCommand = vi.fn(async (type: string) => {
+      if (type === Cmd.ModelsAdd) {
+        return { ok: true, result: { name: 'my-model', vendor: 'deepseek' } }
+      }
+      // addModel 成功后内部再拉一次 models.list（刷新列表）
+      if (type === Cmd.ModelsList) return { ok: true, result: [{ name: 'my-model', current: true }] }
+      return { ok: true, result: null }
+    })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: false
+    })
+    useLeftStore.setState({ activePanel: 'model', modelFormOpen: true })
+    render(<LeftSidebar />)
+    fireEvent.change(screen.getByTestId('model-form-name'), { target: { value: '  my-model  ' } })
+    fireEvent.change(screen.getByTestId('model-form-api-key'), { target: { value: ' sk-test ' } })
+    fireEvent.change(screen.getByTestId('model-form-base-url'), {
+      target: { value: ' https://api.example.com ' }
+    })
+    fireEvent.click(screen.getByTestId('model-form-submit'))
+
+    await vi.waitFor(() =>
+      expect(sendCommand).toHaveBeenCalledWith(Cmd.ModelsAdd, {
+        name: 'my-model',
+        vendor: 'deepseek',
+        api_format: 'openai',
+        base_url: 'https://api.example.com',
+        api_key: 'sk-test',
+        model_type: 'text'
+      })
+    )
+    // 成功：表单关闭回列表、列表已刷新出新模型、聊天流有系统提示
+    await vi.waitFor(() => expect(screen.getByTestId('panel-model')).toBeInTheDocument())
+    expect(screen.queryByTestId('panel-model-form')).toBeNull()
+    expect(useLeftStore.getState().modelFormOpen).toBe(false)
+    expect(screen.getByText('my-model')).toBeInTheDocument()
+    expect(
+      useChatStore
+        .getState()
+        .messages.some((m) => m.kind === 'system' && m.text.includes('已添加'))
+    ).toBe(true)
+  })
+
+  it('下拉改选：自绘 ThemedSelect 选厂商/接口类型 → 提交使用所选值', async () => {
+    const sendCommand = vi.fn(async (type: string) => {
+      if (type === Cmd.ModelsAdd) return { ok: true, result: { name: 'kimi-k2', vendor: 'moonshot' } }
+      if (type === Cmd.ModelsList) return { ok: true, result: [] }
+      return { ok: true, result: null }
+    })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: false
+    })
+    useLeftStore.setState({ activePanel: 'model', modelFormOpen: true })
+    render(<LeftSidebar />)
+
+    // 展开厂商下拉（浮层 portal 到 body）→ 选 Moonshot AI，选中后浮层关闭
+    fireEvent.click(screen.getByTestId('model-form-vendor'))
+    fireEvent.click(screen.getByTestId('model-form-vendor-option-moonshot'))
+    expect(screen.getByTestId('model-form-vendor')).toHaveAttribute('data-value', 'moonshot')
+    expect(screen.getByTestId('model-form-vendor')).toHaveTextContent('Moonshot AI')
+    expect(screen.queryByTestId('model-form-vendor-menu')).toBeNull()
+
+    // 接口类型改选 Anthropic 原生
+    fireEvent.click(screen.getByTestId('model-form-api-format'))
+    fireEvent.click(screen.getByTestId('model-form-api-format-option-anthropic'))
+    expect(screen.getByTestId('model-form-api-format')).toHaveAttribute('data-value', 'anthropic')
+
+    fireEvent.change(screen.getByTestId('model-form-name'), { target: { value: 'kimi-k2' } })
+    fireEvent.click(screen.getByTestId('model-form-submit'))
+
+    await vi.waitFor(() =>
+      expect(sendCommand).toHaveBeenCalledWith(Cmd.ModelsAdd, {
+        name: 'kimi-k2',
+        vendor: 'moonshot',
+        api_format: 'anthropic',
+        base_url: '',
+        api_key: '',
+        model_type: 'text'
+      })
+    )
+  })
+
+  it('后端回执失败：表单保持打开可修正，错误走聊天流出口', async () => {
+    const sendCommand = vi
+      .fn()
+      .mockResolvedValue({ ok: false, error: '缺少模型名 name' })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: false
+    })
+    useLeftStore.setState({ activePanel: 'model', modelFormOpen: true })
+    render(<LeftSidebar />)
+    fireEvent.change(screen.getByTestId('model-form-name'), { target: { value: 'bad-model' } })
+    fireEvent.click(screen.getByTestId('model-form-submit'))
+    await vi.waitFor(() => expect(sendCommand).toHaveBeenCalledWith(Cmd.ModelsAdd, expect.anything()))
+    expect(useLeftStore.getState().modelFormOpen).toBe(true)
+    expect(screen.getByTestId('panel-model-form')).toBeInTheDocument()
+    expect(
+      useChatStore
+        .getState()
+        .messages.some((m) => m.kind === 'system' && m.text.includes('缺少模型名'))
+    ).toBe(true)
+  })
+
+  it('取消与顶部返回箭头均回模型列表，不发 models.add', () => {
+    const sendCommand = vi.fn().mockResolvedValue({ ok: true, result: null })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: false
+    })
+    useLeftStore.setState({ activePanel: 'model', modelFormOpen: true })
+    render(<LeftSidebar />)
+    fireEvent.click(screen.getByTestId('model-form-cancel'))
+    expect(useLeftStore.getState().modelFormOpen).toBe(false)
+    expect(screen.getByTestId('panel-model')).toBeInTheDocument()
+    // 再进表单，用顶部返回箭头退出
+    fireEvent.click(screen.getByTestId('model-add-item'))
+    expect(screen.getByTestId('panel-model-form')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('btn-model-form-back'))
+    expect(useLeftStore.getState().modelFormOpen).toBe(false)
+    expect(screen.getByTestId('panel-model')).toBeInTheDocument()
+    expect(sendCommand).not.toHaveBeenCalled()
+  })
+})
+
+describe('LeftSidebar 模型配置修改与删除', () => {
+  // 交互范式对齐会话列表：双击模型项 → ModelForm 编辑该模型（models.edit），
+  // 右键 → 项内出现删除按钮、再点才真删（models.remove，仅自定义模型）。
+  // 后端非真机：假 client 只回执指令，不发 WS。@author aceFelix
+
+  /** 模型列表夹具：一个内置（运行中）/ 一个自定义（可改名可删），均带 config 现值。 */
+  const modelsFixture = [
+    {
+      name: 'qwen-flash',
+      vendor: 'dashscope',
+      current: true,
+      source: 'builtin',
+      editable: true,
+      removable: false,
+      config: {
+        vendor: 'dashscope',
+        api_format: 'dashscope',
+        base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        model_type: 'text',
+        has_key: true
+      }
+    },
+    {
+      name: 'my-model',
+      vendor: 'deepseek',
+      current: false,
+      source: 'custom',
+      editable: true,
+      removable: true,
+      config: {
+        vendor: 'deepseek',
+        api_format: 'openai',
+        base_url: 'https://api.deepseek.com',
+        model_type: 'text',
+        has_key: true
+      }
+    }
+  ]
+
+  it('双击模型项进编辑表单：标题切「修改模型配置」、字段预填现值、Key 不回显', () => {
+    useLeftStore.setState({ activePanel: 'model', models: modelsFixture })
+    render(<LeftSidebar />)
+    fireEvent.doubleClick(screen.getByText('my-model'))
+
+    expect(screen.getByTestId('panel-model-form')).toBeInTheDocument()
+    expect(screen.queryByTestId('panel-model')).toBeNull()
+    expect(useLeftStore.getState().modelFormOpen).toBe(true)
+    expect(useLeftStore.getState().modelFormTarget).toBe('my-model')
+    expect(screen.getByText('修改模型配置')).toBeInTheDocument()
+    expect(screen.getByTestId('model-form-target')).toHaveTextContent('正在修改「my-model」的配置')
+    // 字段预填该模型现值（models.list 每项的 config）
+    const nameInput = screen.getByTestId('model-form-name')
+    expect(nameInput).toHaveValue('my-model')
+    expect(nameInput).not.toBeDisabled()
+    expect(screen.getByTestId('model-form-vendor')).toHaveAttribute('data-value', 'deepseek')
+    expect(screen.getByTestId('model-form-api-format')).toHaveAttribute('data-value', 'openai')
+    expect(screen.getByTestId('model-form-base-url')).toHaveValue('https://api.deepseek.com')
+    expect(screen.getByTestId('model-form-model-type')).toHaveAttribute('data-value', 'text')
+    // 密钥不回显：框恒空 + hint 说明「留空 = 保持原 Key」（未填不能当清空）
+    expect(screen.getByTestId('model-form-api-key')).toHaveValue('')
+    expect(screen.getByTestId('model-form')).toHaveTextContent('留空保持原 Key 不变')
+    expect(screen.getByTestId('model-form-submit')).toHaveTextContent('保存修改')
+  })
+
+  it('双击内置模型：模型名输入框锁定（改名只会造幽灵模型）', () => {
+    useLeftStore.setState({ activePanel: 'model', models: modelsFixture })
+    render(<LeftSidebar />)
+    fireEvent.doubleClick(screen.getByText('qwen-flash'))
+
+    expect(useLeftStore.getState().modelFormTarget).toBe('qwen-flash')
+    expect(screen.getByTestId('model-form-name')).toHaveValue('qwen-flash')
+    expect(screen.getByTestId('model-form-name')).toBeDisabled()
+    expect(screen.getByTestId('model-form')).toHaveTextContent('内置模型名不可修改')
+  })
+
+  it('改配置提交：models.edit 携原名与裁剪后字段（Key 留空）→ 回列表并提示', async () => {
+    const sendCommand = vi.fn(async (type: string) => {
+      if (type === Cmd.ModelsEdit) {
+        return { ok: true, result: { name: 'my-model-v2', hot_switched: false } }
+      }
+      if (type === Cmd.ModelsList) return { ok: true, result: modelsFixture }
+      return { ok: true, result: null }
+    })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: false
+    })
+    useLeftStore.setState({ activePanel: 'model', models: modelsFixture })
+    render(<LeftSidebar />)
+    fireEvent.doubleClick(screen.getByText('my-model'))
+    fireEvent.change(screen.getByTestId('model-form-name'), { target: { value: '  my-model-v2  ' } })
+    fireEvent.change(screen.getByTestId('model-form-base-url'), {
+      target: { value: ' https://api.example.com/v1 ' }
+    })
+    fireEvent.click(screen.getByTestId('model-form-submit'))
+
+    await vi.waitFor(() =>
+      expect(sendCommand).toHaveBeenCalledWith(Cmd.ModelsEdit, {
+        name: 'my-model',
+        new_name: 'my-model-v2',
+        vendor: 'deepseek',
+        api_format: 'openai',
+        base_url: 'https://api.example.com/v1',
+        api_key: '',
+        model_type: 'text'
+      })
+    )
+    // 成功：表单关闭回列表（编辑目标一并清空）、列表已刷新、聊天流有系统提示
+    await vi.waitFor(() => expect(screen.getByTestId('panel-model')).toBeInTheDocument())
+    expect(screen.queryByTestId('panel-model-form')).toBeNull()
+    expect(useLeftStore.getState().modelFormOpen).toBe(false)
+    expect(useLeftStore.getState().modelFormTarget).toBe('')
+    expect(
+      useChatStore
+        .getState()
+        .messages.some((m) => m.kind === 'system' && m.text.includes('配置已更新'))
+    ).toBe(true)
+  })
+
+  it('改的是当前运行模型（回执 hot_switched）：提示说明已按新配置重连', async () => {
+    const sendCommand = vi.fn(async (type: string) => {
+      if (type === Cmd.ModelsEdit) {
+        return { ok: true, result: { name: 'qwen-flash', hot_switched: true } }
+      }
+      if (type === Cmd.ModelsList) return { ok: true, result: modelsFixture }
+      return { ok: true, result: null }
+    })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: false
+    })
+    useLeftStore.setState({ activePanel: 'model', models: modelsFixture })
+    render(<LeftSidebar />)
+    fireEvent.doubleClick(screen.getByText('qwen-flash'))
+    fireEvent.change(screen.getByTestId('model-form-base-url'), {
+      target: { value: 'https://proxy.example.com' }
+    })
+    fireEvent.click(screen.getByTestId('model-form-submit'))
+
+    await vi.waitFor(() =>
+      expect(
+        useChatStore
+          .getState()
+          .messages.some((m) => m.kind === 'system' && m.text.includes('已按新配置重连'))
+      ).toBe(true)
+    )
+  })
+
+  it('右键自定义模型显删除按钮、再点发 models.remove；内置模型右键不出按钮', async () => {
+    const sendCommand = vi.fn(async (type: string) => {
+      if (type === Cmd.ModelsRemove) {
+        return { ok: true, result: { name: 'my-model', was_current: false } }
+      }
+      // 删除成功后刷列表：夹具里只剩内置模型
+      if (type === Cmd.ModelsList) return { ok: true, result: [modelsFixture[0]] }
+      return { ok: true, result: null }
+    })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: false
+    })
+    useLeftStore.setState({ activePanel: 'model', models: modelsFixture })
+    render(<LeftSidebar />)
+    // 右键前无删除按钮（二次确认：右键才显、再点才删）
+    expect(screen.queryByTestId('model-del-btn')).toBeNull()
+    // 内置模型不可删：右键不显示删除按钮（后端也会拒绝）
+    fireEvent.contextMenu(screen.getByText('qwen-flash'))
+    expect(screen.queryByTestId('model-del-btn')).toBeNull()
+
+    fireEvent.contextMenu(screen.getByText('my-model'))
+    fireEvent.click(screen.getByTestId('model-del-btn'))
+
+    await vi.waitFor(() =>
+      expect(sendCommand).toHaveBeenCalledWith(Cmd.ModelsRemove, { name: 'my-model' })
+    )
+    // 成功：按钮收起 + 列表刷新（my-model 已不在）+ 聊天流提示
+    await vi.waitFor(() => expect(screen.queryByText('my-model')).toBeNull())
+    expect(screen.queryByTestId('model-del-btn')).toBeNull()
+    expect(
+      useChatStore
+        .getState()
+        .messages.some((m) => m.kind === 'system' && m.text.includes('已删除'))
+    ).toBe(true)
+  })
+
+  it('双击不误触发点选（单击 220ms 定时器被清）；当前项（noop）也进得了编辑表单', async () => {
+    const sendCommand = vi.fn().mockResolvedValue({ ok: true, result: null })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: false
+    })
+    useLeftStore.setState({ activePanel: 'model', models: modelsFixture })
+    render(<LeftSidebar />)
+    // 真实双击序列：先单击（起 220ms 点选定时器）再双击（清定时器 + 进编辑）
+    fireEvent.click(screen.getByText('my-model'))
+    fireEvent.doubleClick(screen.getByText('my-model'))
+    await new Promise((r) => setTimeout(r, 280))
+    expect(sendCommand).not.toHaveBeenCalledWith(Cmd.ModelsSelect, expect.anything())
+    expect(useLeftStore.getState().modelFormTarget).toBe('my-model')
+
+    // 回列表（顶部返回箭头）再双击运行中的当前模型：noop 只去手型/悬停，不屏蔽指针事件
+    fireEvent.click(screen.getByTestId('btn-model-form-back'))
+    expect(screen.getByTestId('panel-model')).toBeInTheDocument()
+    fireEvent.doubleClick(screen.getByText('qwen-flash'))
+    expect(useLeftStore.getState().modelFormTarget).toBe('qwen-flash')
+    expect(screen.getByTestId('model-form-name')).toHaveValue('qwen-flash')
+  })
+})
+
 describe('RightSidebar 指标', () => {
   it('渲染 CPU / 内存 / 磁盘，CPU 过热标记 hot', () => {
     useMetricsStore.setState({
@@ -435,8 +985,10 @@ describe('SettingsPanel 设置面板', () => {
     expect(toggle.className).toContain('on')
     expect(toggle.getAttribute('aria-checked')).toBe('true')
     expect(screen.getByTestId('toggle-briefing').className).not.toContain('on')
-    expect(screen.getByTestId('time-briefing-time')).toHaveValue('07:15')
-    expect(screen.getByTestId('time-deadline-check-time')).toHaveValue('21:00')
+    expect(screen.getByTestId('time-briefing-time')).toHaveAttribute('data-value', '07:15')
+    expect(screen.getByTestId('time-briefing-time-hour')).toHaveTextContent('07')
+    expect(screen.getByTestId('time-briefing-time-minute')).toHaveTextContent('15')
+    expect(screen.getByTestId('time-deadline-check-time')).toHaveAttribute('data-value', '21:00')
     expect(screen.getByTestId('range-tts-volume')).toHaveValue('60')
     expect(screen.getByTestId('tts-volume-value')).toHaveTextContent('60')
     expect(screen.getByTestId('range-tts-speech-rate')).toHaveValue('1.25')
@@ -459,19 +1011,26 @@ describe('SettingsPanel 设置面板', () => {
     })
   })
 
-  it('改简报时间：HH:MM 提交发 settings.set，非法值不发', () => {
+  it('改简报时间：自绘时间选择器点选即拼回 HH:MM 发 settings.set，重选当前值不发', () => {
     const client = { sendCommand: vi.fn().mockResolvedValue({ ok: true, result: {} }) }
     useBackendStore.setState({ client: client as unknown as JarvisWsClient })
     useSettingsStore
       .getState()
       .applyBackendSettings({ ...EMPTY_BACKEND_SETTINGS, briefing_time: '08:30' })
     render(<SettingsPanel />)
-    const input = screen.getByTestId('time-briefing-time')
-    fireEvent.change(input, { target: { value: '06:45' } })
+    // 改小时 08 → 06：分钟侧保持 30，拼回完整 HH:MM
+    fireEvent.click(screen.getByTestId('time-briefing-time-hour'))
+    fireEvent.click(screen.getByTestId('time-briefing-time-hour-option-06'))
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.SettingsSet, { briefing_time: '06:30' })
+    // 改分钟 30 → 45：小时侧保持 06
+    fireEvent.click(screen.getByTestId('time-briefing-time-minute'))
+    fireEvent.click(screen.getByTestId('time-briefing-time-minute-option-45'))
     expect(client.sendCommand).toHaveBeenCalledWith(Cmd.SettingsSet, { briefing_time: '06:45' })
-    // 清空/半填不是合法 HH:MM → 不发指令（后端不被脏值敲）
-    fireEvent.change(input, { target: { value: '' } })
-    expect(client.sendCommand).toHaveBeenCalledTimes(1)
+    expect(client.sendCommand).toHaveBeenCalledTimes(2)
+    // 重选当前值不发指令（避免重复落盘/调度重注册）
+    fireEvent.click(screen.getByTestId('time-briefing-time-minute'))
+    fireEvent.click(screen.getByTestId('time-briefing-time-minute-option-45'))
+    expect(client.sendCommand).toHaveBeenCalledTimes(2)
   })
 
   it('拖音量滑杆乐观写回并发 settings.set', () => {
