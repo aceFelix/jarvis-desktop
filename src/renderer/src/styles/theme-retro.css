@@ -64,13 +64,19 @@
 /* ==================== 硬边像素感：去圆角 + 去玻璃模糊 ==================== */
 
 [data-theme='retro'] :where(
-    button, input, textarea, .glass-col, .glass-bar, .message, .tool-card,
+    button, input, select, textarea, .glass-col, .glass-bar, .message, .tool-card, .tool-group,
     .list-item, .metric-card, .usage-card, .attach-chip, .seg-btn, .win-btn,
     .toggle, .task-item, .briefing-block, .log-feed, .boot-card, .settings-back,
-    .msg-action-btn, .action-btn
+    .msg-action-btn, .action-btn, .themed-select-menu, .themed-select-option
 ) {
     border-radius: 0;
     backdrop-filter: none;
+}
+
+/* 文本选中高亮（含输入框内全选）：亮绿反相（与下拉选中态同口径），替代浏览器默认蓝底 */
+[data-theme='retro'] ::selection {
+    background: var(--retro-bright);
+    color: #020602;
 }
 
 /* ==================== 标题栏 / 窗口控制 ==================== */
@@ -139,14 +145,7 @@
 [data-theme='retro'] .toggle.on { background: rgba(51, 255, 102, 0.35); border-color: var(--edge-strong); }
 [data-theme='retro'] .toggle.on::after { background: var(--retro-bright); }
 
-/* 时间输入/滑杆：荧光绿硬边口径（方角 + 暗底）。@author aceFelix */
-[data-theme='retro'] .setting-time {
-    border-radius: 0;
-    border: 1px solid var(--edge-mid);
-    background: rgba(0, 30, 10, 0.7);
-    color: var(--retro-bright);
-    font-family: inherit;
-}
+/* 滑杆：荧光绿硬边口径（时间控件已改自绘 ThemedTimePicker，配色走 .themed-select-* 覆盖）。@author aceFelix */
 [data-theme='retro'] .setting-range input[type='range'] { accent-color: var(--edge-strong); }
 [data-theme='retro'] .setting-range-value { color: var(--retro-dim); }
 
@@ -157,14 +156,52 @@
     background: rgba(0, 24, 8, 0.6);
     border: 1px solid transparent;
 }
-[data-theme='retro'] .list-item:hover { background: var(--retro-bright); color: #020602; }
+[data-theme='retro'] .list-item:not(.noop):hover { background: var(--retro-bright); color: #020602; }
+
+/* 添加模型表单：列表末项（虚线框）+ 输入/下拉控件（与皮肤同色系） */
+[data-theme='retro'] .list-item.add-model { border-style: dashed; color: var(--retro-dim); }
+/* 待生效（已点选、重启后加载）：虚线框 + 亮字，区别于运行中的「当前」项 */
+[data-theme='retro'] .list-item.pending {
+    color: var(--retro-bright);
+    border-style: dashed;
+    border-color: var(--edge-strong);
+}
+[data-theme='retro'] .model-input {
+    color: var(--retro-text);
+    background: rgba(0, 20, 6, 0.8);
+    border: 1px solid var(--edge-mid);
+}
+[data-theme='retro'] .model-input:focus { border-color: var(--edge-strong); }
+[data-theme='retro'] .model-input::placeholder { color: rgba(120, 200, 150, 0.45); }
+/* 主题化下拉（自绘）+ 会话改名输入框：荧光绿硬边口径，展开列表用亮绿反相高亮。@author aceFelix */
+[data-theme='retro'] .session-rename-input {
+    color: var(--retro-text);
+    background: rgba(0, 20, 6, 0.8);
+    border: 1px solid var(--edge-mid);
+}
+[data-theme='retro'] .session-rename-input:focus { border-color: var(--edge-strong); }
+[data-theme='retro'] .themed-select-trigger {
+    color: var(--retro-text);
+    background: rgba(0, 20, 6, 0.8);
+    border: 1px solid var(--edge-mid);
+}
+[data-theme='retro'] .themed-select-trigger:focus { border-color: var(--edge-strong); }
+[data-theme='retro'] .themed-select-menu {
+    background: rgba(0, 18, 6, 0.98);
+    border: 1px solid var(--edge-strong);
+    box-shadow: 0 0 10px rgba(51, 255, 102, 0.28);
+}
+[data-theme='retro'] .themed-select-option.active { background: var(--retro-bright); color: #020602; }
+[data-theme='retro'] .themed-select-option.selected { color: var(--retro-bright); }
+[data-theme='retro'] .themed-select-option.selected.active { background: var(--retro-bright); color: #020602; }
+[data-theme='retro'] .model-form-error { color: var(--retro-error); }
 [data-theme='retro'] .list-item.current {
     color: var(--retro-bright);
     border-color: var(--edge-strong);
     background: rgba(51, 255, 102, 0.12);
 }
 [data-theme='retro'] .list-item .sub { color: var(--retro-dim); }
-[data-theme='retro'] .list-item:hover .sub { color: #020602; }
+[data-theme='retro'] .list-item:not(.noop):hover .sub { color: #020602; }
 
 [data-theme='retro'] #left-footer { color: var(--retro-dim); }
 [data-theme='retro'] .status-dot { border-radius: 0; }
@@ -190,19 +227,22 @@
 [data-theme='retro'] .message.user .message-label { color: var(--retro-bright); }
 [data-theme='retro'] .message.ai .message-label { color: var(--retro-bright); }
 [data-theme='retro'] .cursor-blink { color: var(--retro-bright); }
-[data-theme='retro'] .thinking-block { color: var(--retro-dim); border-left-color: var(--edge-mid); }
+[data-theme='retro'] .thinking-block { border-left-color: var(--edge-mid); }
+[data-theme='retro'] .thinking-block > summary,
+[data-theme='retro'] .thinking-block .thinking-body { color: var(--retro-dim); }
 
 [data-theme='retro'] .msg-action-btn { color: var(--retro-dim); background: rgba(0, 30, 10, 0.6); }
 [data-theme='retro'] .msg-action-btn:hover { color: #020602; background: var(--retro-bright); }
 
 /* ==================== 工具卡片 ==================== */
 
-[data-theme='retro'] .tool-card {
+[data-theme='retro'] :is(.tool-card, .tool-group) {
     color: var(--retro-text);
     background: rgba(0, 20, 6, 0.6);
     border: 1px solid var(--edge-soft);
 }
-[data-theme='retro'] .tool-card.error { border-color: var(--retro-error); }
+[data-theme='retro'] :is(.tool-card, .tool-group).error { border-color: var(--retro-error); }
+[data-theme='retro'] .tool-group .tool-group-fail { color: var(--retro-error); }
 
 /* ==================== 输入栏 ==================== */
 

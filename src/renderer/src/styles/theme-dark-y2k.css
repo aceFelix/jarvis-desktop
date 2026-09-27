@@ -88,13 +88,19 @@
 /* ==================== 硬边像素感：去圆角 + 去玻璃模糊 ==================== */
 
 [data-theme='dark'] :where(
-    button, input, textarea, .glass-col, .glass-bar, .message, .tool-card,
+    button, input, select, textarea, .glass-col, .glass-bar, .message, .tool-card, .tool-group,
     .list-item, .metric-card, .usage-card, .attach-chip, .seg-btn, .win-btn,
     .toggle, .task-item, .briefing-block, .log-feed, .boot-card, .settings-back,
-    .msg-action-btn, .action-btn
+    .msg-action-btn, .action-btn, .themed-select-menu, .themed-select-option
 ) {
     border-radius: 0;
     backdrop-filter: none;
+}
+
+/* 文本选中高亮（含输入框内全选）：亮青反相（与下拉选中态同口径），替代浏览器默认蓝底 */
+[data-theme='dark'] ::selection {
+    background: var(--y2k-bright);
+    color: #031018;
 }
 
 /* 像素切角 + 像素投影：大表面四角缺台阶，drop-shadow 跟随裁剪形状出硬投影
@@ -187,14 +193,7 @@
 }
 [data-theme='dark'] .toggle.on::after { background: var(--y2k-bright); }
 
-/* 时间输入/滑杆：电光蓝硬边口径（方角 + 暗底）。@author aceFelix */
-[data-theme='dark'] .setting-time {
-    border-radius: 0;
-    border: 1px solid var(--edge-mid);
-    background: rgba(2, 16, 34, 0.8);
-    color: var(--y2k-bright);
-    font-family: inherit;
-}
+/* 滑杆：电光蓝硬边口径（时间控件已改自绘 ThemedTimePicker，配色走 .themed-select-* 覆盖）。@author aceFelix */
 [data-theme='dark'] .setting-range input[type='range'] { accent-color: var(--edge-strong); }
 [data-theme='dark'] .setting-range-value { color: var(--y2k-dim); }
 
@@ -205,7 +204,45 @@
     background: rgba(2, 18, 38, 0.7);
     border: 1px solid transparent;
 }
-[data-theme='dark'] .list-item:hover { background: var(--y2k-bright); color: #031018; }
+[data-theme='dark'] .list-item:not(.noop):hover { background: var(--y2k-bright); color: #031018; }
+
+/* 添加模型表单：列表末项（虚线框）+ 输入/下拉控件（与皮肤同色系） */
+[data-theme='dark'] .list-item.add-model { border-style: dashed; color: var(--y2k-dim); }
+/* 待生效（已点选、重启后加载）：虚线框 + 亮字，区别于运行中的「当前」项 */
+[data-theme='dark'] .list-item.pending {
+    color: var(--y2k-bright);
+    border-style: dashed;
+    border-color: var(--edge-strong);
+}
+[data-theme='dark'] .model-input {
+    color: var(--y2k-text);
+    background: rgba(2, 12, 26, 0.85);
+    border: 1px solid var(--edge-mid);
+}
+[data-theme='dark'] .model-input:focus { border-color: var(--edge-strong); }
+[data-theme='dark'] .model-input::placeholder { color: rgba(120, 190, 220, 0.45); }
+/* 主题化下拉（自绘）+ 会话改名输入框：电光蓝硬边口径，展开列表用亮青反相高亮。@author aceFelix */
+[data-theme='dark'] .session-rename-input {
+    color: var(--y2k-text);
+    background: rgba(2, 12, 26, 0.85);
+    border: 1px solid var(--edge-mid);
+}
+[data-theme='dark'] .session-rename-input:focus { border-color: var(--edge-strong); }
+[data-theme='dark'] .themed-select-trigger {
+    color: var(--y2k-text);
+    background: rgba(2, 12, 26, 0.85);
+    border: 1px solid var(--edge-mid);
+}
+[data-theme='dark'] .themed-select-trigger:focus { border-color: var(--edge-strong); }
+[data-theme='dark'] .themed-select-menu {
+    background: rgba(2, 14, 30, 0.98);
+    border: 1px solid var(--edge-strong);
+    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6), 0 0 10px rgba(0, 229, 255, 0.28);
+}
+[data-theme='dark'] .themed-select-option.active { background: var(--y2k-bright); color: #031018; }
+[data-theme='dark'] .themed-select-option.selected { color: var(--y2k-bright); }
+[data-theme='dark'] .themed-select-option.selected.active { background: var(--y2k-bright); color: #031018; }
+[data-theme='dark'] .model-form-error { color: var(--y2k-error); }
 [data-theme='dark'] .list-item.current {
     color: var(--y2k-bright);
     border-color: var(--edge-strong);
@@ -213,7 +250,7 @@
     box-shadow: 0 0 8px rgba(0, 229, 255, 0.25);
 }
 [data-theme='dark'] .list-item .sub { color: var(--y2k-dim); }
-[data-theme='dark'] .list-item:hover .sub { color: #031018; }
+[data-theme='dark'] .list-item:not(.noop):hover .sub { color: #031018; }
 
 [data-theme='dark'] #left-footer { color: var(--y2k-dim); }
 [data-theme='dark'] .status-dot { border-radius: 0; }
@@ -239,19 +276,22 @@
 [data-theme='dark'] .message.user .message-label { color: var(--y2k-bright); }
 [data-theme='dark'] .message.ai .message-label { color: var(--y2k-bright); }
 [data-theme='dark'] .cursor-blink { color: var(--y2k-bright); }
-[data-theme='dark'] .thinking-block { color: var(--y2k-dim); border-left-color: var(--edge-mid); }
+[data-theme='dark'] .thinking-block { border-left-color: var(--edge-mid); }
+[data-theme='dark'] .thinking-block > summary,
+[data-theme='dark'] .thinking-block .thinking-body { color: var(--y2k-dim); }
 
 [data-theme='dark'] .msg-action-btn { color: var(--y2k-dim); background: rgba(2, 16, 34, 0.7); }
 [data-theme='dark'] .msg-action-btn:hover { color: #031018; background: var(--y2k-bright); }
 
 /* ==================== 工具卡片 ==================== */
 
-[data-theme='dark'] .tool-card {
+[data-theme='dark'] :is(.tool-card, .tool-group) {
     color: var(--y2k-text);
     background: rgba(2, 14, 30, 0.7);
     border: 1px solid var(--edge-soft);
 }
-[data-theme='dark'] .tool-card.error { border-color: var(--y2k-error); }
+[data-theme='dark'] :is(.tool-card, .tool-group).error { border-color: var(--y2k-error); }
+[data-theme='dark'] .tool-group .tool-group-fail { color: var(--y2k-error); }
 
 /* ==================== 输入栏 ==================== */
 
