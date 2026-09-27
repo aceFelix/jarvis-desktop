@@ -77,7 +77,7 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | WS token | Python 生成 → stdout 握手 → 主进程内存 → IPC invoke → 渲染进程内存 | 仅内存，**不写磁盘、不进 localStorage**；后端重启即失效重发 |
 | 端口 / pid | 同上（握手 JSON） | 仅内存 |
 | 桌面壳日志 | `userData/logs/desktop.log` | 追加写，含 serve stderr 转储 |
-| 会话 / 模型 / 音色偏好 | 由 **jarvis 自身**在其 workdir 持久化 | 壳不介入，仅经指令读写 |
+| 会话 / 模型 / 音色偏好 | 由 **jarvis 自身**在其 workdir 持久化（当前模型 → 会话/设置侧 `last_model`；左栏「添加模型」→ 用户级 `~/.jarvis/models.toml` 的 `[llm.custom_models."<name>"]`，API Key 同步系统 keyring） | 壳不介入，仅经指令读写 |
 
 ## 4. 安全边界
 
@@ -95,9 +95,13 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 - 指令（客户端→服务端）：`{"type": "<cmd>", ...params}`。
 - 事件（服务端→客户端）：`{"event": "<name>", "data": <payload>}`。
 - 回执（request/response 型指令）：`{"event": "reply", "data": {"type", "ok", "result" | "error"}}`。
+  未注册指令（含缺 `type` 字段）由后端**立即**回 `ok=false` 失败回执（`BridgeServer._handle_ws`
+  兜底，不静默忽略）——否则前端只能等到 `sendCommand` 默认 15s 超时，表现为
+  「指令 X 回执超时」而看不到原因；典型触发是后端进程未重启（`python -m agent.serve`
+  不热重载）而前端已热更新，错误文案会提示「请重启后端后重试」。
 - 握手（stdout 单行）：`{"type": "jarvis-serve-ready", "port", "http_port", "token", "pid"}`。
 
-### 指令一览（24 条）
+### 指令一览（27 条）
 
 | 指令 | 参数 | result |
 |---|---|---|
@@ -107,8 +111,11 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `sessions.new` | — | null（结果走 `session_new`） |
 | `sessions.rename` | `name`, `new_name` | null（结果走 `session_renamed`；目标名占用/源不存在走 `warn`；改当前会话名会取消未落地的自动标题任务） |
 | `sessions.delete` | `name` | null（结果走 `session_deleted`；删当前会话另走 `session_new` 清聊天区） |
-| `models.list` | — | `[{name, vendor, desc, current}]` |
-| `models.select` | `name` | bool（是否持久化成功） |
+| `models.list` | — | `[{name, vendor, desc, current, source, editable, removable, config}]`（`source`=`builtin`/`custom` 决定可改性；`config` = `{vendor, api_format, base_url, model_type, has_key}` 供编辑表单预填，**不回传明文 api_key**，只有 `has_key` 布尔） |
+| `models.select` | `name` | bool（是否持久化成功）；写盘成功后 serve 侧把 `{"cmd": "switch_model"}` 入引擎队列，引擎线程内串行热切换运行中的 provider / QueryLoop（落地推 `model_switched`，失败推 `warn`），无需重启引擎 |
+| `models.add` | `name`, `vendor`, `api_format`, `base_url`, `api_key`, `model_type` | `{name, vendor, api_format, base_url, model_type}`（左栏「添加模型」表单：写用户级 models.toml 的 `[llm.custom_models."<name>"]`，api_key 交系统 keyring；name/api_format/model_type 后端二次校验，非法回 ok=false；`base_url` 留空按厂商推断） |
+| `models.edit` | `name`［, `new_name`, `vendor`, `api_format`, `base_url`, `api_key`, `model_type`］ | `{name, vendor, api_format, base_url, model_type, hot_switched}`（左栏双击模型项进编辑表单：内置模型名字锁定不可改、自定义模型可改名；未传字段=沿用现值，**`api_key` 留空=保持原 Key**（壳不回显密钥）；改的是当前运行模型时 serve 入队 `switch_model force=true` 强制重建 provider，端点/接口类型立即生效并回 `hot_switched=true`；内置模型改名/目标名已占用/名字不存在回 ok=false） |
+| `models.remove` | `name` | `{name, was_current}`（左栏右键模型项 → 项内删除按钮：仅自定义模型可删——内置模型与「用户级 models.toml 无该段」均回 ok=false，后者防「删不掉但重启复活」；删当前模型不动运行中的 provider，仅回执提示另选） |
 | `voices.list` | — | `[{name, description, current}]` |
 | `voices.select` | `name` | bool |
 | `metrics.get` | — | `{cpu, memory, disk}` |
@@ -126,6 +133,29 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `settings.get` | — | `{proactive_tts_enabled, briefing_enabled, briefing_time, deadline_enabled, deadline_check_time, tts_volume, tts_speech_rate}`（后端联动设置白名单，与 jarvis 侧 `agent/config/desktop_settings.py` 同口径；主题/语言为纯前端偏好不入协议） |
 | `settings.set` | 单个白名单键 | `{key: value}`（serve 侧校验→先外科式落盘 settings.toml 对应节→再改运行时 Settings；简报/截止日期键额外触发 ProactiveHub 调度热重注册；落盘失败 ok=false 且不动运行时，壳侧回滚镜像） |
 
+### 中栏降噪（思考 / 工具折叠，2026-09）
+
+思考模型（qwen3.x 等）单轮思考常上千字，多步任务又常连跑十几个工具调用；两者原先都是
+「全展开」渲染（思考块是普通 `div`、每个 `tool_use` 各占一张 `details` 卡），一轮任务就能把
+中栏撑满好几屏。现按「**进行中可见、完成后收起**」重新组织渲染：
+
+- **思考块**（`ThinkingBlock`）：流式期间自动展开（实时可见 + 自动滚底）；本轮结束
+  （`assistant_done` → `chatStore.finishAssistant` 把 `streaming` 置 false）自动收起成一行
+  「思考过程 · N 字」，正文限高 240px 内部滚动（超长思考不撑爆气泡）；
+- **工具组**（`ToolGroup`）：连续的 `tool` 项在**渲染层**聚合成一条 `⛭ 工具调用 ×N` 框
+  （`groupMessages` 纯函数；≥2 条才包组，单条直接渲染原卡片；历史回放的汇总卡 `toolId` 为空
+  不并入；中间夹非 tool 项即切组），执行中展开、标题实时显示在跑的工具（「执行中：Bash」），
+  全部 `done` 后自动收起；有失败仍收起，但标题标红 `✗N 失败`（`error` 类同步标红边框）；
+  展开后组内仍是每条原工具卡，可再单独展开看入参/输出（两级折叠）；
+- **手点优先**：两者都是受控 `<details>` + `onToggle` 把用户操作同步回 state，自动收起只在
+  状态跃迁（`streaming` true→false / `allDone` false→true）那一次发生，用户手点后不被抢回；
+- **零协议改动**：store 消息模型、WS 事件、后端一概没动——分组只发生在渲染层，
+  `chatStore.messages` 仍是「一条工具一个 item」，历史回放与既有测试口径不变。
+
+样式：`.thinking-block` / `.tool-group` 在 main.css 定基础，三张皮肤（theme-retro /
+theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配色，
+`:where(...)` 去圆角列表同步纳入 `.tool-group`。
+
 ### 消息附件（📎 / 粘贴）
 
 `message` 指令可选附件字段（ChatArea 📎 按钮多选 / 输入框粘贴图片入口，待发送 chips 可移除）：
@@ -137,6 +167,70 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 - 校验在 `DesktopBridgeServer._cmd_message` 入队前快速失败（reply ok=false），不进引擎队列；
 - 纯图片消息（空文本）可发送；历史回放（`session_loaded`）不传 base64，图片块折叠为
   `[图片×N]` 标记。
+
+### 左栏模型面板（切换 / 添加 / 修改 / 删除，2026-09）
+
+左栏「模型」面板（`LeftSidebar.tsx`）的项交互对齐会话列表：**双击**模型项进配置编辑表单、
+**右键**模型项项内出现删除按钮（二次确认）；列表末项为「＋ 添加模型」（`model-add-item`，
+虚线边框区别于普通模型项）：
+
+- **视图替换**：点末项 → `leftStore.modelFormOpen` 置真 → `ModelForm.tsx`（独立组件）
+  整体替换模型列表，与右栏 `SettingsPanel` 替换 `RightSidebar` 同一模式（瞬态，不持久化）；
+  顶部 ← 或面板内「取消」回列表，提交成功后自动回列表。
+- **字段口径**：模型厂商（11 项，对齐 jarvis `model_manager._MODEL_VENDOR_OPTIONS`）/ 模型名
+  （必填，本地校验）/ API Key（password，留空=用全局 Key）/ 接口类型
+  （openai｜anthropic｜dashscope｜zai）/ Base URL（留空按厂商推断）/ 模型类型
+  （text｜multimodal）——与 REPL `/models` → 添加其他模型完全同口径。
+- **提交链路**：`backendStore.addModel` → `models.add` 指令 → serve 侧 `_rpc_models_add`
+  （name/api_format/model_type 白名单校验）→ `WorkbenchAPI.add_model` 复用
+  `save_custom_model` + `_infer_base_url` 落盘并同步内存 → 成功后壳刷 `models.list`
+  并在聊天流提示「模型「X」已添加」，回执失败保持表单打开（错误走聊天流统一出口）。
+- **编辑模式（双击模型项）**：`leftStore.editModelForm(name)` 置 `modelFormTarget` 后，同一个
+  `ModelForm` 以 `<ModelForm key={target || 'add'} />` 重挂载（连续双击不同模型不残留草稿）：
+  字段预填该项 `config`（`models.list` 新带回 `source`/`editable`/`removable`/`config`，
+  **不含明文 api_key 只给 `has_key`**）——内置模型（`source: 'builtin'`）「模型名」输入框禁用，
+  自定义模型可改名；API Key 恒空、hint 改为「留空保持原 Key 不变」。提交走 `models.edit`
+  → serve `_rpc_models_edit` → `WorkbenchAPI.edit_model`，成功后回列表 + 刷 `models.list` +
+  提示「配置已更新」（改的是当前运行模型时后端强制重建 provider，提示补「当前会话已按新配置重连」）。
+- **删除（右键模型项）**：右键 toggle 项内删除按钮（`model-del-btn`，仅 `removable`＝自定义模型
+  渲染；右键空白处或切换面板自动收起），点击才发 `models.remove`；回执 `was_current` 决定文案
+  （当前模型→「仍在用它，建议另选一个模型」），并刷 `models.list` 让该项消失。
+- **可发现性**：面板底部一行 `panel-hint`（「双击模型改配置 · 右键自定义模型可删除」），
+  模型项 `title` 提示同一内容（内置模型提示「（内置模型不可删除）」）。
+  注：当前模型项仍带 `.noop`（去手型/悬停），但**不再屏蔽指针事件**，否则「改当前模型配置」
+  这条最常用的路径点不进去——点选去重改由 `onClick` 守卫负责。
+- **旧后端兼容**：若壳已新、后端进程仍旧（未重启，无 `models.add` 注册），后端会
+  立即回 `ok=false`「后端不支持指令 models.add（…请重启后端后重试）」而非静默丢弃：
+  错误秒级上屏，不会等到 15s 回执超时（见 jarvis `docs/fixlogs/unknown-command-silent-drop.md`）。
+- **点选去重与「待生效」标记**：`models.select` 写 `last_model` 之后，serve 把 `switch_model`
+  入引擎队列，引擎线程里换掉运行中的 provider / QueryLoop（`list_models` 的 `current` 改取
+  引擎实时模型，不再是启动快照）——落地推 `model_switched`，壳据此清标记并刷列表，
+  「· 当前」立刻移动；正有一轮回复在跑时切换在该轮结束后落地（指令队列串行）。
+  `voices.select` 仍只写配置（下次语音会话生效），`voices.list` 的 `current` 不随点选移动。
+  写盘回执与事件之间存在空窗，壳仍需要自记选择，否则用户看不出是否选上就会反复点：
+  `leftStore` 的 `pendingModel` / `pendingVoice`（瞬态、不持久化）在点选时
+  乐观标记（先标记后发指令，免得事件比回执先到留下残留），`backendStore.selectModel`
+  / `selectVoice` 先比对：同名 pending 或该模型已是 `current` 直接 return（不发指令、不弹提示）；
+  `set_model` / `set_voice` 返回 `false`（写盘失败）时撤销标记，模型侧另提示
+  「✗ 模型切换失败（未能写入用户级配置）：X」。**成功提示由引擎 `info` 事件上屏**
+  （壳不再本地弹，否则与引擎提示叠成双气泡）；引擎构造 provider 失败时只推 `warn`、
+  不推 `model_switched`，壳保留「待生效」标记供重试。列表项侧：副行显「· 待生效」（与「· 当前」
+  互斥，运行时优先标 `current`），并加 `.pending`（各皮肤虚线框 + 亮字）与 `.noop`（`cursor: default`
+  + `pointer-events: none`，连带让主题层的 `:hover` 规则失效，无需逐皮肤重写悬停色）。
+- **样式**：行样式复用设置面板（`.setting-row` / `.setting-label` / `.setting-hint`），
+  文本框走 `.model-input`、下拉与改名输入框走 `styles/controls.css`（表单控件层）；
+  三个下拉为**自绘** `ThemedSelect.tsx`——原生 `<select>` 的展开
+  列表由系统绘制（固定蓝高亮 + 系统圆角，不随皮肤且会盖住表单标签），故改为自绘触发器 +
+  主题化浮层（类名 `.themed-select-*`）：浮层 `createPortal` 到 body（左栏 `.glass-col` 的
+  `backdrop-filter` 会创建 containing block，留在原 DOM 内 fixed 会错位）并以视口坐标定位
+  （下方空间不足时向上翻，打开期间滚动 / resize 即关闭），配色随三张皮肤（荧光绿亮绿反相 /
+  电光蓝亮青反相 / 金属银灰底黑字）并纳入各主题去圆角 `:where(...)`；
+  `.session-rename-input`（会话改名输入框）与 `.model-input` 同口径改走主题变量，
+  不再写死蓝边；控件聚焦边框与文本选中高亮（`::selection`）也随主题走
+  （`var(--edge-strong)` 与各皮肤覆盖块），不再出现浏览器默认蓝边/蓝底；
+  简报/检查时间用**自绘** `ThemedTimePicker.tsx`（小时/分钟两个 `ThemedSelect`
+  并排）——原生 `<input type="time">` 的时/分弹出面板由 Chromium 内部 UI 绘制
+  （白底 + 系统蓝选中），CSS 无法触达，故弃用。
 
 ### 右栏四区块（任务中心 / 用量 / 系统状态 / 运行健康）与设置面板
 
@@ -173,6 +267,10 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
   纯前端偏好（`stores/settingsStore.ts`，不走后端指令）：主题经 `applyTheme` 写
   `<html data-theme>`，三张皮肤覆盖块 `styles/theme-retro.css` / `styles/theme-dark-y2k.css` /
   `styles/theme-light-y2k.css` 依选择器生效；语言经 `i18n.ts` 的 zh/en 字典 + `useT()` 驱动。两者 localStorage 持久化、重启保持。
+  控件类基底样式（输入框、自绘下拉 `.themed-select-*`、自绘时间选择器 `.themed-time*`、
+  会话改名输入框、模型表单提示与动作区）
+  位于 `styles/controls.css`——`main.tsx` 中紧随 `main.css`、早于三张皮肤引入（main.css 已超
+  项目单文件 800 行规范，2026-09 按职责拆出控件层，只放基础取值、主题配色仍归各皮肤）。
   主进程 `BrowserWindow.backgroundColor` 为复古黑绿底 `#020602`（与默认荧光绿一致，防启动白闪）。
   - **荧光绿（CRT 终端）皮肤层**：`styles/theme-retro.css`（`[data-theme='retro']` 覆盖块，
     在 `main.tsx` 于 main.css 之后 import）——黑底荧光绿、扫描线叠层、点阵抖动、
@@ -200,7 +298,9 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
   null，错误写聊天流）。三组控件：
   - **语音播报**：主动播报待机 TTS 开关（拨动开关 role=switch）+ 播报音量（0-100）/
     语速（0.5-2.0×）滑杆——TTS 参数每次播报现读 Settings，改完立即生效；
-  - **每日简报**：启用开关 + 简报时间（`<input type="time">` 本地暂存，HH:MM 合法才提交）；
+  - **每日简报**：启用开关 + 简报时间（自绘时间选择器 `ThemedTimePicker`：小时/分钟两个
+    主题化下拉并排，点选即提交合法 HH:MM；原生 `<input type="time">` 的弹出面板由
+    Chromium 内部绘制、无法主题化，已弃用）；
   - **截止日期追踪**：启用开关 + 每日检查时间。
   简报/截止日期是调度键：serve 侧改完运行时后额外经 `ProactiveHub.hot_update_schedule`
   撤旧任务重注册（调度任务是启动快照，不重注册新时间/新开关要重启才生效）。
@@ -210,6 +310,7 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 - **对话流**：`user_message` / `assistant_text`（流式增量）/ `assistant_thinking` / `tool_use` / `tool_result` / `assistant_done`
 - **会话**：`init` / `session_ready` / `session_loaded` / `session_new` / `session_renamed` / `session_deleted`
 - **提示**：`info` / `warn` / `error` / `status` / `ask_user`
+- **模型热切换**：`model_switched`（payload `{model}`；引擎已把运行中的 provider / 模型换成 `model` 的落地回执：壳清匹配的「待生效」标记 + 刷 `models.list` / 成本 / 状态，「· 当前」随之移动）
 - **指标**：`metrics`（每 2 秒推送）
 - **实时语音**：`talk_started` / `talk_stopped` / `volume` / `user_speaking` / `ai_speaking` / `user_transcript` / `ai_transcript` / `ai_transcript_delta`
 - **半双工语音**：`voice_started` / `voice_stopped` / `voice_state`（payload 为 `listening｜thinking｜speaking｜standby｜exited`）/ `voice_user_transcript` / `voice_ai_text_delta`（流式增量）/ `voice_ai_text`（全量）——音频 I/O 留 serve 本机 pyaudio，壳只做遥控 + 状态/文字显示
