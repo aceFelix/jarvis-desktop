@@ -1,0 +1,189 @@
+/* jarvis-desktop 表单控件层样式（main.tsx 中紧跟 main.css 之后引入，早于三张主题皮肤）
+   职责：输入框 / 自绘下拉 / 自绘时间选择器 / 会话改名输入框 / 模型表单提示与动作区
+   等「可交互控件」的基底样式。
+   配色一律走主题变量（--edge-mid / --edge-strong / --scroll-thumb 等），三张皮肤
+   （theme-retro / theme-dark-y2k / theme-light-y2k）以 [data-theme] 前缀覆盖，
+   本文件不写任何主题专属配色。
+   拆分缘由：main.css 已超出项目单文件 800 行规范，控件层按职责独立成文件（2026-09）。
+   @author aceFelix */
+
+/* ---- 会话改名输入框（左栏会话项内联编辑） ---- */
+/* 与 .model-input 同口径走主题变量打底（此前写死 #5bc8ff 蓝边，
+   荧光绿/电光蓝/金属银主题下均不随皮肤变色）。@author aceFelix */
+.session-rename-input {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    font-size: 13px;
+    color: #e6f4ff;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1.2px solid var(--edge-mid);
+    border-radius: 8px;
+    padding: 4px 6px;
+    outline: none;
+}
+
+.session-rename-input:focus {
+    border-color: var(--edge-strong);
+}
+
+/* ---- 模型表单文本控件（添加模型：模型名 / API Key / Base URL） ---- */
+
+.model-input {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    font-size: 13px;
+    padding: 5px 8px;
+    color: #e6f4ff;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1.2px solid var(--edge-mid);
+    border-radius: 8px;
+    outline: none;
+}
+
+.model-input:focus {
+    border-color: var(--edge-strong);
+}
+
+.model-input::placeholder {
+    color: rgba(159, 201, 232, 0.5);
+}
+
+/* 只读态（编辑内置模型时「模型名」锁定）：降透明度 + 禁用光标。 */
+.model-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ---- 主题化下拉（自绘，替代原生 select） ---- */
+/* 原生 select 的展开列表由系统绘制（固定深灰底 + 系统蓝高亮 + 系统圆角），CSS 只能
+   控制收起态，展开后与三张皮肤都不搭且会盖住表单标签；改用自绘：触发器 + 主题化浮层
+   （组件见 ThemedSelect.tsx，浮层 portal 到 body + 视口坐标定位）。@author aceFelix */
+
+.themed-select {
+    width: 100%;
+}
+
+.themed-select-trigger {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font: inherit;
+    font-size: 13px;
+    padding: 5px 8px;
+    text-align: left;
+    color: #e6f4ff;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1.2px solid var(--edge-mid);
+    border-radius: 8px;
+    outline: none;
+    cursor: pointer;
+}
+
+.themed-select-trigger:focus {
+    border-color: var(--edge-strong);
+}
+
+.themed-select-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 箭头用 CSS 三角：跟随 currentColor 随主题变色，无需图片资源 */
+.themed-select-arrow {
+    flex-shrink: 0;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid currentColor;
+    opacity: 0.75;
+}
+
+.themed-select-arrow.open {
+    transform: rotate(180deg);
+}
+
+.themed-select-menu {
+    position: fixed;
+    z-index: 200; /* 高于标题栏(2)与左右栏，低于扫描线叠层(9999, pointer-events:none) */
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 4px;
+    background: rgba(6, 20, 30, 0.98);
+    border: 1.2px solid var(--edge-mid);
+    border-radius: 8px;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
+    scrollbar-width: thin;
+    scrollbar-color: var(--scroll-thumb, rgba(91, 200, 255, 0.55)) var(--scroll-track, rgba(255, 255, 255, 0.06));
+}
+
+.themed-select-option {
+    padding: 4px 8px;
+    font-size: 13px;
+    line-height: 18px;
+    color: inherit;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.themed-select-option.active {
+    background: rgba(91, 200, 255, 0.2);
+}
+
+.themed-select-option.selected {
+    color: #7fe3ff;
+}
+
+.themed-select-option.selected.active {
+    background: rgba(91, 200, 255, 0.28);
+}
+
+/* ---- 时间选择器（自绘，替代原生 input[type=time]） ---- */
+/* 原生 time 输入框点时钟图标弹出的时/分面板由 Chromium 内部 UI 绘制（白底 +
+   系统蓝选中），CSS 无法触达；改为小时/分钟两个 .themed-select 并排
+   （组件见 ThemedTimePicker.tsx），配色/方角自动复用上方 .themed-select-* 与三张皮肤。
+   @author aceFelix */
+
+.themed-time {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* 收窄到时间数值宽度（覆写 .themed-select 的 100%），两列并排不撑满整行 */
+.themed-time .themed-select {
+    width: 72px;
+}
+
+.themed-time-sep {
+    font-size: 13px;
+    line-height: 1;
+    opacity: 0.8;
+}
+
+/* ---- 模型表单提示与动作区（添加模型：校验提示 + 保存/取消） ---- */
+
+.model-form-error {
+    font-size: 12px;
+    font-weight: 500;
+    color: #ff9d9d;
+}
+
+.model-form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.model-form-actions .action-btn {
+    flex: 1;
+}

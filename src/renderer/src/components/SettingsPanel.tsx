@@ -10,19 +10,20 @@
  * 后端联动项真源在 jarvis settings.toml（白名单见 agent/config/
  * desktop_settings.py）：settings.get 回填、settings.set 写回（乐观更新 +
  * 失败回滚由 backendStore.setBackendSetting 承担）；单键 null（未拉取/未
- * 连接）时该行显示离线态文案。时间项经 <input type="time"> 本地暂存，
- * change/blur 时提交（HH:MM，后端二次校验）。
+ * 连接）时该行显示离线态文案。时间项用自绘 <ThemedTimePicker>（小时/分钟两个主题化
+ * 下拉并排；原生 input[type=time] 的弹出面板由 Chromium 内部绘制，无法主题化），
+ * 点选即提交合法 HH:MM（后端二次校验）。
  *
  * 复用右栏容器样式（#right-col + glass-col），视觉与三栏布局口径一致。
  *
  * @author aceFelix
  */
 
-import { useEffect, useState } from 'react'
 import { useBackendStore } from '../stores/backendStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useUiStore } from '../stores/uiStore'
 import { useT } from '../i18n'
+import ThemedTimePicker from './ThemedTimePicker'
 
 /** 行组件公共 props：label/hintKey/testid 前缀由父组件传入。 */
 interface RowProps {
@@ -62,7 +63,7 @@ function ToggleRow({
   )
 }
 
-/** 时间行（HH:MM）：本地暂存编辑值，change/blur 提交写回；null 显离线态。 */
+/** 时间行（HH:MM）：自绘时间选择器，点选即写回；值为 null 显离线态。 */
 function TimeRow({
   labelKey,
   testid,
@@ -71,13 +72,8 @@ function TimeRow({
   const value = useSettingsStore((s) => s.backendSettings[settingKey])
   const setBackendSetting = useBackendStore((s) => s.setBackendSetting)
   const t = useT()
-  // 本地编辑缓冲：后端回填/回滚时同步（避免受控输入被异步刷新顶掉敲键）
-  const [draft, setDraft] = useState(value ?? '')
-  useEffect(() => {
-    setDraft(value ?? '')
-  }, [value])
+  // 自绘选择器恒产生合法 HH:MM（点选即提交，无半填状态）；仍校验一次，脏值不敲后端
   const commit = (next: string): void => {
-    // HH:MM 才提交（input[type=time] 清空/半填时不发无效值）
     if (/^([01]\d|2[0-3]):[0-5]\d$/.test(next)) void setBackendSetting(settingKey, next)
   }
   return (
@@ -88,17 +84,7 @@ function TimeRow({
           {t('settings.offline')}
         </div>
       ) : (
-        <input
-          type="time"
-          className="setting-time"
-          data-testid={`time-${testid}`}
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value)
-            commit(e.target.value)
-          }}
-          onBlur={() => commit(draft)}
-        />
+        <ThemedTimePicker testid={`time-${testid}`} ariaLabel={t(labelKey)} value={value} onChange={commit} />
       )}
     </div>
   )
