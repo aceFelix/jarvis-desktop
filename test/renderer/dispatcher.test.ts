@@ -47,7 +47,9 @@ beforeEach(() => {
     mode: 'text',
     talkActive: false,
     voiceActive: false,
-    voiceState: ''
+    voiceState: '',
+    // 待生效模型为瞬态：复位避免串场到下一个用例。@author aceFelix
+    pendingModel: ''
   })
   useMetricsStore.setState({ cpu: 0, memory: null, disk: null })
   useRightStore.setState({ reminders: [], deadlines: [], latestBriefing: '', cost: null, mcp: null, logs: [] })
@@ -195,6 +197,38 @@ describe('dispatchServerEvent · 会话与初始化', () => {
     expect(kinds).toEqual(['user', 'ai', 'system'])
     const last = useChatStore.getState().messages[2]
     expect(last.kind === 'system' && last.text).toContain('s1')
+  })
+})
+
+describe('dispatchServerEvent · 模型热切换回执 model_switched', () => {
+  it('清「待生效」标记并刷模型列表/用量/状态（列表「当前」随之移动）', () => {
+    const conn = makeConn()
+    useLeftStore.setState({ pendingModel: 'qwen3.8-2.4t-a95b' })
+
+    dispatchServerEvent({ event: 'model_switched', data: { model: 'qwen3.8-2.4t-a95b' } }, conn)
+
+    expect(useLeftStore.getState().pendingModel).toBe('')
+    expect(conn.refreshModels).toHaveBeenCalledTimes(1)
+    expect(conn.refreshCost).toHaveBeenCalledTimes(1)
+    expect(conn.refreshState).toHaveBeenCalledTimes(1)
+  })
+
+  it('事件模型与刚点选的另一个模型不一致：保留新标记（免误清）', () => {
+    const conn = makeConn()
+    useLeftStore.setState({ pendingModel: 'deepseek-v4-pro' })
+
+    dispatchServerEvent({ event: 'model_switched', data: { model: 'qwen-flash' } }, conn)
+
+    expect(useLeftStore.getState().pendingModel).toBe('deepseek-v4-pro')
+  })
+
+  it('payload 缺 model：仍清标记（事件本身就是「已落地」信号）', () => {
+    const conn = makeConn()
+    useLeftStore.setState({ pendingModel: 'qwen-flash' })
+
+    dispatchServerEvent({ event: 'model_switched', data: null }, conn)
+
+    expect(useLeftStore.getState().pendingModel).toBe('')
   })
 })
 

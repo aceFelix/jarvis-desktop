@@ -145,6 +145,69 @@ export type VoiceState =
   | 'standby'
   | 'exited'
 
+/** models.add 入参（左栏「添加模型」表单；字段与 serve _rpc_models_add 同口径）。 */
+export interface ModelAddPayload {
+  name: string
+  /** 模型厂商（写入 provider/vendor），如 deepseek / dashscope。 */
+  vendor: string
+  /** 接口类型（api_format）：openai / anthropic / dashscope / zai。 */
+  api_format: string
+  /** 留空则由后端按厂商 + 接口类型推断（与 /models 添加口径一致）。 */
+  base_url: string
+  /** 留空则用全局 Key（环境变量）；非空时后端同步写入系统 keyring。 */
+  api_key: string
+  /** text（纯文本）/ multimodal（支持图片）。 */
+  model_type: string
+}
+
+/**
+ * 模型配置默认值（models.list 每项 config 字段，编辑表单预填用）。
+ *
+ * has_key 是「有没有 Key」的布尔值 —— 明文密钥不回传渲染进程，
+ * 因此表单里 Key 留空表示「保持原 Key 不变」（见 ModelEditPayload）。
+ */
+export interface ModelConfigDraft {
+  vendor: string
+  api_format: string
+  base_url: string
+  model_type: string
+  has_key: boolean
+}
+
+/**
+ * models.edit 入参（左栏双击模型项 → 编辑表单；与 serve _rpc_models_edit 同口径）。
+ *
+ * 与 models.add 的差异：所有字段留空 = 沿用现值（不填默认值），
+ * api_key 留空 = **保持原 Key 不变**（桌面壳不回显密钥，不能把「未填」当清空）；
+ * new_name 非空且与原名不同 = 改名（仅自定义模型，内置模型名固定）。
+ */
+export interface ModelEditPayload {
+  name: string
+  /** 新模型名（留空 = 不改名；内置模型改名会被后端拒绝）。 */
+  new_name?: string
+  vendor?: string
+  api_format?: string
+  base_url?: string
+  api_key?: string
+  model_type?: string
+}
+
+/** models.edit 回执 result（hot_switched=true 表示已入队强制热切换运行中的模型）。 */
+export interface ModelEditResult {
+  name: string
+  vendor: string
+  api_format: string
+  base_url: string
+  model_type: string
+  hot_switched: boolean
+}
+
+/** models.remove 回执 result（was_current=true 时前端提示「当前仍在使用该模型」）。 */
+export interface ModelRemoveResult {
+  name: string
+  was_current: boolean
+}
+
 /** WS 指令 type 常量（镜像 protocol.CMD_*）。 */
 export const Cmd = {
   Message: 'message',
@@ -155,6 +218,12 @@ export const Cmd = {
   SessionsDelete: 'sessions.delete',
   ModelsList: 'models.list',
   ModelsSelect: 'models.select',
+  /** 左栏「添加模型」表单：添加/覆盖自定义模型并持久化（models.add）。 */
+  ModelsAdd: 'models.add',
+  /** 左栏双击模型项 → 修改模型配置（models.edit，所有字段留空=保持原值）。 */
+  ModelsEdit: 'models.edit',
+  /** 左栏右键模型项 → 删除自定义模型（models.remove，仅自定义模型可删）。 */
+  ModelsRemove: 'models.remove',
   VoicesList: 'voices.list',
   VoicesSelect: 'voices.select',
   MetricsGet: 'metrics.get',

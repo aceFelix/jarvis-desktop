@@ -3,6 +3,10 @@
  *
  * 面板切换即刷新对应列表（sessions.list / models.list / voices.list 指令）；
  * 列表项悬停/选中字体变蓝（与 workbench 交互口径一致，样式在 main.css）。
+ * 模型面板支持「＋ 添加模型」：列表末项点击进入 ModelForm 组件（整体替换
+ * 列表，与右栏 SettingsPanel 同模式），提交走 models.add 指令。
+ * 模型项交互对齐会话列表：双击进配置编辑表单（models.edit）、右键显删除
+ * 按钮（models.remove，仅自定义模型可删）。
  *
  * @author aceFelix
  */
@@ -12,6 +16,7 @@ import { useBackendStore } from '../stores/backendStore'
 import { useLeftStore, type ChatMode, type LeftPanel } from '../stores/leftStore'
 import { useT } from '../i18n'
 import { useGlyphs } from '../glyphs'
+import ModelForm from './ModelForm'
 
 /** 历史会话项：单击加载（220ms 延时让位双击）、双击内联改名、右键显删除按钮。
  *
@@ -109,16 +114,19 @@ function SessionItem(props: {
   )
 }
 
-/** 通用列表项（标题 + 副行 + 当前标记）。 */
+/** 通用列表项（标题 + 副行 + 当前标记）；extraClass/testid 供特殊项（如「＋ 添加模型」）使用。 */
 function ListItem(props: {
   title: string
   sub?: string
   current?: boolean
   onClick?: () => void
+  extraClass?: string
+  testid?: string
 }): JSX.Element {
   return (
     <div
-      className={`list-item${props.current ? ' current' : ''}`}
+      className={`list-item${props.current ? ' current' : ''}${props.extraClass ? ` ${props.extraClass}` : ''}`}
+      data-testid={props.testid}
       onClick={props.onClick}
       role="button"
       tabIndex={0}
@@ -132,9 +140,109 @@ function ListItem(props: {
   )
 }
 
+/** 模型项：单击切换（220ms 延时让位双击）、双击进配置编辑表单、右键显删除按钮。
+ *
+ * 交互范式对齐会话列表（SessionItem）。差异：
+ * - 双击不内联改名，而是切到 ModelForm 编辑该模型（字段多，内联框放不下），
+ *   改名在表单的「模型名」输入框里完成；
+ * - 删除按钮仅 removable（自定义模型）项出现 —— 内置模型后端拒绝删除；
+ * - 当前/待生效项仍可双击、右键（noop 只去掉手型与悬停高亮，不再屏蔽指针
+ *   事件），否则「改当前模型配置」这条最常用的路径点不进去。
+ * @author aceFelix
+ */
+function ModelItem(props: {
+  name: string
+  sub: string
+  current: boolean
+  extraClass: string
+  selectable: boolean
+  removable: boolean
+  pendingDelete: boolean
+  delGlyph: string
+  delTip: string
+  tip: string
+  onSelect: () => void
+  onEdit: () => void
+  onContextMenu: () => void
+  onDelete: () => void
+}): JSX.Element {
+  const clickTimer = useRef<number | null>(null)
+
+  return (
+    <div
+      className={`list-item model-item${props.current ? ' current' : ''}${props.extraClass ? ` ${props.extraClass}` : ''}`}
+      data-testid="model-item"
+      data-name={props.name}
+      role="button"
+      tabIndex={0}
+      title={props.tip}
+      onClick={() => {
+        // 单击延时：双击（进编辑）会先清掉该定时器，避免「想改配置却先切了模型」
+        if (clickTimer.current) window.clearTimeout(clickTimer.current)
+        if (props.selectable) clickTimer.current = window.setTimeout(props.onSelect, 220)
+      }}
+      onDoubleClick={() => {
+        if (clickTimer.current) window.clearTimeout(clickTimer.current)
+        props.onEdit()
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        props.onContextMenu()
+      }}
+      onKeyDown={(e) => {
+        if (props.selectable && (e.key === 'Enter' || e.key === ' ')) props.onSelect()
+      }}
+    >
+      <span>{props.name}</span>
+      {props.sub ? <span className="sub">{props.sub}</span> : null}
+      {props.pendingDelete && props.removable ? (
+        <button
+          className="session-del-btn"
+          data-testid="model-del-btn"
+          title={props.delTip}
+          onClick={(e) => {
+            e.stopPropagation()
+            props.onDelete()
+          }}
+        >
+          {props.delGlyph}
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+/** 模型 / 音色项状态类：已选中（current）或已点选待重启（pending）都不再响应点选。
+ *
+ * 后端 models.select / voices.select 只持久化配置（重启引擎才加载），列表的 current
+ * 不会随点选移动；若不给这两类项去掉手型与悬停高亮，用户会以为没选中而反复点，
+ * 每次都弹一条「已切换」提示。
+ *
+ * 注：noop 只负责视觉（去手型 + 悬停不变色），**不再屏蔽指针事件** ——
+ * 当前模型仍需可双击改配置、可右键删。点选去重由各项的 onClick 守卫负责。
+ * @author aceFelix
+ */
+function selectItemClass(current?: boolean, pending?: boolean): string {
+  if (current) return 'noop'
+  return pending ? 'pending noop' : ''
+}
+
 export default function LeftSidebar(): JSX.Element {
-  const { sessions, models, voices, activePanel, mode, talkActive, voiceActive } = useLeftStore()
-  const { setActivePanel, setMode } = useLeftStore()
+  const {
+    sessions,
+    models,
+    voices,
+    activePanel,
+    mode,
+    talkActive,
+    voiceActive,
+    modelFormOpen,
+    modelFormTarget,
+    pendingModel,
+    pendingVoice
+  } = useLeftStore()
+  const { setActivePanel, setMode, openModelForm, editModelForm } = useLeftStore()
   const backend = useBackendStore()
   const t = useT()
   const g = useGlyphs()
@@ -142,6 +250,9 @@ export default function LeftSidebar(): JSX.Element {
   // @author aceFelix
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
+  // 模型项交互态：pendingDeleteModel=右键待删模型名（仅自定义模型会显示删除按钮）。
+  // @author aceFelix
+  const [pendingDeleteModel, setPendingDeleteModel] = useState<string | null>(null)
 
   // 面板切换即刷新对应数据（与 workbench switchPanel 口径一致）。
   // 守卫用 wsConnected 而非 client：client 在 connect() 里一创建就非 null，
@@ -150,6 +261,10 @@ export default function LeftSidebar(): JSX.Element {
   // @author aceFelix
   useEffect(() => {
     if (!backend.wsConnected) return
+    // 面板切换时收起待删态（避免切回时残留上一个面板的删除按钮）。@author aceFelix
+    setPendingDelete(null)
+    setPendingDeleteModel(null)
+    setEditing(null)
     if (activePanel === 'history') void backend.refreshSessions()
     else if (activePanel === 'model') void backend.refreshModels()
     else void backend.refreshVoices()
@@ -271,24 +386,84 @@ export default function LeftSidebar(): JSX.Element {
         </div>
       ) : null}
 
-      {/* 面板二：模型 */}
+      {/* 面板二：模型（列表 ⇄ 模型表单；表单为独立组件，同右栏设置面板模式） */}
       {activePanel === 'model' ? (
-        <div className="panel" data-testid="panel-model">
-          <div className="panel-label">{t('left.modelTitle')}</div>
-          <div className="list-area">
-            {models.map((m) => (
+        modelFormOpen ? (
+          // key 随编辑目标变化：连续双击不同模型时强制重挂载，表单草稿不残留
+          <ModelForm key={modelFormTarget || 'add'} />
+        ) : (
+          <div className="panel" data-testid="panel-model">
+            <div className="panel-label">{t('left.modelTitle')}</div>
+            <div
+              className="list-area"
+              onContextMenu={(e) => {
+                // 空白处右键：收起删除按钮。@author aceFelix
+                e.preventDefault()
+                setPendingDeleteModel(null)
+              }}
+            >
+              {models.map((m) => {
+                // 已选中 / 待生效的项不再发点选指令（去重）；但仍可双击改配置。
+                const selectable = !m.current && m.name !== pendingModel
+                return (
+                  <ModelItem
+                    key={m.name}
+                    name={m.name}
+                    sub={[
+                      m.desc || m.vendor || '',
+                      // 「当前」（运行中）优先于「待生效」（已点选待引擎落地），二者互斥
+                      m.current
+                        ? `· ${t('left.current')}`
+                        : m.name === pendingModel
+                          ? `· ${t('left.pending')}`
+                          : ''
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    current={!!m.current}
+                    extraClass={selectItemClass(m.current, m.name === pendingModel)}
+                    selectable={selectable}
+                    removable={!!m.removable}
+                    pendingDelete={pendingDeleteModel === m.name}
+                    delGlyph={g.sessionDelete}
+                    delTip={t('left.deleteModel')}
+                    tip={m.removable ? t('left.modelItemTip') : t('left.modelItemTipBuiltin')}
+                    onSelect={() => void backend.selectModel(m.name)}
+                    onEdit={() => {
+                      // 双击 → 进入该模型的配置编辑表单（预填现值，名字可改）
+                      setPendingDeleteModel(null)
+                      editModelForm(m.name)
+                    }}
+                    onContextMenu={() => {
+                      // 内置模型不可删：右键不显示删除按钮（后端也会拒绝）
+                      if (!m.removable) {
+                        setPendingDeleteModel(null)
+                        return
+                      }
+                      setPendingDeleteModel((p) => (p === m.name ? null : m.name))
+                    }}
+                    onDelete={() => {
+                      setPendingDeleteModel(null)
+                      void backend.removeModel(m.name)
+                    }}
+                  />
+                )
+              })}
+              {/* 列表末项：进入添加模型表单（字段口径同 REPL /models 添加其他模型） */}
               <ListItem
-                key={m.name}
-                title={m.name}
-                sub={[m.desc || m.vendor || '', m.current ? `· ${t('left.current')}` : '']
-                  .filter(Boolean)
-                  .join(' ')}
-                current={m.current}
-                onClick={m.current ? undefined : () => void backend.selectModel(m.name)}
+                title={t('left.addModel')}
+                sub={t('left.addModelHint')}
+                extraClass="add-model"
+                testid="model-add-item"
+                onClick={openModelForm}
               />
-            ))}
+            </div>
+            {/* 操作提示：模型面板的双击/右键是隐式交互，给一行可发现性提示 */}
+            <div className="panel-hint" data-testid="model-ops-hint">
+              {t('left.modelOpsHint')}
+            </div>
           </div>
-        </div>
+        )
       ) : null}
 
       {/* 面板三：音色 */}
@@ -300,9 +475,21 @@ export default function LeftSidebar(): JSX.Element {
               <ListItem
                 key={v.name}
                 title={v.name}
-                sub={`${v.description ?? ''}${v.current ? ` · ${t('left.current')}` : ''}`}
+                sub={`${v.description ?? ''}${
+                  v.current
+                    ? ` · ${t('left.current')}`
+                    : v.name === pendingVoice
+                      ? ` · ${t('left.pending')}`
+                      : ''
+                }`}
                 current={v.current}
-                onClick={v.current ? undefined : () => void backend.selectVoice(v.name)}
+                extraClass={selectItemClass(v.current, v.name === pendingVoice)}
+                // 去重口径同模型项：已选中 / 待生效不再发 voices.select
+                onClick={
+                  v.current || v.name === pendingVoice
+                    ? undefined
+                    : () => void backend.selectVoice(v.name)
+                }
               />
             ))}
           </div>

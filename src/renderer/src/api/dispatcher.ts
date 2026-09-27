@@ -124,6 +124,22 @@ export function dispatchServerEvent(
       chat.showAskUser(String(payload ?? ''))
       break
 
+    // ---- 模型热切换（引擎落地回执） ----
+    case 'model_switched': {
+      // 引擎已把运行中的 provider / 模型换成 payload.model：清「待生效」标记
+      // （只清匹配项，免误清新点选的另一个模型）+ 刷模型列表让「当前」移动
+      // + 刷用量卡与状态（右栏 model / provider 跟着变）。成功气泡由引擎的
+      // info 事件上屏，此处不重复提示。@author aceFelix
+      const p = payload as { model?: string }
+      const cur = useLeftStore.getState()
+      if (!p?.model || cur.pendingModel === p.model) cur.setPendingModel('')
+      void conn.refreshModels()
+      void conn.refreshCost()
+      void conn.refreshState()
+      logLine(`模型已切换：${p?.model ?? ''}`)
+      break
+    }
+
     // ---- 会话管理 ----
     case 'session_renamed':
       // 标题生成改名通知：只刷新左栏会话列表，绝不清空气泡。@author aceFelix

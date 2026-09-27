@@ -7,6 +7,9 @@
  * - toggleVoice 已激活 → 发 voice.stop；
  * - interruptVoice → 发 voice.interrupt（不动模式/激活态）。
  *
+ * 另附模型/音色切换去重、会话改名删除，以及模型配置修改（models.edit）/删除
+ * （models.remove）的指令路由用例。
+ *
  * @author aceFelix
  */
 
@@ -39,8 +42,24 @@ function fakeClient(): { sendCommand: ReturnType<typeof vi.fn> } {
 
 beforeEach(() => {
   useChatStore.getState().clear()
-  useLeftStore.setState({ mode: 'text', talkActive: false, voiceActive: false, voiceState: '' })
-  useRightStore.setState({ reminders: [], deadlines: [], latestBriefing: '', cost: null, mcp: null, logs: [] })
+  // 左栏状态跨用例共享：复位交互态，避免「上例已点选模型」影响下例。@author aceFelix
+  useLeftStore.setState({
+    mode: 'text',
+    talkActive: false,
+    voiceActive: false,
+    voiceState: '',
+    // 待生效选择（模型/音色）为瞬态：复位避免串场到下一个用例。@author aceFelix
+    pendingModel: '',
+    pendingVoice: ''
+  })
+  useRightStore.setState({
+    reminders: [],
+    deadlines: [],
+    latestBriefing: '',
+    cost: null,
+    mcp: null,
+    logs: []
+  })
   useSettingsStore.setState({ backendSettings: { ...EMPTY_BACKEND_SETTINGS } })
 })
 
@@ -86,6 +105,187 @@ describe('backendStore · 半双工语音指令', () => {
     await expect(useBackendStore.getState().toggleVoice()).resolves.not.toThrow()
     const sys = useChatStore.getState().messages.filter((m) => m.kind === 'system')
     expect(sys.length).toBeGreaterThan(0)
+  })
+})
+
+describe('backendStore · 模型 / 音色切换去重与热切换', () => {
+  /** 造一个按指令类型回执的假客户端：select 回传入结果，list 回空列表。 */
+  function selectClient(selectResult: unknown): { sendCommand: ReturnType<typeof vi.fn> } {
+    return {
+      sendCommand: vi.fn().mockImplementation((type: string) => {
+        if (type === Cmd.ModelsList || type === Cmd.VoicesList) {
+          return Promise.resolve({ ok: true, result: [] })
+        }
+        return Promise.resolve({ ok: true, result: selectResult })
+      })
+    }
+  }
+
+  const callsOf = (client: { sendCommand: ReturnType<typeof vi.fn> }, type: string): number =>
+    client.sendCommand.mock.calls.filter(([t]) => t === type).length
+  const tipsOf = (kw: string): number =>
+    useChatStore
+      .getState()
+      .messages.filter((m) => m.kind === 'system' && m.text.includes(kw)).length
+
+  it('重复点选同一模型：第二次不发指令、不本地弹气泡（气泡由引擎 info 上屏）', async () => {
+    // 切换已改为引擎热切换：成功提示由引擎的 info 事件上屏，本地再弹一次就是
+    // 双气泡；pendingModel 标记「已请求、未落地」，既防重复写盘，也喂列表
+    // 「待生效」标记。@author aceFelix
+    const client = selectClient(true)
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().selectModel('qwen-flash')
+    await useBackendStore.getState().selectModel('qwen-flash')
+
+    expect(callsOf(client, Cmd.ModelsSelect)).toBe(1)
+    expect(tipsOf('模型已切换为')).toBe(0)
+    expect(useLeftStore.getState().pendingModel).toBe('qwen-flash')
+
+    // 换一个模型：照常发指令、待生效标记随之移动，仍不本地弹气泡
+    await useBackendStore.getState().selectModel('deepseek-v4-pro')
+    expect(callsOf(client, Cmd.ModelsSelect)).toBe(2)
+    expect(tipsOf('模型已切换为')).toBe(0)
+    expect(useLeftStore.getState().pendingModel).toBe('deepseek-v4-pro')
+    // 写盘成功后刷一次列表；此刻 current 仍是旧模型，等 model_switched 再刷
+    expect(callsOf(client, Cmd.ModelsList)).toBe(2)
+  })
+
+  it('已是当前模型（列表标 current）：不发指令、不记待生效', async () => {
+    const client = selectClient(true)
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+    useLeftStore.setState({ models: [{ name: 'qwen-flash', current: true }] })
+
+    await useBackendStore.getState().selectModel('qwen-flash')
+
+    expect(callsOf(client, Cmd.ModelsSelect)).toBe(0)
+    expect(useLeftStore.getState().pendingModel).toBe('')
+  })
+
+  it('音色重复点选同样去重', async () => {
+    const client = selectClient(true)
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().selectVoice('晓晓')
+    await useBackendStore.getState().selectVoice('晓晓')
+
+    expect(callsOf(client, Cmd.VoicesSelect)).toBe(1)
+    expect(tipsOf('音色已切换为')).toBe(1)
+    expect(useLeftStore.getState().pendingVoice).toBe('晓晓')
+  })
+
+  it('后端写盘失败（result=false）：报错、不记待生效、不报假成功', async () => {
+    const client = selectClient(false)
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().selectModel('bad-model')
+
+    expect(tipsOf('模型已切换为')).toBe(0)
+    expect(tipsOf('✗ 模型切换失败')).toBe(1)
+    expect(useLeftStore.getState().pendingModel).toBe('')
+    // 未记待生效：再点仍会重试（否则用户以为已选上，实际没写盘）
+    await useBackendStore.getState().selectModel('bad-model')
+    expect(callsOf(client, Cmd.ModelsSelect)).toBe(2)
+  })
+})
+
+describe('backendStore · 模型配置修改与删除指令', () => {
+  // 桌面壳左栏模型面板：双击模型项进编辑表单（models.edit）、右键项内删除按钮
+  // （models.remove）。后端同步写盘 + 同步内存，前端发指令后刷一次 models.list
+  // 收敛列表；改的是当前运行模型回执 hot_switched，删的是当前模型回执
+  // was_current（不动运行中的 provider，提示用户另选）。@author aceFelix
+
+  /** 编辑载荷（api_key 留空 = 保持原 Key：桌面壳不回显密钥，未填不能当清空）。 */
+  const payload = {
+    name: 'my-model',
+    new_name: 'my-model-v2',
+    vendor: 'deepseek',
+    api_format: 'openai',
+    base_url: 'https://api.deepseek.com',
+    api_key: '',
+    model_type: 'text'
+  }
+
+  const tipsOf = (kw: string): number =>
+    useChatStore
+      .getState()
+      .messages.filter((m) => m.kind === 'system' && m.text.includes(kw)).length
+
+  /** 造一个按指令回执的假客户端：models.list 回空列表，其余回传入 result（ok=true）。 */
+  function modelClient(result: unknown): { sendCommand: ReturnType<typeof vi.fn> } {
+    return {
+      sendCommand: vi.fn().mockImplementation((type: string) => {
+        if (type === Cmd.ModelsList) return Promise.resolve({ ok: true, result: [] })
+        return Promise.resolve({ ok: true, result })
+      })
+    }
+  }
+
+  /** 造一个后端拒绝的假客户端（ok=false，error 为拒绝原因）。 */
+  function rejectClient(error: string): { sendCommand: ReturnType<typeof vi.fn> } {
+    return { sendCommand: vi.fn().mockResolvedValue({ ok: false, error }) }
+  }
+
+  it('editModel 发 models.edit 并刷列表；未热切换时提示不带重连文案', async () => {
+    const client = modelClient({ name: 'my-model-v2', hot_switched: false })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    const ok = await useBackendStore.getState().editModel(payload)
+
+    expect(ok).toBe(true)
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.ModelsEdit, payload)
+    // 提示用回执里的新名（改名后用户好对号入座）
+    expect(tipsOf('模型「my-model-v2」配置已更新')).toBe(1)
+    expect(tipsOf('已按新配置重连')).toBe(0)
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.ModelsList, {})
+  })
+
+  it('改的是当前运行模型（hot_switched）：提示说明已按新配置重连', async () => {
+    const client = modelClient({ name: 'my-model', hot_switched: true })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().editModel({ ...payload, new_name: '' })
+
+    expect(tipsOf('模型「my-model」配置已更新，当前会话已按新配置重连')).toBe(1)
+  })
+
+  it('removeModel 发 models.remove；删的是当前模型时提示建议另选', async () => {
+    const client = modelClient({ name: 'my-model', was_current: true })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    const ok = await useBackendStore.getState().removeModel('my-model')
+
+    expect(ok).toBe(true)
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.ModelsRemove, { name: 'my-model' })
+    expect(tipsOf('已删除，当前会话仍在用它，建议另选一个模型')).toBe(1)
+  })
+
+  it('删除非当前模型：提示不带「建议另选」', async () => {
+    const client = modelClient({ name: 'my-model', was_current: false })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().removeModel('my-model')
+
+    expect(tipsOf('模型「my-model」已删除')).toBe(1)
+    expect(tipsOf('建议另选')).toBe(0)
+  })
+
+  it('后端拒绝（ok=false）：返回 false、不刷列表，错误走聊天流出口', async () => {
+    const client = rejectClient('内置模型不可删除：qwen-flash')
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    expect(await useBackendStore.getState().editModel(payload)).toBe(false)
+    expect(await useBackendStore.getState().removeModel('qwen-flash')).toBe(false)
+    expect(client.sendCommand).not.toHaveBeenCalledWith(Cmd.ModelsList, {})
+    expect(tipsOf('内置模型不可删除')).toBeGreaterThan(0)
+  })
+
+  it('未连接（client 为 null）：返回 false 且不抛异常', async () => {
+    useBackendStore.setState({ client: null })
+
+    expect(await useBackendStore.getState().editModel(payload)).toBe(false)
+    expect(await useBackendStore.getState().removeModel('my-model')).toBe(false)
+    expect(tipsOf('✗ 未连接到后端')).toBeGreaterThan(0)
   })
 })
 

@@ -17,7 +17,9 @@ import {
   type BackendInfo,
   type BackendSettingKey,
   type BackendSettings,
-  type BackendState
+  type BackendState,
+  type ModelAddPayload,
+  type ModelEditPayload
 } from '../../../shared/contracts'
 import { JarvisWsClient } from '../api/ws'
 import {
@@ -117,6 +119,12 @@ export interface BackendStoreState {
   /** 会话删除（成功由 session_deleted 事件刷列表；删当前会话另收 session_new）。@author aceFelix */
   deleteSession: (name: string) => Promise<void>
   selectModel: (name: string) => Promise<void>
+  /** 添加/覆盖自定义模型（左栏「添加模型」表单）；返回是否成功（失败已弹错误）。 */
+  addModel: (payload: ModelAddPayload) => Promise<boolean>
+  /** 修改模型配置（左栏双击模型项 → 编辑表单）；返回是否成功（失败已弹错误）。 */
+  editModel: (payload: ModelEditPayload) => Promise<boolean>
+  /** 删除自定义模型（左栏右键模型项 → 删除按钮）；返回是否成功（失败已弹错误）。 */
+  removeModel: (name: string) => Promise<boolean>
   selectVoice: (name: string) => Promise<void>
   answerUser: (text: string) => Promise<void>
   toggleTalk: () => Promise<void>
@@ -309,19 +317,96 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     },
 
     selectModel: async (name) => {
+      const left = useLeftStore.getState()
+      // 已是当前模型 / 已点选同一模型：不发指令、不重复提示（列表标记已表明选择被接受）。
+      // @author aceFelix
+      if (name === left.pendingModel) return
+      if (left.models.some((m) => m.name === name && m.current)) return
+      // 乐观标记「待生效」：写盘成功后引擎会在指令队列里热切换运行中的模型，
+      // 落地后推 model_switched（本事件清标记 + 刷列表让「当前」移动）；
+      // 先标记后发指令，免得事件比回执先到时标记残留。切换成功的气泡由
+      // 引擎的 info 事件上屏，这里不重复提示。@author aceFelix
+      left.setPendingModel(name)
       const result = await runCommand(Cmd.ModelsSelect, { name })
-      if (result !== null) {
-        useChatStore.getState().addSystem(`模型已切换为 ${name}（下次对话生效）`)
-        await get().refreshModels()
+      if (result !== true) {
+        // 回执 ok=false（runCommand 已写错误）或写盘失败：撤销标记，用户可重试
+        useLeftStore.getState().setPendingModel('')
+        if (result === false) {
+          useChatStore
+            .getState()
+            .addSystem(`✗ 模型切换失败（未能写入用户级配置）：${name}`, 'error')
+        }
+        return
       }
+      // 列表此刻仍标旧模型为 current：切换落地后由 model_switched 再刷一次
+      await get().refreshModels()
+    },
+
+    addModel: async (payload) => {
+      // 左栏「添加模型」表单提交：后端校验 + 写盘 + 内存同步，成功后刷模型列表；
+      // 失败由 runCommand 统一弹错误并回 false（表单保持打开，用户可修正重试）。
+      // @author aceFelix
+      const result = await runCommand(Cmd.ModelsAdd, { ...payload })
+      if (result === null) return false
+      const info = result as { name?: string }
+      useChatStore
+        .getState()
+        .addSystem(`模型「${info.name ?? payload.name}」已添加，点击列表项可切换`)
+      await get().refreshModels()
+      return true
+    },
+
+    editModel: async (payload) => {
+      // 左栏双击模型项 → 编辑表单提交：后端按新配置写盘 + 同步内存；改的是
+      // 当前运行模型时还会强制热切换 provider（回执 hot_switched），端点/接口
+      // 类型改动立即生效。刷列表让名字/厂商/端点收敛。@author aceFelix
+      const result = await runCommand(Cmd.ModelsEdit, { ...payload })
+      if (result === null) return false
+      const info = result as { name?: string; hot_switched?: boolean }
+      const target = info.name ?? payload.name
+      useChatStore
+        .getState()
+        .addSystem(
+          info.hot_switched
+            ? `模型「${target}」配置已更新，当前会话已按新配置重连`
+            : `模型「${target}」配置已更新`
+        )
+      await get().refreshModels()
+      return true
+    },
+
+    removeModel: async (name) => {
+      // 左栏右键模型项 → 删除按钮：仅自定义模型可删（内置模型由后端拒绝）。
+      // 删的是当前运行模型时后端回报 was_current（不动运行中的 provider，
+      // 不打断正在跑的回复），这里提示用户另选。@author aceFelix
+      const result = await runCommand(Cmd.ModelsRemove, { name })
+      if (result === null) return false
+      const info = result as { was_current?: boolean }
+      useChatStore
+        .getState()
+        .addSystem(
+          info.was_current
+            ? `模型「${name}」已删除，当前会话仍在用它，建议另选一个模型`
+            : `模型「${name}」已删除`
+        )
+      await get().refreshModels()
+      return true
     },
 
     selectVoice: async (name) => {
+      // 去重与失败判定同 selectModel（重复点选不弹提示，写盘失败不报假成功）。
+      // @author aceFelix
+      const left = useLeftStore.getState()
+      if (name === left.pendingVoice) return
       const result = await runCommand(Cmd.VoicesSelect, { name })
-      if (result !== null) {
-        useChatStore.getState().addSystem(`音色已切换为 ${name}（下次语音生效）`)
-        await get().refreshVoices()
+      if (result === null) return
+      if (result !== true) {
+        useChatStore.getState().addSystem(`✗ 音色切换失败（未能写入配置）：${name}`, 'error')
+        return
       }
+      left.setPendingVoice(name)
+      useChatStore.getState().addSystem(`音色已切换为 ${name}（下次语音生效）`)
+      await get().refreshVoices()
     },
 
     answerUser: async (text) => {
