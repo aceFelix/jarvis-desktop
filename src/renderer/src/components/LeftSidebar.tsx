@@ -7,6 +7,10 @@
  * 列表，与右栏 SettingsPanel 同模式），提交走 models.add 指令。
  * 模型项交互对齐会话列表：双击进配置编辑表单（models.edit）、右键显删除
  * 按钮（models.remove，仅自定义模型可删）。
+ * 音色面板（2026-09-28 音色-模型适配）同模型面板范式：末项「＋ 添加音色」
+ * 进 VoiceForm（voices.add 同名 upsert=编辑）、双击自定义项编辑、右键删除
+ *（voices.delete，仅自定义音色可删）；副行透出适配模型/将联动模型预告
+ *（voices.list 全量目录的 model/linked 字段）。
  *
  * @author aceFelix
  */
@@ -17,6 +21,7 @@ import { useLeftStore, type ChatMode, type LeftPanel } from '../stores/leftStore
 import { useT } from '../i18n'
 import { useGlyphs } from '../glyphs'
 import ModelForm from './ModelForm'
+import VoiceForm from './VoiceForm'
 
 /** 历史会话项：单击加载（220ms 延时让位双击）、双击内联改名、右键显删除按钮。
  *
@@ -140,14 +145,15 @@ function ListItem(props: {
   )
 }
 
-/** 模型项：单击切换（220ms 延时让位双击）、双击进配置编辑表单、右键显删除按钮。
+/** 模型 / 音色项：单击切换（220ms 延时让位双击）、双击进编辑表单、右键显删除按钮。
  *
- * 交互范式对齐会话列表（SessionItem）。差异：
- * - 双击不内联改名，而是切到 ModelForm 编辑该模型（字段多，内联框放不下），
- *   改名在表单的「模型名」输入框里完成；
- * - 删除按钮仅 removable（自定义模型）项出现 —— 内置模型后端拒绝删除；
+ * 交互范式对齐会话列表（SessionItem）；同一组件被模型面板与音色面板复用
+ *（2026-09-28 音色面板接入时 testid 参数化，避免复制粘贴两份）。差异：
+ * - 双击不内联改名，而是切到 ModelForm / VoiceForm 编辑该项（字段多，内联框放不下），
+ *   改名在表单里完成（音色名则直接锁定，同名 upsert 即编辑）；
+ * - 删除按钮仅 removable（自定义项）出现 —— 内置模型/音色后端拒绝删除；
  * - 当前/待生效项仍可双击、右键（noop 只去掉手型与悬停高亮，不再屏蔽指针
- *   事件），否则「改当前模型配置」这条最常用的路径点不进去。
+ *   事件），否则「改当前项配置」这条最常用的路径点不进去。
  * @author aceFelix
  */
 function ModelItem(props: {
@@ -161,6 +167,10 @@ function ModelItem(props: {
   delGlyph: string
   delTip: string
   tip: string
+  /** 项 testid（默认 model-item；音色面板传 voice-item）。 */
+  testid?: string
+  /** 删除按钮 testid（默认 model-del-btn；音色面板传 voice-del-btn）。 */
+  delTestid?: string
   onSelect: () => void
   onEdit: () => void
   onContextMenu: () => void
@@ -171,7 +181,7 @@ function ModelItem(props: {
   return (
     <div
       className={`list-item model-item${props.current ? ' current' : ''}${props.extraClass ? ` ${props.extraClass}` : ''}`}
-      data-testid="model-item"
+      data-testid={props.testid ?? 'model-item'}
       data-name={props.name}
       role="button"
       tabIndex={0}
@@ -199,7 +209,7 @@ function ModelItem(props: {
       {props.pendingDelete && props.removable ? (
         <button
           className="session-del-btn"
-          data-testid="model-del-btn"
+          data-testid={props.delTestid ?? 'model-del-btn'}
           title={props.delTip}
           onClick={(e) => {
             e.stopPropagation()
@@ -239,10 +249,12 @@ export default function LeftSidebar(): JSX.Element {
     voiceActive,
     modelFormOpen,
     modelFormTarget,
+    voiceFormOpen,
+    voiceFormTarget,
     pendingModel,
     pendingVoice
   } = useLeftStore()
-  const { setActivePanel, setMode, openModelForm, editModelForm } = useLeftStore()
+  const { setActivePanel, setMode, openModelForm, editModelForm, openVoiceForm, editVoiceForm } = useLeftStore()
   const backend = useBackendStore()
   const t = useT()
   const g = useGlyphs()
@@ -253,6 +265,9 @@ export default function LeftSidebar(): JSX.Element {
   // 模型项交互态：pendingDeleteModel=右键待删模型名（仅自定义模型会显示删除按钮）。
   // @author aceFelix
   const [pendingDeleteModel, setPendingDeleteModel] = useState<string | null>(null)
+  // 音色项交互态：右键待删自定义音色名（口径同模型面板，2026-09-28）。
+  // @author aceFelix
+  const [pendingDeleteVoice, setPendingDeleteVoice] = useState<string | null>(null)
 
   // 面板切换即刷新对应数据（与 workbench switchPanel 口径一致）。
   // 守卫用 wsConnected 而非 client：client 在 connect() 里一创建就非 null，
@@ -264,6 +279,7 @@ export default function LeftSidebar(): JSX.Element {
     // 面板切换时收起待删态（避免切回时残留上一个面板的删除按钮）。@author aceFelix
     setPendingDelete(null)
     setPendingDeleteModel(null)
+    setPendingDeleteVoice(null)
     setEditing(null)
     if (activePanel === 'history') void backend.refreshSessions()
     else if (activePanel === 'model') void backend.refreshModels()
@@ -466,34 +482,87 @@ export default function LeftSidebar(): JSX.Element {
         )
       ) : null}
 
-      {/* 面板三：音色 */}
+      {/* 面板三：音色（列表 ⇄ 音色表单；2026-09-28 音色-模型适配，交互范式同模型面板） */}
       {activePanel === 'voice' ? (
-        <div className="panel" data-testid="panel-voice">
-          <div className="panel-label">{t('left.voiceTitle')}</div>
-          <div className="list-area">
-            {voices.map((v) => (
-              <ListItem
-                key={v.name}
-                title={v.name}
-                sub={`${v.description ?? ''}${
-                  v.current
-                    ? ` · ${t('left.current')}`
-                    : v.name === pendingVoice
-                      ? ` · ${t('left.pending')}`
-                      : ''
-                }`}
-                current={v.current}
-                extraClass={selectItemClass(v.current, v.name === pendingVoice)}
+        voiceFormOpen ? (
+          // key 随编辑目标变化：连续双击不同音色时强制重挂载，表单草稿不残留
+          <VoiceForm key={voiceFormTarget || 'add'} />
+        ) : (
+          <div className="panel" data-testid="panel-voice">
+            <div className="panel-label">{t('left.voiceTitle')}</div>
+            <div
+              className="list-area"
+              onContextMenu={(e) => {
+                // 空白处右键：收起删除按钮。@author aceFelix
+                e.preventDefault()
+                setPendingDeleteVoice(null)
+              }}
+            >
+              {voices.map((v) => {
                 // 去重口径同模型项：已选中 / 待生效不再发 voices.select
-                onClick={
-                  v.current || v.name === pendingVoice
-                    ? undefined
-                    : () => void backend.selectVoice(v.name)
-                }
+                const selectable = !v.current && v.name !== pendingVoice
+                // 副行：描述 + 适配/联动预告（linked 非空=点选将联动换模型，
+                // 否则显适配模型；不限时不显）+ 当前/待生效标记
+                const modelTag = v.linked
+                  ? t('left.voiceLinks', { model: v.linked })
+                  : v.model
+                    ? t('left.voiceFits', { model: v.model })
+                    : ''
+                return (
+                  <ModelItem
+                    key={v.name}
+                    name={v.name}
+                    sub={[v.description || '', modelTag, v.current ? `· ${t('left.current')}` : v.name === pendingVoice ? `· ${t('left.pending')}` : '']
+                      .filter(Boolean)
+                      .join(' ')}
+                    current={!!v.current}
+                    extraClass={selectItemClass(v.current, v.name === pendingVoice)}
+                    selectable={selectable}
+                    removable={!!v.custom}
+                    pendingDelete={pendingDeleteVoice === v.name}
+                    delGlyph={g.sessionDelete}
+                    delTip={t('left.deleteVoice')}
+                    tip={v.custom ? t('left.voiceItemTip') : t('left.voiceItemTipBuiltin')}
+                    testid="voice-item"
+                    delTestid="voice-del-btn"
+                    onSelect={() => void backend.selectVoice(v.name)}
+                    onEdit={() => {
+                      // 双击→进自定义音色编辑表单（同名 upsert）；内置音色不可编辑
+                      if (!v.custom) return
+                      setPendingDeleteVoice(null)
+                      editVoiceForm(v.name)
+                    }}
+                    onContextMenu={() => {
+                      // 内置音色不可删：右键不显示删除按钮（后端也会拒绝）
+                      if (!v.custom) {
+                        setPendingDeleteVoice(null)
+                        return
+                      }
+                      setPendingDeleteVoice((p) => (p === v.name ? null : v.name))
+                    }}
+                    onDelete={() => {
+                      setPendingDeleteVoice(null)
+                      void backend.deleteVoice(v.name)
+                    }}
+                  />
+                )
+              })}
+              {/* 列表末项：进入添加音色表单（字段口径同 REPL /tts-voice 添加）；
+                  add-model 类为添加项通用样式 */}
+              <ListItem
+                title={t('left.addVoice')}
+                sub={t('left.addVoiceHint')}
+                extraClass="add-model"
+                testid="voice-add-item"
+                onClick={openVoiceForm}
               />
-            ))}
+            </div>
+            {/* 操作提示：音色面板的双击/右键是隐式交互，给一行可发现性提示 */}
+            <div className="panel-hint" data-testid="voice-ops-hint">
+              {t('left.voiceOpsHint')}
+            </div>
           </div>
-        </div>
+        )
       ) : null}
 
       {/* 状态 footer */}

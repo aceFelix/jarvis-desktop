@@ -41,9 +41,11 @@ beforeEach(() => {
     voiceActive: false,
     voiceState: '',
     // 模型表单开关与编辑目标均为瞬态：复位避免「开着表单」的用例把状态串给下一个用例。
-    // @author aceFelix
+    // 音色表单开关同口径（2026-09-28 音色-模型适配）。@author aceFelix
     modelFormOpen: false,
     modelFormTarget: '',
+    voiceFormOpen: false,
+    voiceFormTarget: '',
     // 待生效选择（模型/音色）同为瞬态：复位避免串场。@author aceFelix
     pendingModel: '',
     pendingVoice: ''
@@ -357,7 +359,9 @@ describe('LeftSidebar 面板切换', () => {
         { name: '会话B', updated_at: 1_700_000_100, message_count: 1, model: 'gpt' }
       ],
       models: [{ name: 'gpt-4', current: true }],
-      voices: [{ name: '晓晓', current: false }],
+      voices: [
+        { name: '晓晓', voice_id: 'xiao', description: '', vendor: 'dashscope', model: '', linked: null, current: false, custom: false },
+      ],
       activePanel: 'history',
       mode: 'text',
       talkActive: false
@@ -912,6 +916,175 @@ describe('LeftSidebar 模型配置修改与删除', () => {
     fireEvent.doubleClick(screen.getByText('qwen-flash'))
     expect(useLeftStore.getState().modelFormTarget).toBe('qwen-flash')
     expect(screen.getByTestId('model-form-name')).toHaveValue('qwen-flash')
+  })
+})
+
+describe('LeftSidebar 音色面板与音色表单', () => {
+  // 2026-09-28 音色-模型适配接入桌面壳：交互范式对齐模型面板（末项添加/
+  // 双击自定义项编辑/右键删），副行透出 voices.list 全量目录的适配/联动预告。
+  // 后端非真机：假 client 只回执指令，不发 WS。@author aceFelix
+
+  /** 全量目录夹具：当前项（内置兼容）/ 待联动项（linked 非空）/ 自定义项。 */
+  const voicesFixture = [
+    { name: 'longanlang_v3', voice_id: 'longanlang_v3', description: '龙安朗', vendor: 'dashscope', model: 'cosyvoice-v3', linked: null, current: true, custom: false },
+    { name: 'longxiaochun_v3', voice_id: 'longxiaochun_v3', description: '龙小淳', vendor: 'dashscope', model: 'cosyvoice-v3', linked: 'cosyvoice-v3-flash', current: false, custom: false },
+    { name: '我的声音', voice_id: 'my-clone', description: '复刻', vendor: 'dashscope', model: 'cosyvoice-v3-plus', linked: null, current: false, custom: true }
+  ]
+
+  it('副行透出适配/联动预告；末项「＋ 添加音色」进表单（列表整体替换）', () => {
+    useLeftStore.setState({ activePanel: 'voice', voices: voicesFixture, voiceFormOpen: false })
+    render(<LeftSidebar />)
+    // 待联动项显「联动 X」（不兼容预告），兼容项显「适配 X」
+    expect(screen.getByText('longxiaochun_v3').closest('.list-item')).toHaveTextContent('联动 cosyvoice-v3-flash')
+    expect(screen.getByText('我的声音').closest('.list-item')).toHaveTextContent('适配 cosyvoice-v3-plus')
+    const addItem = screen.getByTestId('voice-add-item')
+    expect(addItem).toHaveTextContent('＋ 添加音色')
+    fireEvent.click(addItem)
+    expect(useLeftStore.getState().voiceFormOpen).toBe(true)
+    expect(screen.getByTestId('panel-voice-form')).toBeInTheDocument()
+    expect(screen.queryByTestId('panel-voice')).toBeNull()
+    // 默认值与终端 /tts-voice 表单同口径：适配模型缺省家族 cosyvoice-v3
+    expect(screen.getByTestId('voice-form-model')).toHaveAttribute('data-value', 'cosyvoice-v3')
+    expect(screen.getByTestId('voice-form-name')).toHaveValue('')
+  })
+
+  it('音色名/voice_id 为空提交：本地校验提示且不发 voices.add', () => {
+    const sendCommand = vi.fn().mockResolvedValue({ ok: true, result: null })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: false
+    })
+    useLeftStore.setState({ activePanel: 'voice', voiceFormOpen: true })
+    render(<LeftSidebar />)
+    fireEvent.click(screen.getByTestId('voice-form-submit'))
+    expect(screen.getByTestId('voice-form-error')).toHaveTextContent('音色名不能为空')
+    // 补名缺 voice_id：换报 voice_id；开始修正时清提示
+    fireEvent.change(screen.getByTestId('voice-form-name'), { target: { value: 'x' } })
+    expect(screen.queryByTestId('voice-form-error')).toBeNull()
+    fireEvent.click(screen.getByTestId('voice-form-submit'))
+    expect(screen.getByTestId('voice-form-error')).toHaveTextContent('音色 ID 不能为空')
+    expect(sendCommand).not.toHaveBeenCalled()
+  })
+
+  it('填写提交：voices.add 带裁剪后字段 → 刷音色列表 → 关表单并提示', async () => {
+    const sendCommand = vi.fn(async (type: string) => {
+      if (type === Cmd.VoicesAdd) return { ok: true, result: { ok: true, name: '我的声音' } }
+      if (type === Cmd.VoicesList) return { ok: true, result: voicesFixture }
+      return { ok: true, result: null }
+    })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: false
+    })
+    useLeftStore.setState({ activePanel: 'voice', voiceFormOpen: true })
+    render(<LeftSidebar />)
+    fireEvent.change(screen.getByTestId('voice-form-name'), { target: { value: ' 我的声音 ' } })
+    fireEvent.change(screen.getByTestId('voice-form-voice-id'), { target: { value: ' my-clone ' } })
+    fireEvent.click(screen.getByTestId('voice-form-submit'))
+
+    await vi.waitFor(() =>
+      expect(sendCommand).toHaveBeenCalledWith(Cmd.VoicesAdd, {
+        name: '我的声音',
+        voice_id: 'my-clone',
+        model: 'cosyvoice-v3',
+        description: ''
+      })
+    )
+    await vi.waitFor(() => expect(screen.getByTestId('panel-voice')).toBeInTheDocument())
+    expect(screen.queryByTestId('panel-voice-form')).toBeNull()
+    expect(useLeftStore.getState().voiceFormOpen).toBe(false)
+    expect(
+      useChatStore
+        .getState()
+        .messages.some((m) => m.kind === 'system' && m.text.includes('已保存'))
+    ).toBe(true)
+  })
+
+  it('双击自定义音色进编辑表单（音色名锁定+预填）；双击内置音色不进', () => {
+    useLeftStore.setState({ activePanel: 'voice', voices: voicesFixture })
+    render(<LeftSidebar />)
+    fireEvent.doubleClick(screen.getByText('我的声音'))
+    expect(screen.getByTestId('panel-voice-form')).toBeInTheDocument()
+    expect(useLeftStore.getState().voiceFormTarget).toBe('我的声音')
+    expect(screen.getByText('修改音色')).toBeInTheDocument()
+    // 同名 upsert=编辑：音色名锁定预填，voice_id/适配模型预填现值
+    expect(screen.getByTestId('voice-form-name')).toHaveValue('我的声音')
+    expect(screen.getByTestId('voice-form-name')).toBeDisabled()
+    expect(screen.getByTestId('voice-form-voice-id')).toHaveValue('my-clone')
+    expect(screen.getByTestId('voice-form-model')).toHaveAttribute('data-value', 'cosyvoice-v3-plus')
+    expect(screen.getByTestId('voice-form-submit')).toHaveTextContent('保存修改')
+    // 内置音色不可编辑：双击不切表单
+    fireEvent.click(screen.getByTestId('btn-voice-form-back'))
+    fireEvent.doubleClick(screen.getByText('longanlang_v3'))
+    expect(useLeftStore.getState().voiceFormOpen).toBe(false)
+    expect(screen.getByTestId('panel-voice')).toBeInTheDocument()
+  })
+
+  it('右键自定义音色显删除按钮、再点发 voices.delete；内置音色右键不出按钮', async () => {
+    const sendCommand = vi.fn(async (type: string) => {
+      if (type === Cmd.VoicesDelete) return { ok: true, result: { ok: true, name: '我的声音' } }
+      // 删除成功后刷列表：夹具里只剩内置音色
+      if (type === Cmd.VoicesList) return { ok: true, result: voicesFixture.slice(0, 2) }
+      return { ok: true, result: null }
+    })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: false
+    })
+    useLeftStore.setState({ activePanel: 'voice', voices: voicesFixture })
+    render(<LeftSidebar />)
+    expect(screen.queryByTestId('voice-del-btn')).toBeNull()
+    // 内置音色不可删：右键不显示删除按钮（后端也会拒绝）
+    fireEvent.contextMenu(screen.getByText('longxiaochun_v3'))
+    expect(screen.queryByTestId('voice-del-btn')).toBeNull()
+
+    fireEvent.contextMenu(screen.getByText('我的声音'))
+    fireEvent.click(screen.getByTestId('voice-del-btn'))
+
+    await vi.waitFor(() =>
+      expect(sendCommand).toHaveBeenCalledWith(Cmd.VoicesDelete, { name: '我的声音' })
+    )
+    await vi.waitFor(() => expect(screen.queryByText('我的声音')).toBeNull())
+    expect(
+      useChatStore
+        .getState()
+        .messages.some((m) => m.kind === 'system' && m.text.includes('已删除'))
+    ).toBe(true)
+  })
+
+  it('点击切换音色：dict 回执 linked_model 非空 → 提示联动口径并标待生效', async () => {
+    const sendCommand = vi.fn(async (type: string) => {
+      if (type === Cmd.VoicesSelect) {
+        return {
+          ok: true,
+          result: { ok: true, name: 'longxiaochun_v3', voice_id: 'longxiaochun_v3', linked_model: 'cosyvoice-v3-flash', old_model: 'cosyvoice-v2' }
+        }
+      }
+      if (type === Cmd.VoicesList) return { ok: true, result: voicesFixture }
+      return { ok: true, result: null }
+    })
+    useBackendStore.setState({
+      client: { sendCommand } as unknown as JarvisWsClient,
+      wsConnected: false
+    })
+    useLeftStore.setState({ activePanel: 'voice', voices: voicesFixture, pendingVoice: '' })
+    render(<LeftSidebar />)
+    fireEvent.click(screen.getByText('longxiaochun_v3'))
+    await vi.waitFor(() =>
+      expect(sendCommand).toHaveBeenCalledWith(Cmd.VoicesSelect, { name: 'longxiaochun_v3' })
+    )
+    await vi.waitFor(() =>
+      expect(
+        useChatStore
+          .getState()
+          .messages.some((m) => m.kind === 'system' && m.text.includes('联动 TTS 模型 cosyvoice-v3-flash'))
+      ).toBe(true)
+    )
+    expect(useLeftStore.getState().pendingVoice).toBe('longxiaochun_v3')
+    // 当前音色（noop）点击不发指令：去重口径同模型项
+    fireEvent.click(screen.getByText('longanlang_v3'))
+    await new Promise((r) => setTimeout(r, 280))
+    expect(sendCommand).not.toHaveBeenCalledWith(Cmd.VoicesSelect, { name: 'longanlang_v3' })
   })
 })
 

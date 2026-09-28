@@ -101,7 +101,7 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
   不热重载）而前端已热更新，错误文案会提示「请重启后端后重试」。
 - 握手（stdout 单行）：`{"type": "jarvis-serve-ready", "port", "http_port", "token", "pid"}`。
 
-### 指令一览（27 条）
+### 指令一览（30 条）
 
 | 指令 | 参数 | result |
 |---|---|---|
@@ -116,8 +116,10 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `models.add` | `name`, `vendor`, `api_format`, `base_url`, `api_key`, `model_type` | `{name, vendor, api_format, base_url, model_type}`（左栏「添加模型」表单：写用户级 models.toml 的 `[llm.custom_models."<name>"]`，api_key 交系统 keyring；name/api_format/model_type 后端二次校验，非法回 ok=false；`base_url` 留空按厂商推断） |
 | `models.edit` | `name`［, `new_name`, `vendor`, `api_format`, `base_url`, `api_key`, `model_type`］ | `{name, vendor, api_format, base_url, model_type, hot_switched}`（左栏双击模型项进编辑表单：内置模型名字锁定不可改、自定义模型可改名；未传字段=沿用现值，**`api_key` 留空=保持原 Key**（壳不回显密钥）；改的是当前运行模型时 serve 入队 `switch_model force=true` 强制重建 provider，端点/接口类型立即生效并回 `hot_switched=true`；内置模型改名/目标名已占用/名字不存在回 ok=false） |
 | `models.remove` | `name` | `{name, was_current}`（左栏右键模型项 → 项内删除按钮：仅自定义模型可删——内置模型与「用户级 models.toml 无该段」均回 ok=false，后者防「删不掉但重启复活」；删当前模型不动运行中的 provider，仅回执提示另选） |
-| `voices.list` | — | `[{name, description, current}]` |
-| `voices.select` | `name` | bool |
+| `voices.list` | — | `[{name, voice_id, description, vendor, model, linked, current, custom}]`（全量音色目录：内置+自定义，当前音色置顶；`model`=适配模型、`linked`=现在点选会被联动成的 tts_model（不兼容预告），2026-09-28） |
+| `voices.select` | `name` | `{ok, name, voice_id, linked_model, old_model}`（立即写盘、音色-模型不兼容时自动联动 `tts_model`；注意两层语义：传输/校验失败回 ok=false，目录未命中则 ok=true 但 `result.ok=false`，前端判 `result.ok` 并透出 `result.error`） |
+| `voices.add` | `name`, `voice_id`［, `model`, `description`, `vendor`］ | `{ok, name}`（左栏「＋ 添加音色」表单 / 双击自定义项编辑：name、voice_id 必填（serve 校验 raise → ok=false），内置名遮蔽拒绝；upsert 即编辑（同名覆盖），写 settings.toml 的 `[tts.custom_voices]`） |
+| `voices.delete` | `name` | `{ok, name}`（左栏右键自定义音色项 → 项内删除按钮：仅 custom 可删，内置回 ok=false；外科式删 `[tts.custom_voices."<name>"]` 段） |
 | `metrics.get` | — | `{cpu, memory, disk}` |
 | `state.get` | — | `{provider, model, ..., mcp}`（`mcp` 为连接快照 `{connected, failed, tools}` 或 null） |
 | `schedule.list` | — | `{reminders: [{id, content, trigger_at, repeat}], deadlines: [{id, title, due_date, days_left, status}]}`（hub 未装配时空列表） |
@@ -207,7 +209,8 @@ theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配�
   入引擎队列，引擎线程里换掉运行中的 provider / QueryLoop（`list_models` 的 `current` 改取
   引擎实时模型，不再是启动快照）——落地推 `model_switched`，壳据此清标记并刷列表，
   「· 当前」立刻移动；正有一轮回复在跑时切换在该轮结束后落地（指令队列串行）。
-  `voices.select` 仍只写配置（下次语音会话生效），`voices.list` 的 `current` 不随点选移动。
+  `voices.select`（2026-09-28 起）立即写盘并在不兼容时联动 `tts_model`，但不热切换运行中的
+  语音会话（下次语音生效），`voices.list` 的 `current` 不随点选移动，壳靠 `pendingVoice` 标「待生效」。
   写盘回执与事件之间存在空窗，壳仍需要自记选择，否则用户看不出是否选上就会反复点：
   `leftStore` 的 `pendingModel` / `pendingVoice`（瞬态、不持久化）在点选时
   乐观标记（先标记后发指令，免得事件比回执先到留下残留），`backendStore.selectModel`

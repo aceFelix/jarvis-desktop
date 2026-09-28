@@ -19,7 +19,9 @@ import {
   type BackendSettings,
   type BackendState,
   type ModelAddPayload,
-  type ModelEditPayload
+  type ModelEditPayload,
+  type VoiceAddPayload,
+  type VoiceSelectResult
 } from '../../../shared/contracts'
 import { JarvisWsClient } from '../api/ws'
 import { startTalkCapture, stopTalkCapture } from '../audio/talkCapture'
@@ -127,6 +129,10 @@ export interface BackendStoreState {
   /** 删除自定义模型（左栏右键模型项 → 删除按钮）；返回是否成功（失败已弹错误）。 */
   removeModel: (name: string) => Promise<boolean>
   selectVoice: (name: string) => Promise<void>
+  /** 添加/覆盖自定义音色（左栏音色表单）；返回是否成功（失败已弹错误）。@author aceFelix */
+  addVoice: (payload: VoiceAddPayload) => Promise<boolean>
+  /** 删除自定义音色（左栏右键自定义音色 → 删除按钮）；内置音色后端拒绝。@author aceFelix */
+  deleteVoice: (name: string) => Promise<boolean>
   answerUser: (text: string) => Promise<void>
   toggleTalk: () => Promise<void>
   /** 切换半双工语音（voiceActive 时发 VoiceStop，否则置 voice 模式发 VoiceStart）。 */
@@ -398,19 +404,53 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     },
 
     selectVoice: async (name) => {
-      // 去重与失败判定同 selectModel（重复点选不弹提示，写盘失败不报假成功）。
+      // 去重与失败判定同 selectModel；2026-09-28 音色-模型适配后回执升级为
+      // dict：业务结果在 result.ok（传输层失败 runCommand 已回 null 并弹错），
+      // linked_model 非空 = 后端联动换了 TTS 模型，提示里明示口径。
       // @author aceFelix
       const left = useLeftStore.getState()
       if (name === left.pendingVoice) return
       const result = await runCommand(Cmd.VoicesSelect, { name })
       if (result === null) return
-      if (result !== true) {
-        useChatStore.getState().addSystem(`✗ 音色切换失败（未能写入配置）：${name}`, 'error')
+      const res = result as VoiceSelectResult
+      if (!res?.ok) {
+        useChatStore.getState().addSystem(`✗ 音色切换失败：${res?.error ?? name}`, 'error')
         return
       }
-      left.setPendingVoice(name)
-      useChatStore.getState().addSystem(`音色已切换为 ${name}（下次语音生效）`)
+      left.setPendingVoice(res.name ?? name)
+      useChatStore
+        .getState()
+        .addSystem(
+          res.linked_model
+            ? `音色已切换为 ${res.name ?? name}（联动 TTS 模型 ${res.linked_model}，下次语音生效）`
+            : `音色已切换为 ${res.name ?? name}（下次语音生效）`
+        )
       await get().refreshVoices()
+    },
+
+    addVoice: async (payload) => {
+      // 左栏音色表单提交：后端校验 + 写盘 + 内存同步（同名 upsert=编辑），
+      // 成功后刷音色列表；失败由 runCommand 统一弹错误并回 null（表单保持
+      // 打开，用户可修正重试）。@author aceFelix
+      const result = await runCommand(Cmd.VoicesAdd, { ...payload })
+      if (result === null) return false
+      const info = result as { name?: string }
+      useChatStore
+        .getState()
+        .addSystem(`音色「${info.name ?? payload.name}」已保存，点击列表项可切换`)
+      await get().refreshVoices()
+      return true
+    },
+
+    deleteVoice: async (name) => {
+      // 左栏右键自定义音色 → 删除按钮：仅自定义音色可删（内置音色由后端
+      // 拒绝弹错）。删的是当前在用音色仍允许（[tts] voice 不变，下次合成
+      // 照旧，与模型面板删当前模型同口径）。@author aceFelix
+      const result = await runCommand(Cmd.VoicesDelete, { name })
+      if (result === null) return false
+      useChatStore.getState().addSystem(`音色「${name}」已删除`)
+      await get().refreshVoices()
+      return true
     },
 
     answerUser: async (text) => {

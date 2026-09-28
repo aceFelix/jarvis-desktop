@@ -140,8 +140,17 @@ push / PR 到 `main` 时 GitHub Actions（[.github/workflows/ci.yml](.github/wor
   成功提示由引擎的 `info` 事件上屏（壳不再本地弹，避免双气泡）。
   `set_model` 返回 false（写盘失败）时不记待生效，改提示「✗ 模型切换失败（未能写入用户级配置）：X」，
   不报假成功；引擎构造 provider 失败时只推 `warn`、不推 `model_switched`，壳保留「待生效」标记供重试。
-- 切**音色**仍是「下次语音会话生效」（实时/半双工语音在会话内绑定音色）：壳照旧记
-  `pendingVoice`，`voices.list` 的 `current` 不随点选移动。
+- 切**音色**为「立即写盘 + 下次语音会话生效」（实时/半双工语音在会话内绑定音色，不热切换运行中的
+  语音会话）：`voices.select` 回执为 dict `{ok, name, voice_id, linked_model, old_model}`，与终端
+  `/tts-voice` 同口径——音色-模型不兼容时后端自动联动 `tts_model`，壳按 `result.ok` 判定并把
+  `linked_model` 进提示（「联动 TTS 模型 X，下次语音生效」）；壳照旧记 `pendingVoice`，
+  `voices.list` 的 `current` 不随点选移动。
+- 音色面板（2026-09-28，音色-模型适配接入）：`voices.list` 返回**全量音色目录**（内置+自定义，
+  当前置顶），副行透出「适配 X」/「联动 X」预告；交互范式对齐模型面板 —— 末项「＋ 添加音色」
+  进 `VoiceForm` 表单（音色名/DashScope 音色 ID/适配模型下拉/描述，提交 `voices.add`）、**双击**自定义项
+  进表单预填编辑（音色名锁定，同名 upsert 覆盖）、**右键**自定义项 → 项内删除按钮再点真删
+  （`voices.delete`，内置音色不渲染删除、后端也会拒绝）；本地校验（音色名/voice_id 必填）错误
+  就地显红字，后端拒绝走聊天流统一出口。
 
 协议细节与字段口径见 [docs/architecture.md](docs/architecture.md) 「左栏模型面板（切换 / 添加 / 修改 / 删除）」小节。
 

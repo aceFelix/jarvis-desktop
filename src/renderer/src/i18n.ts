@@ -56,6 +56,19 @@ const zh: Dict = {
   'left.modelItemTip': '双击修改配置 · 右键删除模型',
   'left.modelItemTipBuiltin': '双击修改配置（内置模型不可删除）',
   'left.modelOpsHint': '双击模型改配置 · 右键自定义模型可删除',
+  // 音色面板（2026-09-28 音色-模型适配）：自定义音色表单 + 双击/右键交互
+  'left.addVoice': '＋ 添加音色',
+  'left.addVoiceHint': '自定义音色（写入用户级配置）',
+  'left.voiceFormTitle': '添加音色',
+  'left.voiceFormEditTitle': '修改音色',
+  'left.voiceFormBack': '返回音色列表',
+  'left.deleteVoice': '删除音色',
+  'left.voiceItemTip': '点击切换 · 双击修改 · 右键删除',
+  'left.voiceItemTipBuiltin': '点击切换音色（内置音色不可删除）',
+  'left.voiceOpsHint': '点击切换音色 · 双击自定义音色编辑 · 右键可删除',
+  // 列表副行的适配/联动预告：兼容项显「适配」，不兼容项显点选后将联动切的模型
+  'left.voiceFits': '· 适配 {model}',
+  'left.voiceLinks': '· 联动 {model}',
 
   // ---- 中栏对话区 ----
   'chat.you': '你',
@@ -178,7 +191,25 @@ const zh: Dict = {
   'modelForm.format.dashscope': 'DashScope SDK（qwen 原生）',
   'modelForm.format.zai': '智谱 ZhipuAI SDK',
   'modelForm.type.text': '纯文本（禁用视觉省 token）',
-  'modelForm.type.multimodal': '多模态（支持图片识别）'
+  'modelForm.type.multimodal': '多模态（支持图片识别）',
+
+  // ---- 添加音色表单（左栏音色面板「＋ 添加音色」/ 双击自定义项编辑） ----
+  'voiceForm.name': '音色名',
+  'voiceForm.nameHint': '例如：我的专属音色 / 温柔女声',
+  'voiceForm.nameLockedHint': '音色名不可修改（需要新名字请用「＋ 添加音色」，删除旧项即可）',
+  'voiceForm.voiceId': '音色 ID',
+  'voiceForm.voiceIdHint': 'DashScope 合成请求的 voice 参数；声音复刻填复刻返回的 voice_id',
+  'voiceForm.model': '适配模型',
+  'voiceForm.modelHint': '音色与模型是硬约束：系统音色选家族 cosyvoice-v3，复刻音色选创建时的 target_model；「不限」切换时不联动改模型',
+  'voiceForm.modelAny': '不限（切换不联动模型）',
+  'voiceForm.description': '音色描述',
+  'voiceForm.descriptionHint': '可选，显示在列表副行；留空用音色名',
+  'voiceForm.editingHint': '正在修改「{name}」',
+  'voiceForm.submit': '保存',
+  'voiceForm.save': '保存修改',
+  'voiceForm.cancel': '取消',
+  'voiceForm.nameRequired': '音色名不能为空',
+  'voiceForm.voiceIdRequired': '音色 ID 不能为空'
 }
 
 const en: Dict = {
@@ -222,6 +253,19 @@ const en: Dict = {
   'left.modelItemTip': 'Double-click to edit · right-click to delete',
   'left.modelItemTipBuiltin': 'Double-click to edit (built-in models cannot be deleted)',
   'left.modelOpsHint': 'Double-click a model to edit · right-click a custom model to delete',
+  // Voice panel (2026-09-28 voice-model matching): custom voice form + dbl/click interactions
+  'left.addVoice': '＋ Add Voice',
+  'left.addVoiceHint': 'Custom voice (saved to user config)',
+  'left.voiceFormTitle': 'Add Voice',
+  'left.voiceFormEditTitle': 'Edit Voice',
+  'left.voiceFormBack': 'Back to voice list',
+  'left.deleteVoice': 'Delete voice',
+  'left.voiceItemTip': 'Click to switch · double-click to edit · right-click to delete',
+  'left.voiceItemTipBuiltin': 'Click to switch (built-in voices cannot be deleted)',
+  'left.voiceOpsHint': 'Click a voice to switch · double-click a custom voice to edit · right-click to delete',
+  // Sub-line preview: compatible items show "fits", incompatible ones show the linked model
+  'left.voiceFits': '· fits {model}',
+  'left.voiceLinks': '· links {model}',
 
   // ---- Chat area ----
   'chat.you': 'You',
@@ -344,7 +388,25 @@ const en: Dict = {
   'modelForm.format.dashscope': 'DashScope SDK (native qwen)',
   'modelForm.format.zai': 'ZhipuAI SDK',
   'modelForm.type.text': 'Text only (vision off, saves tokens)',
-  'modelForm.type.multimodal': 'Multimodal (image input)'
+  'modelForm.type.multimodal': 'Multimodal (image input)',
+
+  // ---- Voice form (left sidebar “＋ Add Voice” / double-click a custom voice) ----
+  'voiceForm.name': 'Voice name',
+  'voiceForm.nameHint': 'e.g. My Voice / Gentle female',
+  'voiceForm.nameLockedHint': 'Voice names are fixed (use “＋ Add Voice” for a new one, then delete the old)',
+  'voiceForm.voiceId': 'Voice ID',
+  'voiceForm.voiceIdHint': 'The voice parameter of DashScope synthesis; for cloned voices use the returned voice_id',
+  'voiceForm.model': 'Matched model',
+  'voiceForm.modelHint': 'Voices are model-bound: system voices pick the cosyvoice-v3 family, cloned voices pick the target_model used at enrollment; "any" disables auto-linking',
+  'voiceForm.modelAny': 'Any (no model linking on switch)',
+  'voiceForm.description': 'Description',
+  'voiceForm.descriptionHint': 'Optional, shown in the list sub-line; falls back to the voice name',
+  'voiceForm.editingHint': 'Editing “{name}”',
+  'voiceForm.submit': 'Save',
+  'voiceForm.save': 'Save Changes',
+  'voiceForm.cancel': 'Cancel',
+  'voiceForm.nameRequired': 'Voice name is required',
+  'voiceForm.voiceIdRequired': 'Voice ID is required'
 }
 
 const dicts: Record<Language, Dict> = { zh, en }

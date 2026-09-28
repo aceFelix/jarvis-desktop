@@ -162,8 +162,10 @@ describe('backendStore · 模型 / 音色切换去重与热切换', () => {
     expect(useLeftStore.getState().pendingModel).toBe('')
   })
 
-  it('音色重复点选同样去重', async () => {
-    const client = selectClient(true)
+  it('音色重复点选同样去重（dict 回执，2026-09-28 音色-模型适配）', async () => {
+    // voices.select 回执从 bool 升级为 {ok, name, voice_id, linked_model, old_model}：
+    // 成功判定改看 result.ok，待生效标记取回执里的音色名。
+    const client = selectClient({ ok: true, name: '晓晓', voice_id: 'x', linked_model: null, old_model: '' })
     useBackendStore.setState({ client: client as unknown as JarvisWsClient })
 
     await useBackendStore.getState().selectVoice('晓晓')
@@ -172,6 +174,32 @@ describe('backendStore · 模型 / 音色切换去重与热切换', () => {
     expect(callsOf(client, Cmd.VoicesSelect)).toBe(1)
     expect(tipsOf('音色已切换为')).toBe(1)
     expect(useLeftStore.getState().pendingVoice).toBe('晓晓')
+  })
+
+  it('音色联动切换（linked_model 非空）：提示里明示联动模型', async () => {
+    const client = selectClient({ ok: true, name: 'v3', voice_id: 'v3', linked_model: 'cosyvoice-v3-flash', old_model: 'cosyvoice-v2' })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().selectVoice('v3')
+
+    expect(tipsOf('联动 TTS 模型 cosyvoice-v3-flash')).toBe(1)
+    expect(useLeftStore.getState().pendingVoice).toBe('v3')
+  })
+
+  it('音色切换业务失败（result.ok=false）：报后端错误、不记待生效', async () => {
+    // 传输层 ok=true 但目录未命中：音色未写入配置，不能报假成功、不能记
+    // 待生效（否则重复点选被去重静默吞掉，用户以为已选上）。
+    const client = selectClient({ ok: false, error: '音色未找到：ghost' })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().selectVoice('ghost')
+
+    expect(tipsOf('音色已切换为')).toBe(0)
+    expect(tipsOf('✗ 音色切换失败：音色未找到：ghost')).toBe(1)
+    expect(useLeftStore.getState().pendingVoice).toBe('')
+    // 未记待生效：再点仍会重试
+    await useBackendStore.getState().selectVoice('ghost')
+    expect(callsOf(client, Cmd.VoicesSelect)).toBe(2)
   })
 
   it('后端写盘失败（result=false）：报错、不记待生效、不报假成功', async () => {
@@ -285,6 +313,79 @@ describe('backendStore · 模型配置修改与删除指令', () => {
 
     expect(await useBackendStore.getState().editModel(payload)).toBe(false)
     expect(await useBackendStore.getState().removeModel('my-model')).toBe(false)
+    expect(tipsOf('✗ 未连接到后端')).toBeGreaterThan(0)
+  })
+})
+
+describe('backendStore · 自定义音色添加与删除指令', () => {
+  // 2026-09-28 音色-模型适配接入桌面壳：左栏音色表单提交（voices.add 同名
+  // upsert=编辑）、右键自定义音色删除（voices.delete）。后端校验+写盘+同步
+  // 内存，前端发指令后刷一次 voices.list 收敛列表；失败由 runCommand 统一
+  // 弹错并回 null，表单保持打开可修正。@author aceFelix
+
+  const voicePayload = {
+    name: '我的声音',
+    voice_id: 'my-clone',
+    model: 'cosyvoice-v3-plus',
+    description: '复刻'
+  }
+
+  const tipsOf = (kw: string): number =>
+    useChatStore
+      .getState()
+      .messages.filter((m) => m.kind === 'system' && m.text.includes(kw)).length
+
+  /** 造一个按指令回执的假客户端：voices.list 回空列表，其余回传入 result（ok=true）。 */
+  function voiceClient(result: unknown): { sendCommand: ReturnType<typeof vi.fn> } {
+    return {
+      sendCommand: vi.fn().mockImplementation((type: string) => {
+        if (type === Cmd.VoicesList) return Promise.resolve({ ok: true, result: [] })
+        return Promise.resolve({ ok: true, result })
+      })
+    }
+  }
+
+  it('addVoice 发 voices.add 并刷列表；成功提示用回执里的音色名', async () => {
+    const client = voiceClient({ ok: true, name: '我的声音' })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    const ok = await useBackendStore.getState().addVoice(voicePayload)
+
+    expect(ok).toBe(true)
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.VoicesAdd, voicePayload)
+    expect(tipsOf('音色「我的声音」已保存')).toBe(1)
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.VoicesList, {})
+  })
+
+  it('deleteVoice 发 voices.delete 并刷列表；成功提示已删除', async () => {
+    const client = voiceClient({ ok: true, name: '我的声音' })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    const ok = await useBackendStore.getState().deleteVoice('我的声音')
+
+    expect(ok).toBe(true)
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.VoicesDelete, { name: '我的声音' })
+    expect(tipsOf('音色「我的声音」已删除')).toBe(1)
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.VoicesList, {})
+  })
+
+  it('后端拒绝（ok=false，如内置音色名/不可删）：返回 false、不刷列表，错误走聊天流', async () => {
+    const client = {
+      sendCommand: vi.fn().mockResolvedValue({ ok: false, error: '「longcheng_v3」是内置音色名，换一个名字' })
+    }
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    expect(await useBackendStore.getState().addVoice({ ...voicePayload, name: 'longcheng_v3' })).toBe(false)
+    expect(await useBackendStore.getState().deleteVoice('longcheng_v3')).toBe(false)
+    expect(client.sendCommand).not.toHaveBeenCalledWith(Cmd.VoicesList, {})
+    expect(tipsOf('内置音色名')).toBeGreaterThan(0)
+  })
+
+  it('未连接（client 为 null）：返回 false 且不抛异常', async () => {
+    useBackendStore.setState({ client: null })
+
+    expect(await useBackendStore.getState().addVoice(voicePayload)).toBe(false)
+    expect(await useBackendStore.getState().deleteVoice('我的声音')).toBe(false)
     expect(tipsOf('✗ 未连接到后端')).toBeGreaterThan(0)
   })
 })

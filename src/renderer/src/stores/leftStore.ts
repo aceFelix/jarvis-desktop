@@ -8,7 +8,7 @@
  */
 
 import { create } from 'zustand'
-import type { ModelConfigDraft, VoiceState } from '../../../shared/contracts'
+import type { ModelConfigDraft, VoiceCatalogItem, VoiceState } from '../../../shared/contracts'
 
 export interface SessionItem {
   name: string
@@ -34,11 +34,14 @@ export interface ModelItem {
   config?: ModelConfigDraft
 }
 
-export interface VoiceItem {
-  name: string
-  description?: string
-  current?: boolean
-}
+/**
+ * 左栏音色项：直接复用 voices.list 全量目录契约（2026-09-28 音色-模型适配）。
+ *
+ * 旧版只有 name/description/current 三字段，现补 voice_id/vendor/model/
+ * linked/custom：model=适配模型（空=不限）、linked=点选后将联动切换的
+ * TTS 模型、custom=自定义项（双击编辑/右键删除的数据前提）。
+ * @author aceFelix */
+export type VoiceItem = VoiceCatalogItem
 
 /** 左栏活动面板。 */
 export type LeftPanel = 'history' | 'model' | 'voice'
@@ -64,6 +67,13 @@ export interface LeftState {
   /** 表单模式：''=添加新模型（models.add）；非空=编辑该模型的配置
    *  （models.edit，双击模型项进入）。@author aceFelix */
   modelFormTarget: string
+  /** 左栏音色面板视图：true=音色表单（VoiceForm 组件整体替换列表，
+   *  口径同 modelFormOpen：独立组件 + 条件渲染，提交/取消后回列表）。
+   *  @author aceFelix */
+  voiceFormOpen: boolean
+  /** 表单模式：''=添加新音色（voices.add）；非空=编辑该自定义音色
+   *  （同名 upsert，双击自定义项进入）。@author aceFelix */
+  voiceFormTarget: string
   /** 已点选、待引擎落地热切换的模型名（''=无）。
    *
    * 桌面壳 models.select 写盘后由引擎在指令队列里热切换运行中的模型，落地推
@@ -92,6 +102,12 @@ export interface LeftState {
   editModelForm: (name: string) => void
   /** 表单返回/提交成功：回模型列表（同时清空编辑目标）。 */
   closeModelForm: () => void
+  /** 音色列表末项「添加音色」：进入音色表单。@author aceFelix */
+  openVoiceForm: () => void
+  /** 双击自定义音色项：进入编辑表单（同名 upsert）。@author aceFelix */
+  editVoiceForm: (name: string) => void
+  /** 音色表单返回/提交成功：回音色列表。@author aceFelix */
+  closeVoiceForm: () => void
 }
 
 export const useLeftStore = create<LeftState>((set) => ({
@@ -105,6 +121,8 @@ export const useLeftStore = create<LeftState>((set) => ({
   voiceState: '',
   modelFormOpen: false,
   modelFormTarget: '',
+  voiceFormOpen: false,
+  voiceFormTarget: '',
   pendingModel: '',
   pendingVoice: '',
 
@@ -120,5 +138,8 @@ export const useLeftStore = create<LeftState>((set) => ({
   setPendingVoice: (pendingVoice) => set({ pendingVoice }),
   openModelForm: () => set({ modelFormOpen: true, modelFormTarget: '' }),
   editModelForm: (modelFormTarget) => set({ modelFormOpen: true, modelFormTarget }),
-  closeModelForm: () => set({ modelFormOpen: false, modelFormTarget: '' })
+  closeModelForm: () => set({ modelFormOpen: false, modelFormTarget: '' }),
+  openVoiceForm: () => set({ voiceFormOpen: true, voiceFormTarget: '' }),
+  editVoiceForm: (voiceFormTarget) => set({ voiceFormOpen: true, voiceFormTarget }),
+  closeVoiceForm: () => set({ voiceFormOpen: false, voiceFormTarget: '' })
 }))

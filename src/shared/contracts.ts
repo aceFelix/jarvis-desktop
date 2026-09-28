@@ -208,6 +208,47 @@ export interface ModelRemoveResult {
   was_current: boolean
 }
 
+/**
+ * TTS 音色目录项（voices.list 每项，2026-09-28 音色-模型适配）。
+ *
+ * 镜像 jarvis 侧 WorkbenchAPI.list_voices：全量内置+自定义目录，当前音色置顶。
+ * model = 适配模型（空 = 不限）；linked = 点选后将联动切换的 TTS 模型
+ *（兼容/不限时 null，前端据此预告）；custom=true 项可双击编辑/右键删除。
+ */
+export interface VoiceCatalogItem {
+  name: string
+  /** DashScope voice 参数（内置音色 name 即 voice_id；复刻音色为 voice_id）。 */
+  voice_id: string
+  description: string
+  vendor: string
+  /** 适配模型（家族前缀或具体模型，逗号分隔多值；空串 = 不限）。 */
+  model: string
+  /** 点选后将联动切换的 TTS 模型（无需联动为 null）。 */
+  linked: string | null
+  current: boolean
+  /** 是否自定义音色（仅自定义项可删/可遮蔽编辑）。 */
+  custom: boolean
+}
+
+/** voices.add 入参（左栏音色表单；字段与 serve _rpc_voices_add 同口径，同名 upsert=编辑）。 */
+export interface VoiceAddPayload {
+  name: string
+  voice_id: string
+  /** 适配模型（留空 = 不限，切换时不联动改模型）。 */
+  model: string
+  description: string
+}
+
+/** voices.select 回执 result（linked_model 非空 = 切换时联动换了 TTS 模型）。 */
+export interface VoiceSelectResult {
+  ok: boolean
+  name?: string
+  voice_id?: string
+  linked_model?: string | null
+  old_model?: string | null
+  error?: string
+}
+
 /** WS 指令 type 常量（镜像 protocol.CMD_*）。 */
 export const Cmd = {
   Message: 'message',
@@ -226,6 +267,10 @@ export const Cmd = {
   ModelsRemove: 'models.remove',
   VoicesList: 'voices.list',
   VoicesSelect: 'voices.select',
+  /** 左栏音色面板「添加音色」表单：添加/覆盖自定义音色（voices.add）。 */
+  VoicesAdd: 'voices.add',
+  /** 左栏右键自定义音色 → 删除（voices.delete，仅自定义音色可删）。 */
+  VoicesDelete: 'voices.delete',
   MetricsGet: 'metrics.get',
   StateGet: 'state.get',
   /** 右栏任务中心数据源：待触发提醒 + 活跃截止日期。 */
