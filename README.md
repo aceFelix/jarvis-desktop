@@ -145,6 +145,19 @@ push / PR 到 `main` 时 GitHub Actions（[.github/workflows/ci.yml](.github/wor
 
 协议细节与字段口径见 [docs/architecture.md](docs/architecture.md) 「左栏模型面板（切换 / 添加 / 修改 / 删除）」小节。
 
+## 全双工语音通路（/talk，2026-09-28）
+
+🎙 实时语音模式为**真全双工**（可对着 AI 说话打断），音频 I/O 不在 Python 侧，而在渲染进程：
+
+- **上行** `src/renderer/src/audio/talkCapture.ts`：`getUserMedia({echoCancellation:true})` 浏览器系统级
+  AEC（消除 AI 外放回采，服务端不再被回声误触发）+ AudioWorklet（Blob URL 注册）整数比抽取重采样到
+  16kHz PCM16，~100ms/帧经 `talk.audio` 指令（fire-and-forget 无回执）直喂服务端 `RealtimeEngine`（`BridgeMic`）。
+- **下行** `src/renderer/src/audio/talkPlayback.ts`：订阅 `talk_audio` 事件（24kHz PCM 帧 base64），
+  AudioContext `nextTime` 顺序排播免咔哒；空串 payload = 打断 flush（立即清空待播帧）。
+- **开关**：`backendStore.toggleTalk` 先乐观置模式→启动采集（失败回退并报错）→`talk.start {duplex:true}`；
+  服务端据此以全双工桥接模式启动（音频走 WS 帧而非本机 pyaudio，关闭半双工静音与软件回声抑制）。
+- 未授权/无麦克风时采集启动失败，模式自动回退文本态并上屏报错。
+
 ## 右栏面板（四区块）与设置面板
 
 右栏信息面板自上而下四个区块，任务/用量/健康数据经 `schedule.list` / `cost.get` / `state.get`

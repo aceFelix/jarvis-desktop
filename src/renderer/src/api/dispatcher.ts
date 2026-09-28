@@ -16,6 +16,7 @@ import { useRightStore } from '../stores/rightStore'
 import { getReactor } from '../stores/reactorRef'
 import type { ReactorStatus } from '../reactor'
 import type { JarvisConnection } from '../stores/backendStore'
+import { flushTalkAudio, pushTalkAudio, startTalkPlayback, stopTalkPlayback } from '../audio/talkPlayback'
 
 /** 实时模式状态标签（状态栏文案，与 workbench 一致）。 */
 export const talkStatusLabels: Record<string, string> = {
@@ -186,17 +187,28 @@ export function dispatchServerEvent(
       // 把 mode 重置为 text，这里复位保证最终停在 talk（与 voice_started 对称）。
       // @author aceFelix
       left.setMode('talk')
+      // 全双工音频通路：AI 语音帧经 talk_audio 事件回放（半双工 PyAudio 路径
+      // 不会发该事件，startTalkPlayback 幂等无副作用）
+      startTalkPlayback()
       break
     case 'talk_stopped':
       left.setTalkActive(false)
       left.setMode('text')
+      stopTalkPlayback()
       onStatus?.({ text: '就绪', tone: 'idle' })
+      break
+    case 'talk_audio':
+      // AI 语音帧（非空 base64）/ 打断 flush（空串，引擎 spk.stop_stream 镜像）。
+      // 注意此事件频率 ~50Hz，处理路径必须轻（只做入队，不做渲染）。
+      if (typeof payload === 'string') pushTalkAudio(payload)
       break
     case 'volume':
       getReactor()?.setVolume(Number(payload) || 0)
       break
     case 'user_speaking':
       getReactor()?.setUserSpeaking(!!payload)
+      // 全双工打断：用户开口 → 清空 AI 播放队列（引擎同帧已在本地 flush）
+      if (payload) flushTalkAudio()
       break
     case 'ai_speaking':
       getReactor()?.setAiSpeaking(!!payload)

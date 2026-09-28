@@ -22,6 +22,7 @@ import {
   type ModelEditPayload
 } from '../../../shared/contracts'
 import { JarvisWsClient } from '../api/ws'
+import { startTalkCapture, stopTalkCapture } from '../audio/talkCapture'
 import {
   asModelList,
   asSessionList,
@@ -232,6 +233,9 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
           set({ wsConnected: connected })
           if (!connected) {
             set({ statusLabel: { text: '与后端断开，重连中...', tone: 'err' } })
+            // 断线即释放麦克风：talk 会话随连接终止，采集线程不再有意义；
+            // 重连后用户重新进入 talk（talk 激活态由 talk_stopped 复位）
+            stopTalkCapture()
           }
         }
       })
@@ -418,9 +422,27 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
       const left = useLeftStore.getState()
       if (left.talkActive) {
         await runCommand(Cmd.TalkStop)
+        stopTalkCapture()
       } else {
+        // 全双工音频通路（2026-09-28）：渲染进程采集（浏览器 AEC）→ talk.audio
+        // 帧直喂服务端 RealtimeEngine。先乐观置模式（按钮即时高亮，UI 不等
+        // 麦克风授权），采集失败再回退——授权弹窗/无设备时给出明确报错。
         left.setMode('talk')
-        await runCommand(Cmd.TalkStart)
+        try {
+          await startTalkCapture((frame) => {
+            get().client?.send(Cmd.TalkAudio, { data: frame })
+          })
+        } catch (err) {
+          left.setMode('text')
+          useChatStore
+            .getState()
+            .addSystem(
+              `✗ 麦克风采集失败：${err instanceof Error ? err.message : String(err)}`,
+              'error'
+            )
+          return
+        }
+        await runCommand(Cmd.TalkStart, { duplex: true })
       }
     },
 

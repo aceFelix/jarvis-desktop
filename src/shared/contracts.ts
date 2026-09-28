@@ -235,6 +235,11 @@ export const Cmd = {
   AnswerUser: 'answer_user',
   TalkStart: 'talk.start',
   TalkStop: 'talk.stop',
+  /**
+   * 全双工麦克风帧（2026-09-28）：data 为 base64 PCM16 16kHz 单声道，~100ms/帧。
+   * fire-and-forget（用 wsClient.send 而非 runCommand），仅 duplex 会话消费。
+   */
+  TalkAudio: 'talk.audio',
   VoiceStart: 'voice.start',
   VoiceStop: 'voice.stop',
   VoiceInterrupt: 'voice.interrupt',

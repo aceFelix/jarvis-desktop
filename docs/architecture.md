@@ -124,8 +124,9 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `cost.get` | — | `{provider, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, dialogs, messages}` |
 | `answer_user` | `text` | null（回填 ask_user 弹窗） |
 | `reply.abort` | — | bool（停止当前回复：服务端线程安全取消引擎 send 任务，取消路径仍发 `assistant_done` 收尾；无进行中回复时 false） |
-| `talk.start` | — | null（结果走 `talk_started`） |
+| `talk.start` | `duplex?: bool` | null（结果走 `talk_started`；`duplex=true` 时服务端以真全双工桥接模式启动 /talk，麦克风/喇叭音频走壳，2026-09-28） |
 | `talk.stop` | — | null（结果走 `talk_stopped`） |
+| `talk.audio` | base64 PCM16 16k 帧 | 无回执（fire-and-forget，~100ms/帧，64KB 上限；仅 duplex 会话有效，渲染进程 `audio/talkCapture.ts` → 服务端 `BridgeMic`） |
 | `voice.start` | — | null（结果走 `voice_started`；与 `talk` 互斥，引擎自动停对方） |
 | `voice.stop` | — | null（结果走 `voice_stopped`） |
 | `voice.interrupt` | — | bool（打断当前播报/识别，不停会话；与麦克风 barge-in 双通道） |
@@ -312,7 +313,7 @@ theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配�
 - **提示**：`info` / `warn` / `error` / `status` / `ask_user`
 - **模型热切换**：`model_switched`（payload `{model}`；引擎已把运行中的 provider / 模型换成 `model` 的落地回执：壳清匹配的「待生效」标记 + 刷 `models.list` / 成本 / 状态，「· 当前」随之移动）
 - **指标**：`metrics`（每 2 秒推送）
-- **实时语音**：`talk_started` / `talk_stopped` / `volume` / `user_speaking` / `ai_speaking` / `user_transcript` / `ai_transcript` / `ai_transcript_delta`
+- **实时语音（真全双工）**：`talk_started` / `talk_stopped` / `volume` / `user_speaking` / `ai_speaking` / `user_transcript` / `ai_transcript` / `ai_transcript_delta` / `talk_audio`（下行 24kHz PCM 帧，base64；空串 payload = 打断 flush，由 `audio/talkPlayback.ts` 排播/清空）——duplex 会话下麦克风采集与播放均在渲染进程（浏览器 `getUserMedia({echoCancellation:true})` 系统级 AEC），服务端引擎只收发 WS 帧（`BridgeMic`/`BridgeSpk`，镜像 jarvis `agent/voice/realtime_bridge_audio.py`）
 - **半双工语音**：`voice_started` / `voice_stopped` / `voice_state`（payload 为 `listening｜thinking｜speaking｜standby｜exited`）/ `voice_user_transcript` / `voice_ai_text_delta`（流式增量）/ `voice_ai_text`（全量）——音频 I/O 留 serve 本机 pyaudio，壳只做遥控 + 状态/文字显示
 - **主动播报**：`proactive_notify`（payload `{kind: briefing｜reminder｜deadline, title, text, task_id}`；由 serve 侧 `ProactiveHub` 装配的每日简报 / 对话提醒 / 截止日期触发，仅 `--serve` / 桌面壳运行期间生效）
 
