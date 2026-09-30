@@ -8,11 +8,15 @@
  */
 
 import type { ServerEvent } from '../api/ws'
-import type { ProactiveNotifyPayload, VoiceState } from '../../../shared/contracts'
+import type {
+  CurrentProject,
+  ProactiveNotifyPayload,
+  VoiceState
+} from '../../../shared/contracts'
 import { useChatStore } from '../stores/chatStore'
 import { useLeftStore, type ModelItem, type SessionItem, type VoiceItem } from '../stores/leftStore'
 import { useMetricsStore, type MetricsPayload } from '../stores/metricsStore'
-import { useRightStore } from '../stores/rightStore'
+import { useRightStore, type McpStatus } from '../stores/rightStore'
 import { getReactor } from '../stores/reactorRef'
 import type { ReactorStatus } from '../reactor'
 import type { JarvisConnection } from '../stores/backendStore'
@@ -74,6 +78,13 @@ export function dispatchServerEvent(
       void conn.refreshCost()
       void conn.refreshState()
       void conn.refreshSettings()
+      // 项目工作区：当前项目 + 最近项目列表一并拉取（一次 WS 往返内完成）。
+      // @author aceFelix
+      void conn.refreshProjects()
+      // 握手完成：状态栏从启动期的「等待后端启动...」切到「就绪」。init 是每连接
+      // 首帧，此前只有首轮回复结束/断线才会刷新状态文案，连上后端后长期挂着
+      // 「等待后端启动...」会让人误以为后端没起来。@author aceFelix
+      onStatus?.({ text: '就绪', tone: 'idle' })
       break
 
     // ---- 文本对话流 ----
@@ -138,6 +149,33 @@ export function dispatchServerEvent(
       void conn.refreshCost()
       void conn.refreshState()
       logLine(`模型已切换：${p?.model ?? ''}`)
+      break
+    }
+
+    // ---- 项目热切换（引擎落地回执，同口径参照 model_switched） ----
+    // payload {workdir, name}：引擎已完成 settings.workdir 重写 + 系统提示词
+    // 重建 + 新会话创建 + projects.toml 置顶（handle_set_workdir）。前端这里：
+    // - 只清匹配项的 pendingProjectPath，避免“快速连续点选 A→B”时 B 事件
+    //   到达后把 A 的残留一并吞掉；
+    // - 刷会话列表（新会话行）+ 项目区（最近列表、当前项目字段）；
+    // - 当前项目直接以事件 payload 写回，不再走一次 project.get（省一次往返）。
+    // 成功气泡由引擎 info 事件上屏，不重复提示。@author aceFelix
+    case 'project_switched': {
+      const p = payload as { workdir?: string; name?: string }
+      const cur = useLeftStore.getState()
+      const workdir = String(p?.workdir ?? '')
+      const name = String(p?.name ?? '')
+      if (workdir) {
+        const next: CurrentProject = { workdir, name: name || workdir, persisted: true }
+        cur.setCurrentProject(next)
+        if (cur.pendingProjectPath === workdir) cur.setPendingProjectPath('')
+      } else if (cur.pendingProjectPath) {
+        // 无 workdir 的异常事件（理论上不到达）：保守清 pending，避免项目区长期“待生效”
+        cur.setPendingProjectPath('')
+      }
+      void conn.refreshSessions()
+      void conn.refreshProjects()
+      logLine(`项目已切换：${name || workdir}`)
       break
     }
 
@@ -315,6 +353,22 @@ export function dispatchServerEvent(
     case 'metrics':
       useMetricsStore.getState().update((payload ?? {}) as MetricsPayload)
       break
+
+    // ---- MCP 连接落定：刷新右栏运行健康 ----
+    case 'mcp_ready': {
+      // 引擎后台预热连完 MCP（约 9s）后推一次，payload 即 state.get 的 mcp 快照。
+      // init 时快照常为 None（右栏显示「MCP 未启用」），本事件补刷成真实连接态。
+      // 结构非法时退回主动拉一次 state.get，避免谎报。@author aceFelix
+      const p = payload as Partial<McpStatus> | null
+      if (p && Array.isArray(p.connected) && Array.isArray(p.failed)) {
+        useRightStore
+          .getState()
+          .setMcp({ connected: p.connected, failed: p.failed, tools: Number(p.tools) || 0 })
+      } else {
+        void conn.refreshState()
+      }
+      break
+    }
 
     default:
       // 未知事件静默忽略（协议向后兼容）

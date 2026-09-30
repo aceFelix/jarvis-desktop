@@ -18,8 +18,10 @@ import {
   type BackendSettingKey,
   type BackendSettings,
   type BackendState,
+  type CurrentProject,
   type ModelAddPayload,
   type ModelEditPayload,
+  type ProjectItem,
   type VoiceAddPayload,
   type VoiceSelectResult
 } from '../../../shared/contracts'
@@ -66,6 +68,12 @@ export interface JarvisConnection {
   refreshState: () => Promise<void>
   /** 设置面板刷新（settings.get → settingsStore.backendSettings 全量回填）。 */
   refreshSettings: () => Promise<void>
+  /**
+   * 项目区刷新（project.get + projects.list → leftStore）。
+   * init 事件拉起一次；project_switched 事件后重拉（上一次项目会自动置顶到最近）。
+   * @author aceFelix
+   */
+  refreshProjects: () => Promise<void>
   /** 提醒已读回执（proactive.ack）：fire-and-forget，失败静默。 */
   ackProactive: (taskId: string) => void
 }
@@ -146,6 +154,17 @@ export interface BackendStoreState {
   refreshCost: () => Promise<void>
   refreshState: () => Promise<void>
   refreshSettings: () => Promise<void>
+  /** 项目区刷新：拉当前项目 + 最近项目列表，回填 leftStore。@author aceFelix */
+  refreshProjects: () => Promise<void>
+  /**
+   * 切换当前项目（左栏「打开文件夹」成功回选、或最近项目项点击）。
+   * 入队即返回，引擎推 project_switched 后才真止切换；中途用
+   * `pendingProjectPath` 标记「已请求、尚未落地」的中间态。
+   * @author aceFelix
+   */
+  setProject: (path: string) => Promise<void>
+  /** 从最近列表移除项目（不删磁盘目录）。成功顺带刷 refreshProjects。@author aceFelix */
+  forgetProject: (path: string) => Promise<boolean>
   /** 设置面板写回单个后端联动设置项（乐观更新 + 回执失败回滚）。 */
   setBackendSetting: <K extends BackendSettingKey>(key: K, value: NonNullable<BackendSettings[K]>) => Promise<void>
   fetchMetrics: () => Promise<void>
@@ -161,6 +180,7 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     refreshCost: () => get().refreshCost(),
     refreshState: () => get().refreshState(),
     refreshSettings: () => get().refreshSettings(),
+    refreshProjects: () => get().refreshProjects(),
     ackProactive: (taskId) => {
       // 提醒已读回执：只发不等（send），失败静默——不因回执问题把错误
       // 写进聊天流（与 runCommand 的显式指令不同，这是后台自动确认）。
@@ -551,6 +571,62 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
       if (result !== null) {
         useSettingsStore.getState().applyBackendSettings(parseBackendSettings(result))
       }
+    },
+
+    // ---- 项目工作区（2026-08 新增）----
+    // 设计上“一个 serve 进程同一时刻只对应一个活跃项目”，切项目 = 开新会话；
+    // project.set 入队即返回，引擎内部会在当前一轮回复完后串行落地（同
+    // model_switch 范式），避免在流式输出中途抽走系统提示词造成上下文错乱。
+    // 前端用 pendingProjectPath 标记中间态，project_switched 事件后由 dispatcher
+    // 推入左Store.currentProject 并清 pending。@author aceFelix
+    refreshProjects: async () => {
+      // 1) project.get → currentProject；后端返回 {workdir, name, persisted}，
+      // 旧版无字段时宽容降级为 null（避免接口升级时前端 crash）。
+      const cur = await runCommand(Cmd.ProjectGet)
+      if (cur !== null) {
+        const c = cur as Partial<CurrentProject>
+        useLeftStore.getState().setCurrentProject(
+          c && typeof c.workdir === 'string'
+            ? { workdir: c.workdir, name: String(c.name ?? ''), persisted: !!c.persisted }
+            : null
+        )
+      }
+      // 2) projects.list → recentProjects；后端给每项附 exists 供前端置灰，
+      // 非列表回包（旧版 API 降级）处理为空列表。
+      const list = await runCommand(Cmd.ProjectsList)
+      if (list !== null) {
+        useLeftStore.getState().setRecentProjects(
+          Array.isArray(list) ? (list as ProjectItem[]) : []
+        )
+      }
+    },
+
+    setProject: async (path) => {
+      const left = useLeftStore.getState()
+      // 去重：已为当前项目 或 已点选同一项 → 不发指令、不弹提示（事件已推回可收敛）。
+      if (!path) return
+      if (left.currentProject?.workdir === path && !left.pendingProjectPath) return
+      if (left.pendingProjectPath === path) return
+      // 乐观标记待生效 → 发 project.set → 回执失败则撤销标记。
+      left.setPendingProjectPath(path)
+      const result = await runCommand(Cmd.ProjectSet, { path })
+      if (result === null) {
+        useLeftStore.getState().setPendingProjectPath('')
+        return
+      }
+      // 入队成功：当前项目信息尚未变（project_switched 才更），先刷最近列表
+      // 新项目会在后端 touch_project 中自动置顶（当 handle_set_workdir 落地时）；
+      // 不在此处提前拉取避免与 project_switched 后的刷新重复。
+    },
+
+    forgetProject: async (path) => {
+      // 仅从 projects.toml 中移除此记录，不删磁盘目录；后端 forget_project 回 false
+      // 代表“不在最近列表中”（幂等），前端当作成功处理、仅刷列表。@author aceFelix
+      if (!path) return false
+      const result = await runCommand(Cmd.ProjectsForget, { path })
+      if (result === null) return false
+      await get().refreshProjects()
+      return true
     },
 
     setBackendSetting: async (key, value) => {

@@ -147,6 +147,54 @@
     background: rgba(91, 200, 255, 0.28);
 }
 
+/* 可搜索下拉的顶部过滤输入（字体列表长时定位用）：贴合 .themed-select 视觉口径。
+   配色/边线由三张皮肤的 .themed-select-* 覆盖块自动接管。@author aceFelix */
+.themed-select-search {
+    box-sizing: border-box;
+    width: 100%;
+    margin: 2px 0 6px;
+    padding: 5px 8px;
+    font: inherit;
+    font-size: 13px;
+    color: #e6f4ff;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1.2px solid var(--edge-mid);
+    border-radius: 8px;
+    outline: none;
+}
+
+.themed-select-search:focus { border-color: var(--edge-strong); }
+.themed-select-search::placeholder { color: rgba(230, 244, 255, 0.45); }
+
+/* 选项改为弹性行：左侧字体名（以自身字体预览、超长省略），右侧附注标签（如「含中文」）。@author aceFelix */
+.themed-select-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.themed-select-option-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.themed-select-option-hint {
+    flex-shrink: 0;
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+/* 可搜索且过滤后无匹配项时的空态提示。@author aceFelix */
+.themed-select-empty {
+    padding: 8px;
+    font-size: 12px;
+    text-align: center;
+    opacity: 0.6;
+}
+
 /* ---- 时间选择器（自绘，替代原生 input[type=time]） ---- */
 /* 原生 time 输入框点时钟图标弹出的时/分面板由 Chromium 内部 UI 绘制（白底 +
    系统蓝选中），CSS 无法触达；改为小时/分钟两个 .themed-select 并排
@@ -182,6 +230,9 @@
     display: flex;
     gap: 8px;
     margin-top: 4px;
+    /* 与报错行同为 .panel 直接子项（在字段滚动区之外）：不参与 flex 压缩，
+       字段再多也常驻底部。@author aceFelix */
+    flex-shrink: 0;
 }
 
 .model-form-actions .action-btn {

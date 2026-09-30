@@ -50,7 +50,12 @@ beforeEach(() => {
     voiceState: '',
     // 待生效选择（模型/音色）为瞬态：复位避免串场到下一个用例。@author aceFelix
     pendingModel: '',
-    pendingVoice: ''
+    pendingVoice: '',
+    // 项目区（2026-08）瞬态字段一并复位：上一用例已写入的项目信息与 pending 射干下一个。
+    // @author aceFelix
+    currentProject: null,
+    recentProjects: [],
+    pendingProjectPath: ''
   })
   useRightStore.setState({
     reminders: [],
@@ -682,5 +687,125 @@ describe('backendStore · 后端进程换代清屏初始化', () => {
 
     expect(useChatStore.getState().messages).toHaveLength(1)
     expect(useBackendStore.getState().client).not.toBeNull()
+  })
+})
+
+/**
+ * 项目工作区（2026-08）：setProject / refreshProjects / forgetProject 指令路由。
+ * 口径与模型面板一致：project.set 入队即返回（引擎后续推 project_switched），
+ * refreshProjects 一次发 project.get + projects.list 两条指令。
+ * @author aceFelix
+ */
+describe('backendStore · 项目工作区', () => {
+  it('setProject 上送 project.set 并乐观标记 pendingProjectPath', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockImplementation((type: string) => {
+      if (type === Cmd.ProjectSet) {
+        return Promise.resolve({ ok: true, result: { ok: true, workdir: 'D:/proj/x', name: 'x' } })
+      }
+      return Promise.resolve({ ok: true, result: null })
+    })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+    useLeftStore.setState({
+      currentProject: { workdir: 'D:/proj/old', name: 'old', persisted: true },
+      pendingProjectPath: ''
+    })
+
+    await useBackendStore.getState().setProject('D:/proj/x')
+
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.ProjectSet, { path: 'D:/proj/x' })
+    expect(useLeftStore.getState().pendingProjectPath).toBe('D:/proj/x')
+  })
+
+  it('setProject 目标已为当前项目 → 不发指令、不标记 pending', async () => {
+    const client = fakeClient()
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+    useLeftStore.setState({
+      currentProject: { workdir: 'D:/proj/a', name: 'a', persisted: true },
+      pendingProjectPath: ''
+    })
+
+    await useBackendStore.getState().setProject('D:/proj/a')
+
+    expect(client.sendCommand).not.toHaveBeenCalled()
+    expect(useLeftStore.getState().pendingProjectPath).toBe('')
+  })
+
+  it('setProject 回执失败（ok=false）→ 撤销 pendingProjectPath 并弹错', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: false, error: '项目路径非法' })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+    useLeftStore.setState({ currentProject: null, pendingProjectPath: '' })
+
+    await useBackendStore.getState().setProject('relative/path')
+
+    expect(useLeftStore.getState().pendingProjectPath).toBe('')
+    const msgs = useChatStore.getState().messages
+    const last = msgs[msgs.length - 1]
+    expect((last as { text?: string }).text).toContain('项目路径非法')
+  })
+
+  it('refreshProjects 拉 project.get + projects.list 并回填 leftStore', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockImplementation((type: string) => {
+      if (type === Cmd.ProjectGet) {
+        return Promise.resolve({
+          ok: true,
+          result: { workdir: 'D:/proj/cur', name: 'cur', persisted: true }
+        })
+      }
+      if (type === Cmd.ProjectsList) {
+        return Promise.resolve({
+          ok: true,
+          result: [
+            { path: 'D:/proj/cur', name: 'cur', last_opened: '2026-08-30T10:00:00', exists: true },
+            { path: 'D:/proj/old', name: 'old', last_opened: '2026-08-29T09:00:00', exists: false }
+          ]
+        })
+      }
+      return Promise.resolve({ ok: true, result: null })
+    })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().refreshProjects()
+
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.ProjectGet, {})
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.ProjectsList, {})
+    expect(useLeftStore.getState().currentProject).toEqual({
+      workdir: 'D:/proj/cur',
+      name: 'cur',
+      persisted: true
+    })
+    expect(useLeftStore.getState().recentProjects).toHaveLength(2)
+    expect(useLeftStore.getState().recentProjects[1].exists).toBe(false)
+  })
+
+  it('forgetProject 上送 projects.forget 后重拉项目列表', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockImplementation((type: string) => {
+      if (type === Cmd.ProjectsForget) return Promise.resolve({ ok: true, result: true })
+      if (type === Cmd.ProjectGet) return Promise.resolve({ ok: true, result: null })
+      if (type === Cmd.ProjectsList) return Promise.resolve({ ok: true, result: [] })
+      return Promise.resolve({ ok: true, result: null })
+    })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    const ok = await useBackendStore.getState().forgetProject('D:/proj/gone')
+
+    expect(ok).toBe(true)
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.ProjectsForget, { path: 'D:/proj/gone' })
+    // forgetProject 内部会顺带 refreshProjects，验证 ProjectGet 也被拉过
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.ProjectGet, {})
+  })
+
+  it('forgetProject 回执失败 → 回 false、不刷列表', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: false, error: 'bad path' })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    const ok = await useBackendStore.getState().forgetProject('')
+
+    expect(ok).toBe(false)
+    expect(client.sendCommand).not.toHaveBeenCalled()
   })
 })

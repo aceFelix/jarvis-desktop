@@ -123,7 +123,9 @@ export default function ModelForm(): JSX.Element {
         <span />
       </div>
 
-      <div className="settings-panel" data-testid="model-form">
+      {/* 字段区：面板高度不够时自身滚动（form-scroll，样式见 main.css），
+          避免表单溢出压到左栏底部的项目区块上。@author aceFelix */}
+      <div className="settings-panel form-scroll" data-testid="model-form">
         {inEdit ? (
           <div className="setting-hint" data-testid="model-form-target">
             {t('modelForm.editingHint', { name: target })}
@@ -206,29 +208,32 @@ export default function ModelForm(): JSX.Element {
           />
         </div>
 
-        {error ? (
-          <div className="model-form-error" data-testid="model-form-error">
-            {error}
-          </div>
-        ) : null}
+      </div>
 
-        <div className="model-form-actions">
-          <button
-            className="action-btn primary"
-            data-testid="model-form-submit"
-            disabled={submitting}
-            onClick={() => void submit()}
-          >
-            {inEdit ? t('modelForm.save') : t('modelForm.submit')}
-          </button>
-          <button
-            className="action-btn"
-            data-testid="model-form-cancel"
-            onClick={closeModelForm}
-          >
-            {t('modelForm.cancel')}
-          </button>
+      {/* 报错与操作按钮均在滚动区之外：校验失败原因常驻可见（不必滚到
+          字段区底部去找），字段滚到任意位置也能直接保存/取消。@author aceFelix */}
+      {error ? (
+        <div className="model-form-error" data-testid="model-form-error">
+          {error}
         </div>
+      ) : null}
+
+      <div className="model-form-actions">
+        <button
+          className="action-btn primary"
+          data-testid="model-form-submit"
+          disabled={submitting}
+          onClick={() => void submit()}
+        >
+          {inEdit ? t('modelForm.save') : t('modelForm.submit')}
+        </button>
+        <button
+          className="action-btn"
+          data-testid="model-form-cancel"
+          onClick={closeModelForm}
+        >
+          {t('modelForm.cancel')}
+        </button>
       </div>
     </div>
   )

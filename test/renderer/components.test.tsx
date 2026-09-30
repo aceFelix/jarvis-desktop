@@ -536,6 +536,20 @@ describe('LeftSidebar 面板切换', () => {
     render(<LeftSidebar />)
     expect(screen.getByText('{TXT} 文本')).toBeInTheDocument()
   })
+
+  it('项目区底部常驻：位于面板区之后、状态栏之前（2026-08 位置调整）', () => {
+    render(<LeftSidebar />)
+    const listArea = document.querySelector('.list-area') as Node
+    const section = document.querySelector('.project-section') as Node
+    const footer = document.getElementById('left-footer') as Node
+    expect(listArea).not.toBeNull()
+    expect(section).not.toBeNull()
+    expect(footer).not.toBeNull()
+    // 文档顺序「面板区 → 项目区 → 状态栏」：项目区不占顶部，也不会被面板挤出
+    // 可视区（compareDocumentPosition 命中 FOLLOWING 位 = 4）。@author aceFelix
+    expect(listArea.compareDocumentPosition(section) & 4).toBe(4)
+    expect(section.compareDocumentPosition(footer) & 4).toBe(4)
+  })
 })
 
 describe('LeftSidebar 添加模型', () => {
@@ -558,6 +572,11 @@ describe('LeftSidebar 添加模型', () => {
     expect(useLeftStore.getState().modelFormOpen).toBe(true)
     expect(screen.getByTestId('panel-model-form')).toBeInTheDocument()
     expect(screen.queryByTestId('panel-model')).toBeNull()
+    // 字段区带 form-scroll：面板高度不够时自身滚动，不溢出压到底部项目区块；
+    // 保存/取消与报错行在滚动区之外（.panel 直接子项），常驻可见
+    const form = screen.getByTestId('model-form')
+    expect(form.className).toContain('form-scroll')
+    expect(form.contains(screen.getByTestId('model-form-submit'))).toBe(false)
     // 默认值与 REPL 添加流程口径一致：厂商 deepseek / 接口 openai / 类型 text
     // 下拉为自绘 ThemedSelect（button 触发器）：值走 data-value，显示文案走文本内容
     expect(screen.getByTestId('model-form-vendor')).toHaveAttribute('data-value', 'deepseek')
@@ -943,6 +962,10 @@ describe('LeftSidebar 音色面板与音色表单', () => {
     expect(useLeftStore.getState().voiceFormOpen).toBe(true)
     expect(screen.getByTestId('panel-voice-form')).toBeInTheDocument()
     expect(screen.queryByTestId('panel-voice')).toBeNull()
+    // 字段区滚动 + 操作按钮常驻（口径同模型表单）
+    const voiceForm = screen.getByTestId('voice-form')
+    expect(voiceForm.className).toContain('form-scroll')
+    expect(voiceForm.contains(screen.getByTestId('voice-form-submit'))).toBe(false)
     // 默认值与终端 /tts-voice 表单同口径：适配模型缺省家族 cosyvoice-v3
     expect(screen.getByTestId('voice-form-model')).toHaveAttribute('data-value', 'cosyvoice-v3')
     expect(screen.getByTestId('voice-form-name')).toHaveValue('')
@@ -1252,7 +1275,7 @@ describe('RightSidebar 任务中心与用量', () => {
     expect(screen.getByTestId('latest-briefing')).toHaveTextContent('早上好，先生')
   })
 
-  it('用量卡渲染 token 统计（千分位分组）', () => {
+  it('用量卡渲染 token 统计（千分位分组）与缓存命中率', () => {
     useRightStore.setState({
       cost: {
         provider: 'deepseek',
@@ -1261,6 +1284,8 @@ describe('RightSidebar 任务中心与用量', () => {
         output_tokens: 678,
         cache_read_tokens: 50,
         cache_creation_tokens: 10,
+        // 命中率由后端 cost.get 算好（Usage.cache_hit_rate），前端原样展示
+        cache_hit_rate: 78.5,
         dialogs: 3,
         messages: 8
       }
@@ -1270,6 +1295,28 @@ describe('RightSidebar 任务中心与用量', () => {
     expect(card).toHaveTextContent('deepseek-chat')
     expect(card).toHaveTextContent('12,345')
     expect(card).toHaveTextContent('3 轮 / 8 条')
+    // 一位小数 + 百分号；title 透出命中/输入明细
+    const hit = screen.getByTestId('usage-cache-hit-rate')
+    expect(hit).toHaveTextContent('缓存命中率')
+    expect(hit).toHaveTextContent('78.5%')
+  })
+
+  it('旧后端无 cache_hit_rate 字段时隐藏命中率行（不留空白指标）', () => {
+    useRightStore.setState({
+      cost: {
+        provider: 'deepseek',
+        model: 'deepseek-chat',
+        input_tokens: 100,
+        output_tokens: 20,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        dialogs: 1,
+        messages: 2
+      }
+    })
+    render(<RightSidebar />)
+    expect(screen.getByTestId('usage-card')).toHaveTextContent('deepseek-chat')
+    expect(screen.queryByTestId('usage-cache-hit-rate')).toBeNull()
   })
 })
 

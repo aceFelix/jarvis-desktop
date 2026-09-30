@@ -1,0 +1,229 @@
+/**
+ * 项目工作区（左栏底部「项目」区）样式：2026-08 桌面项目工作区改造。
+ *
+ * 配色全部走主题变量，不写死色值（此前写死蓝色，在荧光绿 CRT / 金属银主题下
+ * 仍是蓝的，与皮肤打架）：
+ * - 边框/描边：复用三皮肤共用的 --edge-strong / --edge-mid / --edge-soft；
+ * - 文本与强调：--proj-text / --proj-bright / --proj-dim / --proj-error，
+ *   与 --scroll-thumb 同范式，由 theme-dark-y2k.css / theme-retro.css /
+ *   theme-light-y2k.css 的 :root[data-theme='*'] 块分别赋值；
+ * - 悬停为「反白」范式（同 .list-item:not(.noop):hover）：--proj-hover-bg /
+ *   --proj-hover-fg，荧光绿主题下是绿底黑字，电光蓝是蓝底深字，金属银是铬银底黑字。
+ *
+ * 位置：左栏面板区之后、状态栏之前的底部常驻块（.project-section 不参与压缩）。
+ * 三皮肤另以 `.project-*` 前缀覆盖圆角/玻璃与个别色值（硬边像素口径）。
+ *
+ * @author aceFelix
+ */
+
+.project-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px 10px;
+    /* 底部常驻块：上下间距交给列 gap（.glass-col gap: 10px），不再额外加外边距 */
+    margin: 0;
+    background: var(--proj-panel, rgba(255, 255, 255, 0.04));
+    border: 1.2px solid var(--edge-soft, rgba(255, 255, 255, 0.12));
+    border-radius: 12px;
+    flex-shrink: 0;
+}
+
+/* ---- 头部：标题 + 「＋ 打开文件夹」按钮 ---- */
+.project-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.project-title {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--proj-dim, #9cc4e0);
+    text-transform: uppercase;
+}
+
+.project-open-btn {
+    padding: 3px 8px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--proj-bright, #5bc8ff);
+    background: color-mix(in srgb, var(--proj-bright, #5bc8ff) 10%, transparent);
+    border: 1.2px dashed var(--edge-mid, rgba(91, 200, 255, 0.55));
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.project-open-btn:hover {
+    background: var(--proj-hover-bg, rgba(91, 200, 255, 0.22));
+    color: var(--proj-hover-fg, #7fe3ff);
+}
+
+/* ---- 当前项目行 ---- */
+.project-current {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    font-size: 13px;
+    color: var(--proj-text, #e6f4ff);
+    background: color-mix(in srgb, var(--proj-bright, #00f0ff) 6%, transparent);
+    border: 1.2px solid var(--edge-mid, rgba(0, 240, 255, 0.35));
+    border-radius: 8px;
+    min-height: 22px;
+}
+
+.project-current.empty {
+    color: var(--proj-dim, #7d97ad);
+    background: transparent;
+    border-style: dashed;
+    border-color: var(--edge-soft, rgba(255, 255, 255, 0.15));
+}
+
+.project-current-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---- 徽标（待生效 / 目录不存在）---- */
+.project-badge {
+    flex-shrink: 0;
+    padding: 1px 6px;
+    font-size: 11px;
+    line-height: 1.4;
+    border-radius: 6px;
+    letter-spacing: 0.02em;
+}
+
+.project-badge.pending {
+    color: var(--proj-bright, #7fe3ff);
+    background: color-mix(in srgb, var(--proj-bright, #00f0ff) 14%, transparent);
+    border: 1px solid var(--edge-mid, rgba(0, 240, 255, 0.5));
+}
+
+.project-badge.missing {
+    color: var(--proj-error, #ff9b9b);
+    background: color-mix(in srgb, var(--proj-error, #ff6b6b) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--proj-error, #ff6b6b) 60%, transparent);
+}
+
+/* ---- 最近项目列表 ---- */
+.project-recent {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.project-recent-label {
+    font-size: 11px;
+    color: var(--proj-dim, #7d97ad);
+    letter-spacing: 0.03em;
+    padding: 2px 2px 0;
+}
+
+.project-recent-empty {
+    font-size: 12px;
+    color: var(--proj-dim, #7d97ad);
+    padding: 4px 2px;
+    font-style: italic;
+}
+
+.project-recent-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    /* 底部常驻块，列表高度收紧（3~4 项），更长的历史靠内部滚动 */
+    max-height: 126px;
+    overflow-y: auto;
+    scrollbar-width: auto;
+    scrollbar-color: var(--scroll-thumb, rgba(91, 200, 255, 0.55)) var(--scroll-track, rgba(255, 255, 255, 0.06));
+}
+
+.project-recent-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.project-recent-list::-webkit-scrollbar-thumb {
+    background: var(--scroll-thumb, rgba(91, 200, 255, 0.45));
+    border-radius: 3px;
+}
+
+.project-recent-item {
+    position: relative;
+    padding-right: 8px;
+}
+
+.project-recent-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 8px;
+    font-size: 12px;
+    color: var(--proj-text, #e6f4ff);
+    background: var(--proj-panel, rgba(255, 255, 255, 0.05));
+    border: 1.2px solid var(--edge-soft, rgba(255, 255, 255, 0.1));
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    word-break: break-all;
+}
+
+.project-recent-item:not(.noop) .project-recent-main:hover {
+    background: var(--proj-hover-bg, rgba(91, 200, 255, 0.12));
+    color: var(--proj-hover-fg, #5bc8ff);
+}
+
+.project-recent-name {
+    font-weight: 600;
+}
+
+.project-recent-path {
+    font-size: 11px;
+    color: var(--proj-dim, #9cc4e0);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.project-recent-item.current .project-recent-main {
+    color: var(--proj-bright, #7fe3ff);
+    border-color: var(--edge-strong, rgba(0, 240, 255, 0.65));
+    background: color-mix(in srgb, var(--proj-bright, #00f0ff) 10%, transparent);
+    cursor: default;
+}
+
+.project-recent-item.pending .project-recent-main {
+    border-style: dashed;
+}
+
+.project-recent-item.missing .project-recent-main {
+    color: var(--proj-dim, #b3c7d6);
+    opacity: 0.7;
+}
+
+.project-forget-btn {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    padding: 2px 6px;
+    font: inherit;
+    font-size: 11px;
+    color: var(--proj-error, #ff6b6b);
+    background: color-mix(in srgb, var(--proj-error, #ff6b6b) 14%, transparent);
+    border: 1.2px solid var(--proj-error, #ff6b6b);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.project-forget-btn:hover {
+    background: color-mix(in srgb, var(--proj-error, #ff6b6b) 28%, transparent);
+}

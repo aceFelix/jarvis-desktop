@@ -108,3 +108,64 @@ describe('ThemedSelect 自绘下拉', () => {
     expect(screen.queryByTestId('sel-menu')).toBeNull()
   })
 })
+
+describe('ThemedSelect 可搜索 + 字体预览（2026-09 字体设置扩展）', () => {
+  const FONT_OPTIONS = [
+    { value: '', label: '默认' },
+    { value: 'Arial', label: 'Arial', fontFamily: 'Arial' },
+    { value: 'SimSun', label: 'SimSun', fontFamily: 'SimSun', hint: '含中文' }
+  ]
+
+  it('searchable：展开渲染过滤输入；输入按 label/value 子串过滤选项', () => {
+    render(
+      <ThemedSelect
+        value=""
+        options={FONT_OPTIONS}
+        onChange={() => {}}
+        testid="sel"
+        searchable
+        searchPlaceholder="搜索"
+      />
+    )
+    fireEvent.click(screen.getByTestId('sel'))
+    const input = screen.getByTestId('sel-search')
+    expect(input).toBeInTheDocument()
+    // 输入 ar 只剩 Arial（SimSun/默认 不匹配）
+    fireEvent.change(input, { target: { value: 'ar' } })
+    expect(screen.getByTestId('sel-option-Arial')).toBeInTheDocument()
+    expect(screen.queryByTestId('sel-option-SimSun')).toBeNull()
+    expect(screen.queryByTestId('sel-option-')).toBeNull()
+  })
+
+  it('无匹配项时显 emptyText 提示', () => {
+    render(
+      <ThemedSelect
+        value=""
+        options={FONT_OPTIONS}
+        onChange={() => {}}
+        testid="sel"
+        searchable
+        emptyText="无匹配"
+      />
+    )
+    fireEvent.click(screen.getByTestId('sel'))
+    fireEvent.change(screen.getByTestId('sel-search'), { target: { value: 'zzz' } })
+    expect(screen.getByText('无匹配')).toBeInTheDocument()
+  })
+
+  it('选项以自身字体渲染 style，并展示 hint 标签', () => {
+    render(<ThemedSelect value="" options={FONT_OPTIONS} onChange={() => {}} testid="sel" />)
+    fireEvent.click(screen.getByTestId('sel'))
+    expect(screen.getByTestId('sel-option-Arial')).toHaveStyle({ fontFamily: 'Arial' })
+    expect(screen.getByTestId('sel-option-SimSun')).toHaveTextContent('含中文')
+    // 无 fontFamily 的默认项不内联 style
+    expect(screen.getByTestId('sel-option-')).not.toHaveStyle({ fontFamily: 'Arial' })
+  })
+
+  it('onOpen：展开时在用户手势栈内回调一次（懒加载钩子）', () => {
+    const onOpen = vi.fn()
+    render(<ThemedSelect value="a" options={OPTIONS} onChange={() => {}} testid="sel" onOpen={onOpen} />)
+    fireEvent.click(screen.getByTestId('sel'))
+    expect(onOpen).toHaveBeenCalledTimes(1)
+  })
+})

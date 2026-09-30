@@ -60,6 +60,17 @@ const api = {
     ipcRenderer.invoke(IpcChannels.CaptureScreen),
 
   /**
+   * 项目工作区：目录选择器桥（左栏「项目」区「打开文件夹」）。
+   * 主进程 Electron dialog.showOpenDialog 返回选中绝对路径；取消返回 null。
+   * 渲染层拿到路径后经 WS `project.set` 上送后端。安全边界：不在这里暴露
+   * ipcRenderer 本体、不传递文件内容、后端二次校验路径存在与绝对性。
+   *
+   * @author aceFelix
+   */
+  selectDirectory: (): Promise<string | null> =>
+    ipcRenderer.invoke(IpcChannels.SelectDirectory),
+
+  /**
    * 订阅后端状态推送（spawning/ready/error/exited）。
    * 返回取消订阅函数（React useEffect cleanup 用）。
    */

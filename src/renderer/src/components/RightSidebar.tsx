@@ -100,12 +100,16 @@ function TaskCenter(): JSX.Element {
   )
 }
 
-/** 会话与用量卡：当前模型 + token 累计 + 对话轮数/消息条数。 */
+/** 会话与用量卡：当前模型 + token 累计 + 缓存命中率 + 对话轮数/消息条数。 */
 function UsageCard(): JSX.Element {
   const cost = useRightStore((s) => s.cost)
   const t = useT()
   if (!cost) return <div className="side-empty">{t('right.noCost')}</div>
   const cacheTotal = cost.cache_read_tokens + cost.cache_creation_tokens
+  // 缓存命中率：直接用后端算好的 cost.cache_hit_rate（口径见 Usage.cache_hit_rate，
+  // 区分 OpenAI / Anthropic 两种协议的分母），前端不重算，避免与 /cost 对不上；
+  // 旧后端无该字段时隐藏整行，不留空白指标。@author aceFelix
+  const hitRate = typeof cost.cache_hit_rate === 'number' ? cost.cache_hit_rate : null
   return (
     <div className="usage-card" data-testid="usage-card">
       <div className="usage-row">
@@ -130,6 +134,17 @@ function UsageCard(): JSX.Element {
           {fmtNum(cacheTotal)}
         </span>
       </div>
+      {hitRate !== null ? (
+        <div className="usage-row" data-testid="usage-cache-hit-rate">
+          <span>{t('right.cacheHitRate')}</span>
+          <span
+            className="usage-value"
+            title={t('right.cacheHitRateTitle', { r: fmtNum(cost.cache_read_tokens), i: fmtNum(cost.input_tokens) })}
+          >
+            {hitRate.toFixed(1)}%
+          </span>
+        </div>
+      ) : null}
     </div>
   )
 }

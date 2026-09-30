@@ -79,4 +79,22 @@ describe('preload 暴露面', () => {
     expect(typeof api.onBackendStatus).toBe('function')
     expect(typeof api.getBackendInfo).toBe('function')
   })
+
+  /**
+   * 项目工作区目录选择器（2026-08）：主进程 dialog.showOpenDirectory 的
+   * preload 白名单暴露。本测试锁定“渲染进程能拿到路径的唯一入口”不被遗忘
+   * 或与 ipcRenderer 泄密互换（直接暴露 ipcRenderer 会破坏 contextIsolation 安全边界）。
+   * @author aceFelix
+   */
+  it('selectDirectory 以 SelectDirectory 通道走 ipcRenderer.invoke', async () => {
+    h.invoke.mockResolvedValueOnce('D:\\Projects\\demo')
+    const selectDirectory = exposedApi().selectDirectory as () => Promise<string | null>
+    const got = await selectDirectory()
+    expect(got).toBe('D:\\Projects\\demo')
+    expect(h.invoke).toHaveBeenCalledWith(IpcChannels.SelectDirectory)
+  })
+
+  it('SelectDirectory 通道名是稳定契约（改名会断链）', () => {
+    expect(IpcChannels.SelectDirectory).toBe('jarvis:select-directory')
+  })
 })

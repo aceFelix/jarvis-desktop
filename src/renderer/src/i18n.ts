@@ -69,6 +69,19 @@ const zh: Dict = {
   // 列表副行的适配/联动预告：兼容项显「适配」，不兼容项显点选后将联动切的模型
   'left.voiceFits': '· 适配 {model}',
   'left.voiceLinks': '· 联动 {model}',
+  // 项目工作区（2026-08）：当前项目 + 打开文件夹 + 最近项目列表。
+  // 切项目 = 开新会话（后端 handle_set_workdir 已自动处理）。
+  // @author aceFelix
+  'left.projectTitle': '项目',
+  'left.projectCurrentEmpty': '未选择项目',
+  'left.projectCurrentTip': '当前工作目录：{path}',
+  'left.projectOpenFolder': '＋ 打开文件夹',
+  'left.projectOpenFolderTip': '选择本地目录作为项目，切换后当前会话会新开一个新会话',
+  'left.projectRecent': '最近项目',
+  'left.projectRecentEmpty': '暂无最近项目',
+  'left.projectRecentItemTip': '点击切换 · 右键从列表移除',
+  'left.projectForget': '从列表移除',
+  'left.projectMissing': '目录不存在',
 
   // ---- 中栏对话区 ----
   'chat.you': '你',
@@ -117,6 +130,9 @@ const zh: Dict = {
   'right.outputTokens': '输出 token',
   'right.cacheTokens': '缓存 token',
   'right.cacheTitle': '读 {r} / 写 {w}',
+  // 缓存命中率：数值由后端 cost.get 算好（Usage.cache_hit_rate 统一口径）
+  'right.cacheHitRate': '缓存命中率',
+  'right.cacheHitRateTitle': '命中 {r} / 输入 {i} token（口径同 /cost）',
   'right.mcpOff': 'MCP 未启用',
   'right.mcpUp': 'MCP {c} 连',
   'right.mcpFailedSuffix': ' / {f} 败',
@@ -140,6 +156,12 @@ const zh: Dict = {
   'settings.theme.light': '金属银',
   'settings.theme.retro': '荧光绿',
   'settings.language': '语言',
+    'settings.fontLatin': '英文字体',
+    'settings.fontCjk': '中文字体',
+    'settings.font.default': '默认（终端等宽）',
+    'settings.font.cjkTag': '含中文',
+    'settings.font.search': '搜索字体…',
+    'settings.font.empty': '无匹配字体',
   'settings.voiceSection': '语音播报',
   'settings.proactiveTts': '主动播报语音朗读',
   'settings.proactiveTtsHint': '简报/提醒/截止日期到期时用本机语音并行朗读；对话或语音会话中跳过不打断',
@@ -266,6 +288,19 @@ const en: Dict = {
   // Sub-line preview: compatible items show "fits", incompatible ones show the linked model
   'left.voiceFits': '· fits {model}',
   'left.voiceLinks': '· links {model}',
+  // Project workspace (2026-08): current project + open folder + recent projects.
+  // Switching a project automatically starts a new session on the backend.
+  // @author aceFelix
+  'left.projectTitle': 'Project',
+  'left.projectCurrentEmpty': 'No project selected',
+  'left.projectCurrentTip': 'Current workdir: {path}',
+  'left.projectOpenFolder': '+ Open Folder',
+  'left.projectOpenFolderTip': 'Pick a local folder as the project; switching starts a new session',
+  'left.projectRecent': 'Recent Projects',
+  'left.projectRecentEmpty': 'No recent projects',
+  'left.projectRecentItemTip': 'Click to switch · right-click to remove from list',
+  'left.projectForget': 'Remove from list',
+  'left.projectMissing': 'Folder missing',
 
   // ---- Chat area ----
   'chat.you': 'You',
@@ -314,6 +349,9 @@ const en: Dict = {
   'right.outputTokens': 'Output tokens',
   'right.cacheTokens': 'Cache tokens',
   'right.cacheTitle': 'read {r} / write {w}',
+  // Cache hit rate: computed backend-side (Usage.cache_hit_rate), shown as-is
+  'right.cacheHitRate': 'Cache hit rate',
+  'right.cacheHitRateTitle': 'hit {r} / input {i} tokens (same as /cost)',
   'right.mcpOff': 'MCP disabled',
   'right.mcpUp': 'MCP {c} up',
   'right.mcpFailedSuffix': ' / {f} failed',
@@ -337,6 +375,12 @@ const en: Dict = {
   'settings.theme.light': 'Chrome Silver',
   'settings.theme.retro': 'Neon Green',
   'settings.language': 'Language',
+    'settings.fontLatin': 'Latin font',
+    'settings.fontCjk': 'Chinese font',
+    'settings.font.default': 'Default (terminal mono)',
+    'settings.font.cjkTag': 'CJK',
+    'settings.font.search': 'Search fonts…',
+    'settings.font.empty': 'No matching font',
   'settings.voiceSection': 'Voice Broadcast',
   'settings.proactiveTts': 'Proactive broadcast read-aloud',
   'settings.proactiveTtsHint': 'Read due briefings/reminders/deadlines aloud with local TTS; skipped (not interrupted) while chatting or in a voice session',

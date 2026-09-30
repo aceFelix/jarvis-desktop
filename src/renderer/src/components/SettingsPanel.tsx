@@ -2,7 +2,7 @@
  * 设置面板（独立组件）：整体替换右栏信息面板（App 按 uiStore.rightView 切换）。
  *
  * 结构：返回头（← 回信息面板）+ 四个分组：
- * - 外观（主题/语言，本地偏好，localStorage 持久化）；
+ * - 外观（主题/语言/字体，本地偏好，localStorage 持久化）；
  * - 语音播报（主动播报 TTS 开关 + 音量/语速滑杆，后端联动）；
  * - 每日简报（开关 + 简报时间，后端联动，改动触发调度热重注册）；
  * - 截止日期追踪（开关 + 检查时间，后端联动）。
@@ -24,6 +24,7 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { useUiStore } from '../stores/uiStore'
 import { useT } from '../i18n'
 import ThemedTimePicker from './ThemedTimePicker'
+import FontPicker from './FontPicker'
 
 /** 行组件公共 props：label/hintKey/testid 前缀由父组件传入。 */
 interface RowProps {
@@ -141,6 +142,10 @@ export default function SettingsPanel(): JSX.Element {
   const language = useSettingsStore((s) => s.language)
   const setTheme = useSettingsStore((s) => s.setTheme)
   const setLanguage = useSettingsStore((s) => s.setLanguage)
+  const fontLatin = useSettingsStore((s) => s.fontLatin)
+  const fontCjk = useSettingsStore((s) => s.fontCjk)
+  const setFontLatin = useSettingsStore((s) => s.setFontLatin)
+  const setFontCjk = useSettingsStore((s) => s.setFontCjk)
   const closeSettings = useUiStore((s) => s.closeSettings)
   const t = useT()
 
@@ -210,6 +215,29 @@ export default function SettingsPanel(): JSX.Element {
               English
             </button>
           </div>
+        </div>
+        {/* 字体：英文/中文各自单设（本地偏好，localStorage 持久化）；下拉数据源为
+            本机枚举字体，未选回落主题默认等宽栈。选项以自身字体预览，中文字体行
+            置顶并打「含中文」标签。@author aceFelix */}
+        <div className="setting-row">
+          <span className="setting-label">{t('settings.fontLatin')}</span>
+          <FontPicker
+            testid="font-latin"
+            ariaLabel={t('settings.fontLatin')}
+            cjkFirst={false}
+            value={fontLatin}
+            onChange={setFontLatin}
+          />
+        </div>
+        <div className="setting-row">
+          <span className="setting-label">{t('settings.fontCjk')}</span>
+          <FontPicker
+            testid="font-cjk"
+            ariaLabel={t('settings.fontCjk')}
+            cjkFirst
+            value={fontCjk}
+            onChange={setFontCjk}
+          />
         </div>
       </div>
 

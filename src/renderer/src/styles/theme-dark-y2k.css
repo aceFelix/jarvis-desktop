@@ -28,6 +28,15 @@
     --scroll-track: rgba(2, 10, 22, 0.7);
     /* Y2K 铬金属渐变：亮-暗-亮三段模拟金属反光（渐变文字/选中态/主按钮共用） */
     --y2k-chrome: linear-gradient(180deg, #f2ffff 0%, #9ff6ff 28%, #0094cf 52%, #00c8ec 72%, #7deeff 100%);
+    /* 项目工作区（左栏底部，结构样式在 project-section.css）：文本/强调/底色/悬停随皮肤，
+       悬停取「反白」范式（同行 .list-item:hover：亮底深字）。@author aceFelix */
+    --proj-text: var(--y2k-text);
+    --proj-bright: var(--y2k-bright);
+    --proj-dim: var(--y2k-dim);
+    --proj-error: var(--y2k-error);
+    --proj-panel: rgba(2, 18, 38, 0.7);
+    --proj-hover-bg: var(--y2k-bright);
+    --proj-hover-fg: #031018;
     /* 像素切角：四角各缺 6px 台阶，clip-path 裁出 8-bit 轮廓 */
     --y2k-notch: polygon(
         0 6px, 6px 6px, 6px 0,
@@ -48,8 +57,8 @@
         radial-gradient(ellipse at 50% 35%, rgba(0, 90, 160, 0.4), transparent 70%);
     background-size: auto, auto, 3px 3px, 100% 100%;
     color: var(--y2k-text);
-    /* 等宽栈与复古皮肤同源：像素终端味，零新资源 */
-    font-family: Consolas, 'Courier New', NSimSun, SimSun, monospace;
+    /* 等宽栈与复古皮肤同源：像素终端味，零新资源（--app-font 未设时的回退） */
+    font-family: var(--app-font, Consolas, 'Courier New', NSimSun, SimSun, monospace);
 }
 
 /* 全屏扫描线叠层：与复古皮肤同构，CRT 族身份标记 */
@@ -91,7 +100,8 @@
     button, input, select, textarea, .glass-col, .glass-bar, .message, .tool-card, .tool-group,
     .list-item, .metric-card, .usage-card, .attach-chip, .seg-btn, .win-btn,
     .toggle, .task-item, .briefing-block, .log-feed, .boot-card, .settings-back,
-    .msg-action-btn, .action-btn, .themed-select-menu, .themed-select-option
+    .msg-action-btn, .action-btn, .themed-select-menu, .themed-select-option,
+    .project-section, .project-current, .project-recent-main, .project-forget-btn
 ) {
     border-radius: 0;
     backdrop-filter: none;
@@ -368,7 +378,8 @@
 [data-theme='dark'] .mcp-warn { color: var(--y2k-warn); }
 [data-theme='dark'] .mcp-failed { color: var(--y2k-error); }
 
-[data-theme='dark'] .log-feed { background: rgba(2, 10, 22, 0.75); border: 1px solid var(--edge-soft); }
+/* 日志面板背景提高不透明度（同 retro：防背后动画光斑透底干扰密排小字）。@author aceFelix */
+[data-theme='dark'] .log-feed { background: rgba(2, 10, 22, 0.95); border: 1px solid var(--edge-soft); }
 [data-theme='dark'] .log-line { color: var(--y2k-dim); }
 
 /* ==================== 启动遮罩 ==================== */

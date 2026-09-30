@@ -22,6 +22,9 @@ import { useT } from '../i18n'
 import { useGlyphs } from '../glyphs'
 import ModelForm from './ModelForm'
 import VoiceForm from './VoiceForm'
+// 项目工作区（2026-08）：拆到子组件避免本件体积膨胀，仅侧栏底部插入。
+// @author aceFelix
+import ProjectSection from './ProjectSection'
 
 /** 历史会话项：单击加载（220ms 延时让位双击）、双击内联改名、右键显删除按钮。
  *
@@ -564,6 +567,13 @@ export default function LeftSidebar(): JSX.Element {
           </div>
         )
       ) : null}
+
+      {/* 项目工作区：当前项目 + 打开文件夹 + 最近项目列表（2026-08）。
+          置于面板区之后、状态栏之前（底部常驻）：既不抢顶部模式/面板切换的视线，
+          history/model/voice 三面板切换时也始终可见（工作区选择器范式）。
+          列表再长也不会被压缩（.project-section 设了 flex-shrink: 0）。
+          @author aceFelix */}
+      <ProjectSection />
 
       {/* 状态 footer */}
       <footer id="left-footer">

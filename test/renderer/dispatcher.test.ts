@@ -23,7 +23,7 @@ import { useMetricsStore } from '@renderer/stores/metricsStore'
 import { useRightStore } from '@renderer/stores/rightStore'
 import type { JarvisConnection } from '@renderer/stores/backendStore'
 
-/** 假连接门面：七个刷新动作 + 提醒已读回执均为 spy。 */
+/** 假连接门面：八个刷新动作 + 提醒已读回执均为 spy。 */
 function makeConn(): JarvisConnection {
   return {
     refreshSessions: vi.fn().mockResolvedValue(undefined),
@@ -33,6 +33,9 @@ function makeConn(): JarvisConnection {
     refreshCost: vi.fn().mockResolvedValue(undefined),
     refreshState: vi.fn().mockResolvedValue(undefined),
     refreshSettings: vi.fn().mockResolvedValue(undefined),
+    // 项目区刷新（2026-08）：init / project_switched 都会拉取一次。
+    // @author aceFelix
+    refreshProjects: vi.fn().mockResolvedValue(undefined),
     ackProactive: vi.fn()
   }
 }
@@ -49,7 +52,12 @@ beforeEach(() => {
     voiceActive: false,
     voiceState: '',
     // 待生效模型为瞬态：复位避免串场到下一个用例。@author aceFelix
-    pendingModel: ''
+    pendingModel: '',
+    // 项目区（2026-08）瞬态字段一并复位：避免上一用例已回填的项目信息射干下个子项目相关断言。
+    // @author aceFelix
+    currentProject: null,
+    recentProjects: [],
+    pendingProjectPath: ''
   })
   useMetricsStore.setState({ cpu: 0, memory: null, disk: null })
   useRightStore.setState({ reminders: [], deadlines: [], latestBriefing: '', cost: null, mcp: null, logs: [] })
@@ -82,6 +90,20 @@ describe('dispatchServerEvent · 文本对话流', () => {
     useChatStore.getState().setBusy(true)
     dispatchServerEvent({ event: 'assistant_done', data: null }, makeConn())
     expect(useChatStore.getState().busy).toBe(false)
+  })
+
+  it('assistant_done 收尾未回填的工具卡（取消/报错后不留“执行中”）', () => {
+    // reply.abort 取消时 Bash 被 kill、不发 tool_result；assistant_done 必须
+    // 把这张挂起的卡定稿，否则永远停在“执行中”。@author aceFelix
+    dispatchServerEvent(
+      { event: 'tool_use', data: { name: 'Bash', id: 'c_run', input: { command: 'rmdir' } } },
+      makeConn()
+    )
+    dispatchServerEvent({ event: 'assistant_done', data: null }, makeConn())
+    expect(useChatStore.getState().messages.find((m) => m.kind === 'tool')).toMatchObject({
+      done: true,
+      isError: true
+    })
   })
 
   it('assistant_done 刷新右栏用量卡（一轮对话消耗了 token）', () => {
@@ -128,9 +150,10 @@ describe('dispatchServerEvent · 文本对话流', () => {
 })
 
 describe('dispatchServerEvent · 会话与初始化', () => {
-  it('init 触发七路刷新（左栏三面板 + 右栏任务/用量/运行健康 + 设置回填）', () => {
+  it('init 触发八面刷新（左栏三面板 + 右栏任务/用量/运行健康 + 设置回填 + 项目区）', () => {
     const conn = makeConn()
-    dispatchServerEvent({ event: 'init', data: null }, conn)
+    const onStatus = vi.fn()
+    dispatchServerEvent({ event: 'init', data: null }, conn, onStatus)
     expect(conn.refreshSessions).toHaveBeenCalled()
     expect(conn.refreshModels).toHaveBeenCalled()
     expect(conn.refreshVoices).toHaveBeenCalled()
@@ -138,6 +161,10 @@ describe('dispatchServerEvent · 会话与初始化', () => {
     expect(conn.refreshCost).toHaveBeenCalled()
     expect(conn.refreshState).toHaveBeenCalled()
     expect(conn.refreshSettings).toHaveBeenCalled()
+    // 2026-08 项目工作区：init 一并拉 project.get + projects.list
+    expect(conn.refreshProjects).toHaveBeenCalled()
+    // 握手完成即把状态栏从「等待后端启动...」切到「就绪」（2026-08 修复）。@author aceFelix
+    expect(onStatus).toHaveBeenCalledWith({ text: '就绪', tone: 'idle' } satisfies StatusLabel)
   })
 
   it('session_new 清空并提示', () => {
@@ -229,6 +256,70 @@ describe('dispatchServerEvent · 模型热切换回执 model_switched', () => {
     dispatchServerEvent({ event: 'model_switched', data: null }, conn)
 
     expect(useLeftStore.getState().pendingModel).toBe('')
+  })
+})
+
+/**
+ * 项目热切换回执 project_switched（2026-08 桌面项目工作区）。
+ * 口径参照 model_switched：引擎已写回 settings.workdir + 重建提示词 + 新会话，
+ * payload {workdir, name} 直接射入 leftStore.currentProject；只清匹配项的
+ * pendingProjectPath，刷会话列表与项目区。
+ * @author aceFelix
+ */
+describe('dispatchServerEvent · 项目热切换回执 project_switched', () => {
+  it('写入 currentProject、清匹配项的 pendingProjectPath、刷会话列表与项目区', () => {
+    const conn = makeConn()
+    useLeftStore.setState({
+      currentProject: { workdir: 'D:/proj/old', name: 'old', persisted: true },
+      pendingProjectPath: 'D:/proj/new'
+    })
+
+    dispatchServerEvent(
+      { event: 'project_switched', data: { workdir: 'D:/proj/new', name: 'new' } },
+      conn
+    )
+
+    expect(useLeftStore.getState().currentProject).toEqual({
+      workdir: 'D:/proj/new',
+      name: 'new',
+      persisted: true
+    })
+    expect(useLeftStore.getState().pendingProjectPath).toBe('')
+    expect(conn.refreshSessions).toHaveBeenCalledTimes(1)
+    expect(conn.refreshProjects).toHaveBeenCalledTimes(1)
+  })
+
+  it('事件与刚点选的另一个项目不一致：保留新 pending（免误清）', () => {
+    const conn = makeConn()
+    useLeftStore.setState({
+      currentProject: null,
+      pendingProjectPath: 'D:/proj/c'
+    })
+
+    dispatchServerEvent(
+      { event: 'project_switched', data: { workdir: 'D:/proj/a', name: 'a' } },
+      conn
+    )
+
+    expect(useLeftStore.getState().pendingProjectPath).toBe('D:/proj/c')
+    // currentProject 仍然以事件 payload 写回（事件 = 已落地）
+    expect(useLeftStore.getState().currentProject?.workdir).toBe('D:/proj/a')
+  })
+
+  it('payload 缺 workdir（理论上不到达的异常事件）：保守清 pending 不写 currentProject', () => {
+    const conn = makeConn()
+    useLeftStore.setState({
+      currentProject: { workdir: 'D:/proj/x', name: 'x', persisted: true },
+      pendingProjectPath: 'D:/proj/x'
+    })
+
+    dispatchServerEvent({ event: 'project_switched', data: {} }, conn)
+
+    expect(useLeftStore.getState().pendingProjectPath).toBe('')
+    expect(useLeftStore.getState().currentProject?.workdir).toBe('D:/proj/x')
+    // 仍然会刷会话列表与项目区（事件本身代语句法：引擎已处理一轮）
+    expect(conn.refreshSessions).toHaveBeenCalledTimes(1)
+    expect(conn.refreshProjects).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -350,6 +441,41 @@ describe('dispatchServerEvent · 指标与健壮性', () => {
   it('未知事件静默忽略', () => {
     expect(() => dispatchServerEvent({ event: 'whatever', data: 1 }, makeConn())).not.toThrow()
     expect(useChatStore.getState().messages).toHaveLength(0)
+  })
+})
+
+describe('dispatchServerEvent · MCP 就绪 mcp_ready', () => {
+  it('payload 合法：直接写入右栏运行健康 mcp 快照', () => {
+    const conn = makeConn()
+    dispatchServerEvent(
+      {
+        event: 'mcp_ready',
+        data: { connected: ['amap-maps'], failed: ['tyc-mcp'], tools: 5 }
+      },
+      conn
+    )
+    expect(useRightStore.getState().mcp).toEqual({
+      connected: ['amap-maps'],
+      failed: ['tyc-mcp'],
+      tools: 5
+    })
+    // 走 payload 直写，无需再发一次 state.get
+    expect(conn.refreshState).not.toHaveBeenCalled()
+  })
+
+  it('tools 缺省/非法回退为 0', () => {
+    dispatchServerEvent(
+      { event: 'mcp_ready', data: { connected: [], failed: ['x'] } },
+      makeConn()
+    )
+    expect(useRightStore.getState().mcp).toEqual({ connected: [], failed: ['x'], tools: 0 })
+  })
+
+  it('payload 结构非法：退回主动拉一次 state.get', () => {
+    const conn = makeConn()
+    dispatchServerEvent({ event: 'mcp_ready', data: null }, conn)
+    expect(conn.refreshState).toHaveBeenCalledTimes(1)
+    expect(useRightStore.getState().mcp).toBeNull()
   })
 })
 

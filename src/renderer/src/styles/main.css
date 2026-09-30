@@ -23,7 +23,7 @@ body {
     background:
         radial-gradient(ellipse at 50% 40%, rgba(20, 48, 78, 0.55), transparent 65%),
         linear-gradient(160deg, #0a1626 0%, #081220 55%, #060e1a 100%);
-    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-family: var(--app-font, "Segoe UI", "Microsoft YaHei", sans-serif);
     color: #e8f4ff;
 }
 
@@ -843,6 +843,29 @@ body {
     gap: 10px;
 }
 
+/* 左栏表单（添加/修改模型、添加/修改音色）字段区：面板高度不够时自身滚动。
+   2026-09-30 实机反馈：表单字段多、.settings-panel 无滚动约束时内容溢出面板，
+   与左栏底部常驻的项目区块叠在一起，下面的字段既看不见也点不到。
+   flex:1 + min-height:0 让它接受父容器（.panel，已设 flex:1/min-height:0）的
+   高度约束，overflow-y:auto 才会真正生效；滚动条外观与 .list-area 一致并走
+   --scroll-thumb/--scroll-track 变量，三套皮肤自动变色。
+   仅表单加 form-scroll：右栏 SettingsPanel 仍随外层整体滚动，不受影响。
+   @author aceFelix */
+.settings-panel.form-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: auto;
+    scrollbar-color: var(--scroll-thumb, rgba(91, 200, 255, 0.55)) var(--scroll-track, rgba(255, 255, 255, 0.06));
+    /* 留出滚动条位置，避免滑块压住输入框右边缘 */
+    padding-right: 4px;
+}
+
+.settings-panel.form-scroll::-webkit-scrollbar { width: 8px; }
+.settings-panel.form-scroll::-webkit-scrollbar-track { background: var(--scroll-track, rgba(255, 255, 255, 0.06)); border-radius: 4px; }
+.settings-panel.form-scroll::-webkit-scrollbar-thumb { background: var(--scroll-thumb, rgba(91, 200, 255, 0.55)); border-radius: 4px; }
+.settings-panel.form-scroll::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb, rgba(91, 200, 255, 0.8)); }
+
 .setting-row {
     display: flex;
     flex-direction: column;
@@ -1079,6 +1102,9 @@ body {
     font-size: 11px;
     font-family: Consolas, 'Courier New', monospace;
     color: #9cc4e0;
+    /* 行高略放宽：复古皮肤的 CRT 扫描线（每 3px 一条暗线）会切到 11px 小字的
+       笔画，行高够大才不会让相邻行看起来糊在一起。@author aceFelix */
+    line-height: 1.7;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

@@ -8,7 +8,13 @@
  */
 
 import { create } from 'zustand'
-import type { ModelConfigDraft, VoiceCatalogItem, VoiceState } from '../../../shared/contracts'
+import type {
+  CurrentProject,
+  ModelConfigDraft,
+  ProjectItem,
+  VoiceCatalogItem,
+  VoiceState
+} from '../../../shared/contracts'
 
 export interface SessionItem {
   name: string
@@ -17,6 +23,13 @@ export interface SessionItem {
   model: string
   /** 是否引擎当前会话（后端 sessions.list 现比标记，左栏选中态数据源）。 */
   current?: boolean
+  /**
+   * 会话所属项目 workdir（后端 SessionMeta.workdir 直接携带）。
+   * 左栏项目区据 path 匹配对会话归组/过滤；历史数据无该字段时为空串，
+   * 渲染时会归到“未归属项目”分组，不丢弃。
+   * @author aceFelix
+   */
+  workdir?: string
 }
 
 export interface ModelItem {
@@ -84,6 +97,25 @@ export interface LeftState {
   /** 已点选、待下次语音会话生效的 TTS 音色名（''=无，口径同 pendingModel）。 */
   pendingVoice: string
 
+  // ---- 项目工作区（2026-08 新增） ----
+  /**
+   * 当前项目信息（workdir + name + persisted）。初化前为 null，
+   * backendStore.getProject() 拉取后回填；project_switched 事件更新。
+   * @author aceFelix
+   */
+  currentProject: CurrentProject | null
+  /**
+   * 最近项目列表（按 last_opened 倒序，后端上限 30）。exists=false 项前端置灰。
+   * @author aceFelix
+   */
+  recentProjects: ProjectItem[]
+  /**
+   * 已点选、待引擎落地切换的项目路径（''=无）。口径同 pendingModel：
+   * 正有一轮回复在跑时切换在该轮结束后落地，项目区据此标「待生效」。
+   * @author aceFelix
+   */
+  pendingProjectPath: string
+
   setSessions: (list: SessionItem[]) => void
   setModels: (list: ModelItem[]) => void
   setVoices: (list: VoiceItem[]) => void
@@ -108,6 +140,12 @@ export interface LeftState {
   editVoiceForm: (name: string) => void
   /** 音色表单返回/提交成功：回音色列表。@author aceFelix */
   closeVoiceForm: () => void
+  /** 项目区：当前项目信息写入（初始化拉取 + project_switched 事件共用）。@author aceFelix */
+  setCurrentProject: (project: CurrentProject | null) => void
+  /** 项目区：最近项目列表写入（projects.list 回执到达时刷新）。@author aceFelix */
+  setRecentProjects: (list: ProjectItem[]) => void
+  /** 项目区：记录/清空待生效路径（setProject 时乐观标记，project_switched 落地后清空）。@author aceFelix */
+  setPendingProjectPath: (path: string) => void
 }
 
 export const useLeftStore = create<LeftState>((set) => ({
@@ -125,6 +163,9 @@ export const useLeftStore = create<LeftState>((set) => ({
   voiceFormTarget: '',
   pendingModel: '',
   pendingVoice: '',
+  currentProject: null,
+  recentProjects: [],
+  pendingProjectPath: '',
 
   setSessions: (sessions) => set({ sessions }),
   setModels: (models) => set({ models }),
@@ -141,5 +182,8 @@ export const useLeftStore = create<LeftState>((set) => ({
   closeModelForm: () => set({ modelFormOpen: false, modelFormTarget: '' }),
   openVoiceForm: () => set({ voiceFormOpen: true, voiceFormTarget: '' }),
   editVoiceForm: (voiceFormTarget) => set({ voiceFormOpen: true, voiceFormTarget }),
-  closeVoiceForm: () => set({ voiceFormOpen: false, voiceFormTarget: '' })
+  closeVoiceForm: () => set({ voiceFormOpen: false, voiceFormTarget: '' }),
+  setCurrentProject: (currentProject) => set({ currentProject }),
+  setRecentProjects: (recentProjects) => set({ recentProjects }),
+  setPendingProjectPath: (pendingProjectPath) => set({ pendingProjectPath })
 }))

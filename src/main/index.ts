@@ -12,7 +12,7 @@
  * @author aceFelix
  */
 
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, session, shell } from 'electron'
 import { join } from 'path'
 import {
   createBackendManager,
@@ -96,6 +96,21 @@ async function startBackend(): Promise<void> {
   }
 }
 
+/**
+ * 权限放行：渲染层 Local Font Access API（window.queryLocalFonts，设置面板
+ * 「英文/中文字体」下拉枚举本机字体）需要 local-fonts 权限。应用此前无自定义
+ * 权限处理器，Electron 默认全放行（麦克风 getUserMedia 即据此工）。这里显式接管并
+ * 继续对所有权限回调 true（含 local-fonts / media），行为与既有默认一致、不回归采集能力。
+ *
+ * @author aceFelix
+ */
+function grantPermissions(): void {
+  session.defaultSession.setPermissionCheckHandler(() => true)
+  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => {
+    callback(true)
+  })
+}
+
 /** 注册 IPC：渲染进程取后端信息 / 窗口控制。 */
 function registerIpc(): void {
   ipcMain.handle(IpcChannels.GetBackendInfo, () => {
@@ -135,6 +150,20 @@ function registerIpc(): void {
     if (!primary || primary.thumbnail.isEmpty()) return null
     return { data: primary.thumbnail.toPNG().toString('base64'), media_type: 'image/png' }
   })
+  // 项目工作区：目录选择器。返回选中绝对路径或 null（取消）。
+  // 安全边界：只弹系统对话框、不读取内容、不写入文件；后端会对 path 二次校验
+  //（存在 + 绝对路径），避免渲染进程传入任何“不存在、相对路径、自动建目录”类误操作。
+  // properties 不加 createDirectory，避免默认多一个“新建文件夹”的 UI 干扰项目选择。
+  // @author aceFelix
+  ipcMain.handle(IpcChannels.SelectDirectory, async (): Promise<string | null> => {
+    if (!mainWindow) return null
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: '选择项目文件夹',
+      properties: ['openDirectory']
+    })
+    if (result.canceled) return null
+    return result.filePaths[0] ?? null
+  })
 }
 
 /** 单实例锁：拿不到锁直接退出（首实例收到 second-instance 聚焦窗口）。 */
@@ -155,6 +184,7 @@ if (!gotLock) {
     log(`jarvis-desktop 启动 (v${app.getVersion()})`)
     app.setAppUserModelId('AceFelix.JARVIS.Workbench')
 
+    grantPermissions()
     registerIpc()
     createWindow()
 

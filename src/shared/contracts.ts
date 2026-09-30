@@ -54,7 +54,13 @@ export const IpcChannels = {
   /** 渲染进程 → 主进程：系统通知（主动播报弹 Windows 通知，单向 send）。 */
   SystemNotify: 'jarvis:system-notify',
   /** invoke：截取主屏缩略图（右栏快捷操作「截屏发给贾维斯」）。 */
-  CaptureScreen: 'jarvis:capture-screen'
+  CaptureScreen: 'jarvis:capture-screen',
+  /**
+    * invoke：弹出系统目录选择器（左栏「项目」区「打开文件夹」）。
+   * 返回选中绝对路径或 null（取消）。后端对路径做二次校验，不自动建目录。
+   * @author aceFelix
+   */
+  SelectDirectory: 'jarvis:select-directory'
 } as const
 
 /** 截屏结果（主进程 desktopCapturer → 渲染进程附件区）。 */
@@ -294,5 +300,42 @@ export const Cmd = {
   /** 设置面板写回：修改并持久化用户可改开关（settings.set）。 */
   SettingsSet: 'settings.set',
   /** 停止当前回复（发送按钮二次点击）：服务端线程安全取消引擎 send 任务。 */
-  ReplyAbort: 'reply.abort'
+  ReplyAbort: 'reply.abort',
+  /**
+   * 项目工作区（2026-08桌面改造）：切换当前 workdir（project.set）。
+   * 服务端入队即返回，落地走 `project_switched` 事件（与 models.select 同口径）。
+   * @author aceFelix
+   */
+  ProjectSet: 'project.set',
+  /** 读取当前项目信息（workdir/name/persisted）。 */
+  ProjectGet: 'project.get',
+  /** 列出最近项目（按 last_opened 倒序）。 */
+  ProjectsList: 'projects.list',
+  /** 从最近列表移除指定项目（不删磁盘目录）。 */
+  ProjectsForget: 'projects.forget'
 } as const
+
+/**
+ * 项目工作区数据契约（镜像 jarvis 侧 WorkbenchAPI 与 projects_registry）。
+ *
+ * - `ProjectItem`：projects.toml 单条记录 + 存在性 `exists`（供前端置灰）；
+ * - `CurrentProject`：当前 workdir + 目录名 + 是否已持久化到 projects.toml。
+ * @author aceFelix
+ */
+export interface ProjectItem {
+  /** 绝对路径（唯一键）。 */
+  path: string
+  /** 目录 basename。 */
+  name: string
+  /** ISO 时间戳。 */
+  last_opened: string
+  /** 目录当前是否存在（删除/外接盘未插则 false，前端置灰）。 */
+  exists: boolean
+}
+
+export interface CurrentProject {
+  workdir: string
+  name: string
+  /** workdir 是否已写入 projects.toml（serve 启动默认值可能未持久化）。 */
+  persisted: boolean
+}

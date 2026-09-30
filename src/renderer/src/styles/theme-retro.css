@@ -22,6 +22,15 @@
     /* 滚动条随主题：暗绿滑块 + 黑绿轨道（main.css scrollbar-color 变量驱动）。@author aceFelix */
     --scroll-thumb: var(--retro-dim);
     --scroll-track: rgba(0, 16, 6, 0.6);
+    /* 项目工作区（左栏底部，结构样式在 project-section.css）：文本/强调/底色/悬停随皮肤，
+       悬停取「反白」范式（同行 .list-item:hover：亮底深字）。@author aceFelix */
+    --proj-text: var(--retro-text);
+    --proj-bright: var(--retro-bright);
+    --proj-dim: var(--retro-dim);
+    --proj-error: var(--retro-error);
+    --proj-panel: rgba(0, 24, 8, 0.6);
+    --proj-hover-bg: var(--retro-bright);
+    --proj-hover-fg: #020602;
 }
 
 /* ==================== CRT 底：黑绿实底 + 点阵抖动 + 扫描线 ==================== */
@@ -33,8 +42,8 @@
         radial-gradient(ellipse at 50% 40%, rgba(20, 80, 40, 0.35), transparent 70%);
     background-size: 3px 3px, 100% 100%;
     color: var(--retro-text);
-    /* 等宽栈：Windows 宋体小字号自带点阵笔画，零新资源即得终端味 */
-    font-family: Consolas, 'Courier New', NSimSun, SimSun, monospace;
+    /* 等宽栈：Windows 宋体小字号自带点阵笔画，零新资源即得终端味（--app-font 未设时的回退） */
+    font-family: var(--app-font, Consolas, 'Courier New', NSimSun, SimSun, monospace);
 }
 
 /* 全屏扫描线叠层：repeating 渐变画水平线，无需图片资源 */
@@ -67,11 +76,15 @@
     button, input, select, textarea, .glass-col, .glass-bar, .message, .tool-card, .tool-group,
     .list-item, .metric-card, .usage-card, .attach-chip, .seg-btn, .win-btn,
     .toggle, .task-item, .briefing-block, .log-feed, .boot-card, .settings-back,
-    .msg-action-btn, .action-btn, .themed-select-menu, .themed-select-option
+    .msg-action-btn, .action-btn, .themed-select-menu, .themed-select-option,
+    .project-section, .project-current, .project-recent-main, .project-forget-btn
 ) {
     border-radius: 0;
     backdrop-filter: none;
 }
+
+/* 表单控件继承等宽字栈：与另两张皮肤同口径，保证 --app-font 自定义字体对 button/input/textarea 生效（浏览器默认 UA 字体不随 body 继承） */
+[data-theme='retro'] :where(button, input, textarea) { font-family: inherit; }
 
 /* 文本选中高亮（含输入框内全选）：亮绿反相（与下拉选中态同口径），替代浏览器默认蓝底 */
 [data-theme='retro'] ::selection {
@@ -307,8 +320,11 @@
 [data-theme='retro'] .mcp-warn { color: var(--retro-warn); }
 [data-theme='retro'] .mcp-failed { color: var(--retro-error); }
 
-[data-theme='retro'] .log-feed { background: rgba(0, 12, 4, 0.7); border: 1px solid var(--edge-soft); }
-[data-theme='retro'] .log-line { color: var(--retro-dim); }
+/* 日志面板背景改近不透明：旧值 0.7 且 retro 关了 backdrop-filter，背后
+   动画 CRT 光斑会透进来把 11px 密排小字糊成一片（实机反馈“重叠、看不清”）。
+   文字用 --retro-text 亮级替代偏暗的 --retro-dim，抗扫描线干扰。@author aceFelix */
+[data-theme='retro'] .log-feed { background: rgba(1, 10, 3, 0.95); border: 1px solid var(--edge-soft); }
+[data-theme='retro'] .log-line { color: var(--retro-text); }
 
 /* ==================== 启动遮罩 ==================== */
 

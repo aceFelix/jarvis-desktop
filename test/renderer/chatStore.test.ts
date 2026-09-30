@@ -64,6 +64,28 @@ describe('chatStore', () => {
     expect(pick('ai')[0].streaming).toBe(false)
   })
 
+  it('finishAssistant 收尾未回填的工具卡（reply.abort/中途报错不留“执行中”）', () => {
+    // 回归：取消回复时 Bash 子进程被 kill、不发 tool_result，旧版 finishAssistant
+    // 不碰未完成的卡，导致卡片永远停在“执行中”、用户以为命令卡死。@author aceFelix
+    const s = useChatStore.getState()
+    s.setBusy(true)
+    s.addToolCard('Bash', 'call_run', '{"command":"rmdir ./-p"}')
+    expect(pick('tool')[0]).toMatchObject({ done: false })
+    s.finishAssistant()
+    const card = pick('tool')[0]
+    expect(card.done).toBe(true)
+    expect(card.isError).toBe(true)
+    expect(card.output).toContain('本轮已结束')
+  })
+
+  it('finishAssistant 保留已回填工具卡的结果不变', () => {
+    const s = useChatStore.getState()
+    s.addToolCard('read_file', 'ok1', '{"p":1}')
+    s.fillToolResult('ok1', 'read_file', '内容', false)
+    s.finishAssistant()
+    expect(pick('tool')[0]).toMatchObject({ done: true, isError: false, output: '内容' })
+  })
+
   it('finishAssistant 后再 append 会新建气泡', () => {
     const s = useChatStore.getState()
     s.appendAssistantText('a')

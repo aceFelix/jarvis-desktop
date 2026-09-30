@@ -101,7 +101,9 @@ export default function VoiceForm(): JSX.Element {
         <span />
       </div>
 
-      <div className="settings-panel" data-testid="voice-form">
+      {/* 字段区：面板高度不够时自身滚动（form-scroll，样式见 main.css），
+          避免表单溢出压到左栏底部的项目区块上。@author aceFelix */}
+      <div className="settings-panel form-scroll" data-testid="voice-form">
         {inEdit ? (
           <div className="setting-hint" data-testid="voice-form-target">
             {t('voiceForm.editingHint', { name: target })}
@@ -166,29 +168,32 @@ export default function VoiceForm(): JSX.Element {
           />
         </div>
 
-        {error ? (
-          <div className="model-form-error" data-testid="voice-form-error">
-            {error}
-          </div>
-        ) : null}
+      </div>
 
-        <div className="model-form-actions">
-          <button
-            className="action-btn primary"
-            data-testid="voice-form-submit"
-            disabled={submitting}
-            onClick={() => void submit()}
-          >
-            {inEdit ? t('voiceForm.save') : t('voiceForm.submit')}
-          </button>
-          <button
-            className="action-btn"
-            data-testid="voice-form-cancel"
-            onClick={closeVoiceForm}
-          >
-            {t('voiceForm.cancel')}
-          </button>
+      {/* 报错与操作按钮均在滚动区之外：校验失败原因常驻可见，
+          字段滚到任意位置也能直接保存/取消。@author aceFelix */}
+      {error ? (
+        <div className="model-form-error" data-testid="voice-form-error">
+          {error}
         </div>
+      ) : null}
+
+      <div className="model-form-actions">
+        <button
+          className="action-btn primary"
+          data-testid="voice-form-submit"
+          disabled={submitting}
+          onClick={() => void submit()}
+        >
+          {inEdit ? t('voiceForm.save') : t('voiceForm.submit')}
+        </button>
+        <button
+          className="action-btn"
+          data-testid="voice-form-cancel"
+          onClick={closeVoiceForm}
+        >
+          {t('voiceForm.cancel')}
+        </button>
       </div>
     </div>
   )

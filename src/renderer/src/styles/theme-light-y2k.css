@@ -25,6 +25,15 @@
     /* 滚动条随主题：中性灰滑块 + 白轨道（main.css scrollbar-color 变量驱动，无蓝相）。@author aceFelix */
     --scroll-thumb: #9a9a9a;
     --scroll-track: rgba(255, 255, 255, 0.5);
+    /* 项目工作区（左栏底部，结构样式在 project-section.css）：文本/强调/底色/悬停随皮肤。
+       本皮肤悬停不反白（同 .list-item:hover：淡黑底 + 亮字）。@author aceFelix */
+    --proj-text: var(--sil-text);
+    --proj-bright: var(--sil-bright);
+    --proj-dim: var(--sil-dim);
+    --proj-error: var(--sil-error);
+    --proj-panel: rgba(255, 255, 255, 0.6);
+    --proj-hover-bg: rgba(0, 0, 0, 0.08);
+    --proj-hover-fg: var(--sil-bright);
     /* 铬银金属渐变：白-银-灰三段中性反光（选中态/主按钮填充） */
     --sil-chrome: linear-gradient(180deg, #ffffff 0%, #f2f2f2 28%, #9e9e9e 52%, #d4d4d4 72%, #ffffff 100%);
     /* 亮底金属字：黑-灰-亮银三段保证白底可读（标题/启动标题） */
@@ -49,8 +58,8 @@
         radial-gradient(ellipse at 50% 35%, rgba(255, 255, 255, 0.75), transparent 70%);
     background-size: auto, auto, auto, 100% 100%;
     color: var(--sil-text);
-    /* 等宽栈与另两张皮肤同源：像素终端味，零新资源 */
-    font-family: Consolas, 'Courier New', NSimSun, SimSun, monospace;
+    /* 等宽栈与另两张皮肤同源：像素终端味，零新资源（--app-font 未设时的回退） */
+    font-family: var(--app-font, Consolas, 'Courier New', NSimSun, SimSun, monospace);
 }
 
 /* 全屏扫描线叠层：亮底用中性灰细线，CRT 族身份标记 */
@@ -92,7 +101,8 @@
     button, input, select, textarea, .glass-col, .glass-bar, .message, .tool-card, .tool-group,
     .list-item, .metric-card, .usage-card, .attach-chip, .seg-btn, .win-btn,
     .toggle, .task-item, .briefing-block, .log-feed, .boot-card, .settings-back,
-    .msg-action-btn, .action-btn, .themed-select-menu, .themed-select-option
+    .msg-action-btn, .action-btn, .themed-select-menu, .themed-select-option,
+    .project-section, .project-current, .project-recent-main, .project-forget-btn
 ) {
     border-radius: 0;
     backdrop-filter: none;
@@ -361,7 +371,8 @@
 [data-theme='light'] .mcp-warn { color: var(--sil-warn); }
 [data-theme='light'] .mcp-failed { color: var(--sil-error); }
 
-[data-theme='light'] .log-feed { background: rgba(255, 255, 255, 0.55); border: 1px solid var(--edge-soft); }
+/* 日志面板背景提高不透明度（同 retro：防透底干扰密排小字）。@author aceFelix */
+[data-theme='light'] .log-feed { background: rgba(255, 255, 255, 0.95); border: 1px solid var(--edge-soft); }
 [data-theme='light'] .log-line { color: var(--sil-dim); }
 
 /* ==================== 启动遮罩 ==================== */

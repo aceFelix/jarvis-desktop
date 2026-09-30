@@ -4,7 +4,7 @@
  * 消息模型（判别联合，React 渲染按 kind 分发）：
  * - user：用户气泡（本地发送即上屏，引擎 user_message 回显跳过防双气泡）
  * - ai：AI 气泡（流式增量 text/thinking，streaming 标记当前流式目标）
- * - tool：工具卡片（tool_use 创建 → tool_result 按 id 回填）
+ * - tool：工具卡片（tool_use 创建 → tool_result 按 id 回填；轮次结束时仍未回填的收尾为中断态）
  * - system：系统提示（info/warn/error，带 tone 决定配色）
  *
  * WS 事件在 actions 里消化（dispatcher 调用），组件只订阅切片。
@@ -106,9 +106,23 @@ export const useChatStore = create<ChatState>((set) => ({
   finishAssistant: () =>
     set((s) => ({
       busy: false,
-      messages: s.messages.map((m) =>
-        m.kind === 'ai' && m.streaming ? { ...m, streaming: false } : m
-      )
+      messages: s.messages.map((m) => {
+        if (m.kind === 'ai' && m.streaming) return { ...m, streaming: false }
+        // 一轮结束（正常收尾 / reply.abort 取消 / 中途报错）时，把仍未收到
+        // tool_result 的工具卡一并定稿：被取消的 Bash 等子进程不会再回结果，
+        // 若不收尾卡片会永远停在“执行中”，用户误判为命令卡死、也以为停止无效。
+        // 标为已完成 + 失败态（✗）并附中断说明，让工具组正常折叠收起。
+        // @author aceFelix
+        if (m.kind === 'tool' && !m.done) {
+          return {
+            ...m,
+            done: true,
+            isError: true,
+            output: m.output || '（本轮已结束：未收到该工具结果，可能已被停止或中途出错）'
+          }
+        }
+        return m
+      })
     })),
 
   addSystem: (text, tone = 'info') =>

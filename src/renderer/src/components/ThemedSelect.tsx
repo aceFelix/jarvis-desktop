@@ -28,6 +28,10 @@ import { createPortal } from 'react-dom'
 export interface SelectOption {
   value: string
   label: string
+  /** 该项字体族预览（字体选择器用：选项文本以此字体渲染；缺省继承界面字体）。@author aceFelix */
+  fontFamily?: string
+  /** 选项右侧附注标签（如「含中文」），纯展示不参与匹配。@author aceFelix */
+  hint?: string
 }
 
 /** 浮层视口坐标（portal 后 fixed 定位用）。 */
@@ -51,15 +55,36 @@ export default function ThemedSelect(props: {
   /** 触发器 data-testid（浮层与选项自动派生 `-menu` / `-option-<value>`）。 */
   testid?: string
   ariaLabel?: string
+  /** 可搜索：浮层顶部加过滤输入，按 label/value 子串（忽略大小写）筛选。@author aceFelix */
+  searchable?: boolean
+  /** 过滤输入框占位文案。@author aceFelix */
+  searchPlaceholder?: string
+  /** 过滤后无匹配项时的提示文案。@author aceFelix */
+  emptyText?: string
+  /** 展开回调（在用户手势调用栈内触发，供懒加载如 queryLocalFonts）。@author aceFelix */
+  onOpen?: () => void
 }): JSX.Element {
   const { value, options } = props
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const [rect, setRect] = useState<MenuRect | null>(null)
+  // 过滤关键字（可搜索时由浮层顶部输入驱动；每次打开重置）
+  const [query, setQuery] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const currentLabel = options.find((o) => o.value === value)?.label ?? value
+  const currentOption = options.find((o) => o.value === value)
+  const currentLabel = currentOption?.label ?? value
+
+  // 实际渲染的可见项：可搜索且有关键字时按 label/value 子串过滤（字体列表长时便于定位）
+  const q = query.trim().toLowerCase()
+  const visible =
+    props.searchable && q
+      ? options.filter(
+          (o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q)
+        )
+      : options
 
   /** 计算浮层位置与最大高度：优先下方，空间不足且上方更宽裕则向上翻。 */
   const place = (): void => {
@@ -67,7 +92,7 @@ export default function ThemedSelect(props: {
     if (!el) return
     const r = el.getBoundingClientRect()
     const gap = 4
-    const need = options.length * ITEM_H + 10
+    const need = visible.length * ITEM_H + 10
     const below = window.innerHeight - r.bottom - gap * 2
     const above = r.top - gap * 2
     const up = below < Math.min(need, 180) && above > below
@@ -80,8 +105,10 @@ export default function ThemedSelect(props: {
     })
   }
 
-  /** 展开：高亮定位到当前值，先算位置再打开（避免首帧错位）。 */
+  /** 展开：重置过滤、高亮定位到当前值，先算位置再打开（避免首帧错位）。 */
   const openMenu = (): void => {
+    props.onOpen?.()
+    setQuery('')
     setActive(Math.max(0, options.findIndex((o) => o.value === value)))
     place()
     setOpen(true)
@@ -120,12 +147,34 @@ export default function ThemedSelect(props: {
     }
   }, [open])
 
-  /** 键盘操作：Enter/Space 开关或选中，↑↓ 移动高亮，Home/End 跳首尾，Esc 关闭。 */
-  const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>): void => {
+  // 可搜索：关键字变化后重算浮层高度（可见项数变了）并把高亮夹回合法区间
+  useEffect(() => {
+    if (!open || !props.searchable) return
+    setActive((i) => Math.min(Math.max(0, i), Math.max(0, visible.length - 1)))
+    place()
+    // 仅在 query 变化时重算；place/visible 为渲染闭包，取最新值
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, open, props.searchable])
+
+  // 打开且可搜索时自动聚焦过滤输入，方便直接键盘敲字筛选
+  useEffect(() => {
+    if (open && props.searchable) inputRef.current?.focus()
+  }, [open, props.searchable])
+
+  // 高亮项变化时滚入视野（长列表键盘导航不至于看不见当前高亮）；jsdom 等无此方法环境安容。
+  useEffect(() => {
+    if (!open) return
+    const el = menuRef.current?.querySelector(`[data-nav="${active}"]`)
+    el?.scrollIntoView?.({ block: 'nearest' })
+  }, [active, open])
+
+  /** 键盘导航：Enter/Space 开关或选中，↑↓ 移动高亮，Home/End 跳首尾，Esc 关闭。触发器与过滤输入共用。 */
+  const handleNav = (e: KeyboardEvent<HTMLElement>): void => {
     if (e.key === 'Escape') {
       if (open) {
         e.stopPropagation()
         setOpen(false)
+        triggerRef.current?.focus()
       }
       return
     }
@@ -141,18 +190,18 @@ export default function ThemedSelect(props: {
         return
       }
       const dir = e.key === 'ArrowDown' ? 1 : -1
-      setActive((i) => Math.min(options.length - 1, Math.max(0, i + dir)))
+      setActive((i) => Math.min(visible.length - 1, Math.max(0, i + dir)))
       return
     }
     if (open && (e.key === 'Home' || e.key === 'End')) {
       e.preventDefault()
-      setActive(e.key === 'Home' ? 0 : options.length - 1)
+      setActive(e.key === 'Home' ? 0 : Math.max(0, visible.length - 1))
       return
     }
     if (e.key === 'Enter' || e.key === ' ') {
       // preventDefault：按钮默认激活行为会再合成一次 click，不拦会双触发
       e.preventDefault()
-      if (open) choose(options[active]?.value ?? value)
+      if (open) choose(visible[active]?.value ?? value)
       else openMenu()
     }
   }
@@ -170,9 +219,14 @@ export default function ThemedSelect(props: {
         aria-expanded={open}
         aria-label={props.ariaLabel}
         onClick={() => (open ? setOpen(false) : openMenu())}
-        onKeyDown={onKeyDown}
+        onKeyDown={handleNav}
       >
-        <span className="themed-select-label">{currentLabel}</span>
+        <span
+          className="themed-select-label"
+          style={currentOption?.fontFamily ? { fontFamily: currentOption.fontFamily } : undefined}
+        >
+          {currentLabel}
+        </span>
         <span className={`themed-select-arrow${open ? ' open' : ''}`} />
       </button>
 
@@ -190,25 +244,43 @@ export default function ThemedSelect(props: {
                 maxHeight: rect.maxHeight
               }}
             >
-              {options.map((o, i) => (
+              {props.searchable ? (
+                <input
+                  ref={inputRef}
+                  className="themed-select-search"
+                  type="text"
+                  value={query}
+                  placeholder={props.searchPlaceholder}
+                  data-testid={props.testid ? `${props.testid}-search` : undefined}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={handleNav}
+                />
+              ) : null}
+              {visible.map((o, i) => (
                 <div
                   key={o.value}
+                  data-nav={i}
                   className={`themed-select-option${i === active ? ' active' : ''}${
                     o.value === value ? ' selected' : ''
                   }`}
                   data-testid={props.testid ? `${props.testid}-option-${o.value}` : undefined}
                   role="option"
                   aria-selected={o.value === value}
+                  style={o.fontFamily ? { fontFamily: o.fontFamily } : undefined}
                   onMouseEnter={() => setActive(i)}
                   onMouseDown={(e) => {
-                    // 仅拦焦点转移（保持触发器持焦，Esc 链路不丢）；选择交给 onClick
+                    // 仅拦焦点转移（保持触发器/输入框持焦，Esc 链路不丢）；选择交给 onClick
                     e.preventDefault()
                   }}
                   onClick={() => choose(o.value)}
                 >
-                  {o.label}
+                  <span className="themed-select-option-label">{o.label}</span>
+                  {o.hint ? <span className="themed-select-option-hint">{o.hint}</span> : null}
                 </div>
               ))}
+              {props.searchable && visible.length === 0 ? (
+                <div className="themed-select-empty">{props.emptyText}</div>
+              ) : null}
             </div>,
             document.body
           )

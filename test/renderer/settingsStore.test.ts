@@ -8,6 +8,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { EMPTY_BACKEND_SETTINGS, useSettingsStore } from '@renderer/stores/settingsStore'
+import { FALLBACK_TAIL } from '@renderer/lib/fontUtils'
 import { parseBackendSettings } from '../../src/shared/contracts'
 import { translate } from '@renderer/i18n'
 
@@ -15,6 +16,8 @@ beforeEach(() => {
   window.localStorage.clear()
   useSettingsStore.getState().setTheme('dark')
   useSettingsStore.getState().setLanguage('zh')
+  useSettingsStore.getState().setFontLatin(null)
+  useSettingsStore.getState().setFontCjk(null)
   useSettingsStore.setState({ backendSettings: { ...EMPTY_BACKEND_SETTINGS } })
 })
 
@@ -52,6 +55,47 @@ describe('settingsStore 主题/语言', () => {
     expect(translate('chat.send')).toBe('Send')
     const raw = window.localStorage.getItem('jarvis-desktop-settings')
     expect(JSON.parse(raw ?? '{}')).toMatchObject({ theme: 'dark', language: 'en' })
+  })
+})
+
+describe('settingsStore 字体偏好', () => {
+  it('setFontLatin 写 --app-font CSS 变量并持久化（英文在前 + 等宽尾）', () => {
+    useSettingsStore.getState().setFontLatin('Arial')
+    expect(useSettingsStore.getState().fontLatin).toBe('Arial')
+    expect(document.documentElement.style.getPropertyValue('--app-font')).toBe(`"Arial", ${FALLBACK_TAIL}`)
+    const raw = window.localStorage.getItem('jarvis-desktop-settings')
+    expect(JSON.parse(raw ?? '{}')).toMatchObject({ fontLatin: 'Arial', fontCjk: null })
+  })
+
+  it('英文 + 中文组合：栈内英文在前、中文次之', () => {
+    useSettingsStore.getState().setFontLatin('Segoe UI')
+    useSettingsStore.getState().setFontCjk('Microsoft YaHei')
+    expect(document.documentElement.style.getPropertyValue('--app-font')).toBe(
+      `"Segoe UI", "Microsoft YaHei", ${FALLBACK_TAIL}`
+    )
+    const raw = window.localStorage.getItem('jarvis-desktop-settings')
+    expect(JSON.parse(raw ?? '{}')).toMatchObject({ fontLatin: 'Segoe UI', fontCjk: 'Microsoft YaHei' })
+  })
+
+  it('清空字体（传空/null）：归一为 null 并移除 --app-font 变量（回落主题默认）', () => {
+    useSettingsStore.getState().setFontCjk('SimSun')
+    expect(document.documentElement.style.getPropertyValue('--app-font')).not.toBe('')
+    useSettingsStore.getState().setFontCjk('')
+    expect(useSettingsStore.getState().fontCjk).toBe(null)
+    // 另一个也已 null（初始），整体应清除变量
+    useSettingsStore.getState().setFontLatin(null)
+    expect(document.documentElement.style.getPropertyValue('--app-font')).toBe('')
+  })
+
+  it('loadPersisted 非法字体值归一为 null（脏空白/非串）', async () => {
+    window.localStorage.setItem(
+      'jarvis-desktop-settings',
+      JSON.stringify({ theme: 'dark', language: 'zh', fontLatin: '   ', fontCjk: 123 })
+    )
+    vi.resetModules()
+    const fresh = await import('@renderer/stores/settingsStore')
+    expect(fresh.useSettingsStore.getState().fontLatin).toBe(null)
+    expect(fresh.useSettingsStore.getState().fontCjk).toBe(null)
   })
 })
 

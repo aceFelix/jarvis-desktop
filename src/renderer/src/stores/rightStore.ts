@@ -38,6 +38,10 @@ export interface CostInfo {
   output_tokens: number
   cache_read_tokens: number
   cache_creation_tokens: number
+  /** 缓存命中率（百分数，保留一位小数）：后端 Usage.cache_hit_rate 统一口径
+   *  算好（与 REPL /cost 同一份实现），前端只展示不重算；旧后端无此字段时
+   *  为 undefined，用量卡隐藏该行。@author aceFelix */
+  cache_hit_rate?: number
   dialogs: number
   messages: number
 }
