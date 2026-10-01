@@ -11,9 +11,13 @@ import type { ServerEvent } from '../api/ws'
 import type {
   CurrentProject,
   ProactiveNotifyPayload,
+  QrcodePayload,
+  RemoteStatePayload,
+  RemoteUserMessagePayload,
   VoiceState
 } from '../../../shared/contracts'
 import { useChatStore } from '../stores/chatStore'
+import { useRemoteStore } from '../stores/remoteStore'
 import { useLeftStore, type ModelItem, type SessionItem, type VoiceItem } from '../stores/leftStore'
 import { useMetricsStore, type MetricsPayload } from '../stores/metricsStore'
 import { useRightStore, type McpStatus } from '../stores/rightStore'
@@ -81,6 +85,9 @@ export function dispatchServerEvent(
       // 项目工作区：当前项目 + 最近项目列表一并拉取（一次 WS 往返内完成）。
       // @author aceFelix
       void conn.refreshProjects()
+      // 跨设备协同：回填手机/微信连接态（重开桌面后下拉按钮文案与后端一致；
+      // 二维码卡片不回放，仅按钮/connect 态需准确）。@author aceFelix
+      void conn.refreshRemote()
       // 握手完成：状态栏从启动期的「等待后端启动...」切到「就绪」。init 是每连接
       // 首帧，此前只有首轮回复结束/断线才会刷新状态文案，连上后端后长期挂着
       // 「等待后端启动...」会让人误以为后端没起来。@author aceFelix
@@ -92,9 +99,15 @@ export function dispatchServerEvent(
       // 引擎回显：本地发送时已上屏，跳过防双气泡
       break
     case 'assistant_text':
+      // 任意来源（桌面 / 手机 / 微信 / 主动任务）的引擎活动都置 busy=true：桌面仅在
+      // 本地 sendMessage 时置 busy，远端轮次不经过它，导致 jarvis 正在跑时发送按钮
+      // 仍停在“发送”。收到活动事件即视为“正在工作”，assistant_done 统一收尾。
+      // @author aceFelix
+      chat.setBusy(true)
       chat.appendAssistantText(String(payload ?? ''))
       break
     case 'assistant_thinking':
+      chat.setBusy(true)
       chat.appendThinking(String(payload ?? ''))
       break
     case 'assistant_done':
@@ -109,6 +122,9 @@ export function dispatchServerEvent(
       logLine('回复完成')
       break
     case 'tool_use': {
+      // 工具调用也是“jarvis 正在工作”的信号：远端 / 主动轮次直接开跑工具（无前置
+      // 文本）时，据此把发送按钮切为“停止”。@author aceFelix
+      chat.setBusy(true)
       const p = payload as { name?: string; id?: string; input?: unknown }
       chat.addToolCard(p?.name ?? '工具', p?.id ?? '', JSON.stringify(p?.input ?? {}, null, 2))
       logLine(`工具调用：${p?.name ?? '工具'}`)
@@ -367,6 +383,38 @@ export function dispatchServerEvent(
       } else {
         void conn.refreshState()
       }
+      break
+    }
+
+    case 'remote_user_message': {
+      // 手机 / 微信入站用户消息：先收尾上一条可能未定稿的 AI 气泡（防御：即使
+      // 漏收 assistant_done 也不会把新回复续写进旧气泡），再按普通用户气泡上屏
+      // 并标注来源。@author aceFelix
+      const p = (payload ?? {}) as RemoteUserMessagePayload
+      if (p.channel && typeof p.text === 'string') {
+        chat.finishAssistant()
+        chat.addUser(p.text, undefined, p.channel)
+      }
+      break
+    }
+
+    // ---- 跨设备协同（手机 / 微信）二维码与连接态 ----
+    case 'qrcode': {
+      // 连接二维码就绪：在中间聊天区内联插入/刷新一条二维码卡片（url 由渲染
+      // 层用 qrcode 库画成 canvas）。@author aceFelix
+      const p = (payload ?? {}) as QrcodePayload
+      if (p.channel && p.url) chat.addQrcode(p.channel, p.url, p.fresh)
+      break
+    }
+    case 'remote_state': {
+      // 连接态变更：写 remoteStore（下拉按钮文案/高亮）+ 同步二维码卡片
+      //（已连接则收起二维码、显“✓ 已连接”）。@author aceFelix
+      const p = (payload ?? {}) as RemoteStatePayload
+      if (!p.channel) break
+      const connected = !!p.connected
+      if (p.channel === 'phone') useRemoteStore.getState().setPhone(connected)
+      else useRemoteStore.getState().setWechat(connected)
+      chat.setQrcodeConnected(p.channel, connected)
       break
     }
 

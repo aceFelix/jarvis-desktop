@@ -14,6 +14,7 @@ import { create } from 'zustand'
 import {
   Cmd,
   parseBackendSettings,
+  parseRuntimeState,
   type BackendInfo,
   type BackendSettingKey,
   type BackendSettings,
@@ -21,7 +22,9 @@ import {
   type CurrentProject,
   type ModelAddPayload,
   type ModelEditPayload,
+  type PermissionMode,
   type ProjectItem,
+  type ThinkingEffort,
   type VoiceAddPayload,
   type VoiceSelectResult
 } from '../../../shared/contracts'
@@ -36,6 +39,8 @@ import {
 } from '../api/dispatcher'
 import { useChatStore } from './chatStore'
 import { useLeftStore } from './leftStore'
+import { useRuntimeStore } from './runtimeStore'
+import { useRemoteStore } from './remoteStore'
 import { useSettingsStore } from './settingsStore'
 import { useMetricsStore, type MetricsPayload } from './metricsStore'
 import {
@@ -74,6 +79,8 @@ export interface JarvisConnection {
    * @author aceFelix
    */
   refreshProjects: () => Promise<void>
+  /** 跨设备协同连接态刷新（phone.status + wechat.status → remoteStore）。@author aceFelix */
+  refreshRemote: () => Promise<void>
   /** 提醒已读回执（proactive.ack）：fire-and-forget，失败静默。 */
   ackProactive: (taskId: string) => void
 }
@@ -130,6 +137,17 @@ export interface BackendStoreState {
   /** 会话删除（成功由 session_deleted 事件刷列表；删当前会话另收 session_new）。@author aceFelix */
   deleteSession: (name: string) => Promise<void>
   selectModel: (name: string) => Promise<void>
+  /**
+   * 切换工作（权限）模式（mode.set）：成功后写 runtimeStore.permissionMode。
+   * 入队即返回，引擎在当前轮结束后热重建 orchestrator（与 selectModel 同口径）。
+   * @author aceFelix
+   */
+  setMode: (mode: PermissionMode) => Promise<void>
+  /**
+   * 切换思考强度（think.set）：成功后写 runtimeStore.thinkingEffort。
+   * @author aceFelix
+   */
+  setThinking: (effort: ThinkingEffort) => Promise<void>
   /** 添加/覆盖自定义模型（左栏「添加模型」表单）；返回是否成功（失败已弹错误）。 */
   addModel: (payload: ModelAddPayload) => Promise<boolean>
   /** 修改模型配置（左栏双击模型项 → 编辑表单）；返回是否成功（失败已弹错误）。 */
@@ -168,6 +186,20 @@ export interface BackendStoreState {
   /** 设置面板写回单个后端联动设置项（乐观更新 + 回执失败回滚）。 */
   setBackendSetting: <K extends BackendSettingKey>(key: K, value: NonNullable<BackendSettings[K]>) => Promise<void>
   fetchMetrics: () => Promise<void>
+
+  // ---- 跨设备协同（手机 PWA / 微信 ClawBot，2026-10）----
+  /** 启动手机协同（二维码走 qrcode 事件回聊天区）。@author aceFelix */
+  connectPhone: () => Promise<void>
+  /** 断开手机协同。@author aceFelix */
+  disconnectPhone: () => Promise<void>
+  /** 启动微信扫码登录（二维码走事件、配对码走内联输入）。@author aceFelix */
+  connectWechat: () => Promise<void>
+  /** 断开微信连接。@author aceFelix */
+  disconnectWechat: () => Promise<void>
+  /** 回喂微信手机端显示的数字配对码。@author aceFelix */
+  submitWechatPairing: (code: string) => Promise<void>
+  /** 拉取手机/微信连接态回填 remoteStore（init 时调一次）。@author aceFelix */
+  refreshRemote: () => Promise<void>
 }
 
 export const useBackendStore = create<BackendStoreState>((set, get) => {
@@ -181,6 +213,7 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     refreshState: () => get().refreshState(),
     refreshSettings: () => get().refreshSettings(),
     refreshProjects: () => get().refreshProjects(),
+    refreshRemote: () => get().refreshRemote(),
     ackProactive: (taskId) => {
       // 提醒已读回执：只发不等（send），失败静默——不因回执问题把错误
       // 写进聊天流（与 runCommand 的显式指令不同，这是后台自动确认）。
@@ -372,6 +405,37 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
       await get().refreshModels()
     },
 
+    setMode: async (mode) => {
+      // 工作（权限）模式切换：入队即返回，业务结果在 result.ok（mode.set 回执 dict）。
+      // 成功后写 runtimeStore（下轮生效，引擎队列串行）；失败由 runCommand 统一弹错。
+      // @author aceFelix
+      const cur = useRuntimeStore.getState().permissionMode
+      if (cur === mode) return
+      const result = await runCommand(Cmd.ModeSet, { mode })
+      if (result === null) return
+      const res = result as { ok?: boolean; error?: string }
+      if (!res?.ok) {
+        useChatStore.getState().addSystem(`✗ 模式切换失败：${res?.error ?? mode}`, 'error')
+        return
+      }
+      useRuntimeStore.getState().setMode(mode)
+    },
+
+    setThinking: async (effort) => {
+      // 思考强度切换：同 setMode 口径（result.ok 为业务结果）。
+      // @author aceFelix
+      const cur = useRuntimeStore.getState().thinkingEffort
+      if (cur === effort) return
+      const result = await runCommand(Cmd.ThinkSet, { effort })
+      if (result === null) return
+      const res = result as { ok?: boolean; error?: string }
+      if (!res?.ok) {
+        useChatStore.getState().addSystem(`✗ 思考档位切换失败：${res?.error ?? effort}`, 'error')
+        return
+      }
+      useRuntimeStore.getState().setThinking(effort)
+    },
+
     addModel: async (payload) => {
       // 左栏「添加模型」表单提交：后端校验 + 写盘 + 内存同步，成功后刷模型列表；
       // 失败由 runCommand 统一弹错误并回 false（表单保持打开，用户可修正重试）。
@@ -557,10 +621,13 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     },
 
     refreshState: async () => {
-      // 运行健康：state.get 的 mcp 快照（null=MCP 未启用）。@author aceFelix
+      // 运行健康 + 输入区两选择器初值：state.get 的 mcp 快照（null=MCP 未启用）
+      // + permission_mode/thinking_effort/thinking_supported（runtimeStore 首屏/重连初始化）。
+      // @author aceFelix
       const result = await runCommand(Cmd.StateGet)
       if (result !== null) {
         useRightStore.getState().setMcp((result as { mcp?: McpStatus | null }).mcp ?? null)
+        useRuntimeStore.getState().applyRuntimeState(parseRuntimeState(result))
       }
     },
 
@@ -652,6 +719,45 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
       const result = await runCommand(Cmd.MetricsGet)
       if (result !== null) {
         useMetricsStore.getState().update(result as MetricsPayload)
+      }
+    },
+
+    // ---- 跨设备协同（手机 / 微信）----
+    connectPhone: async () => {
+      // 入队即返回：真正的 ensure_session + 起桥接在引擎串行落地，
+      // 完成后推 qrcode / remote_state 事件。失败由 runCommand 统一弹错。
+      // @author aceFelix
+      await runCommand(Cmd.PhoneConnect)
+    },
+
+    disconnectPhone: async () => {
+      await runCommand(Cmd.PhoneDisconnect)
+    },
+
+    connectWechat: async () => {
+      await runCommand(Cmd.WechatConnect)
+    },
+
+    disconnectWechat: async () => {
+      await runCommand(Cmd.WechatDisconnect)
+    },
+
+    submitWechatPairing: async (code) => {
+      // 微信配对码：回喂引擎 login 线程阻塞等待的队列（终端是 input()）。
+      // @author aceFelix
+      await runCommand(Cmd.WechatPairing, { code })
+    },
+
+    refreshRemote: async () => {
+      // 重开/重连桌面时回填连接态（二维码卡片不回放，仅按钮态需准确）。
+      // @author aceFelix
+      const phone = await runCommand(Cmd.PhoneStatus)
+      if (phone !== null) {
+        useRemoteStore.getState().setPhone(!!(phone as { active?: boolean }).active)
+      }
+      const wechat = await runCommand(Cmd.WechatStatus)
+      if (wechat !== null) {
+        useRemoteStore.getState().setWechat(!!(wechat as { connected?: boolean }).connected)
       }
     }
   }

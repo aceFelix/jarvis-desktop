@@ -1,0 +1,161 @@
+/* 跨设备协同层（2026-10）：输入栏下拉菜单（.remote-menu-*）+ 聊天区内联二维码卡片
+   （.qrcode-card / .qr-*）。按职责独立成文件（单文件 800 行规范），需早于三张皮肤
+   引入，配色基于 --edge-* 变量以随主题联动。@author aceFelix */
+
+/* 主题联动变量：默认取电光蓝（dark-y2k）配色；retro / light 皮肤各自在
+   其 :root[data-theme=...] 块内覆盖同名变量即随主题联动。
+   （二维码图 .qr-img 固定白底不受主题影响，保证扫码对比度。）@author aceFelix */
+:root {
+    --qr-panel-bg: rgba(8, 18, 32, 0.95);
+    --qr-panel-fg: #e0f2ff;
+    --qr-dim: #8fb8d8;
+    --qr-accent: #7fe3ff;
+    --qr-ok: #2fd66b;
+    --qr-warn: #ffd9a0;
+    /* 二维码图前景（模块）/背景色：需保证深浅对比以可扫描，各皮肤取同色系色调 */
+    --qr-code-dark: #0a1a2f;
+    --qr-code-light: #eaf6ff;
+}
+
+/* ---- 输入栏「跨设备协同」下拉按钮 ---- */
+.remote-menu {
+    position: relative;
+    display: flex;
+    /* 撑满 composer-side-right 的固定列宽，令触发按钮与其他按钮等大对齐 */
+    width: 100%;
+}
+
+.remote-menu-trigger {
+    position: relative;
+    flex: 1;
+}
+
+/* 触发按钮：有任一通道已连接时描边高亮 */
+.remote-menu-trigger.active {
+    border-color: rgba(47, 214, 107, 0.6);
+}
+
+/* 已连接通道数徽标（右上角绿点小计数） */
+.remote-menu-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    font-size: 10px;
+    line-height: 15px;
+    text-align: center;
+    color: #04121f;
+    background: #2fd66b;
+    border-radius: 8px;
+}
+
+/* 弹层菜单：向上弹出（按钮在输入栏右下，避免遮挡输入框） */
+.remote-menu-pop {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    z-index: 30;
+    min-width: 250px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--qr-panel-bg);
+    border: 1px solid var(--edge-strong);
+    border-radius: 0;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    animation: fadeIn 0.15s ease-out;
+}
+
+.remote-menu-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.remote-menu-label {
+    display: flex;
+    flex-direction: column;
+    /* 占满按钮之外的剩余宽度，允许说明文字正常换行（min-width:0 让 flex 子项可收缩） */
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    color: var(--qr-panel-fg);
+}
+
+.remote-menu-label em {
+    font-style: normal;
+    font-size: 11px;
+    color: var(--qr-dim);
+    opacity: 0.8;
+}
+
+.remote-menu-row .action-btn {
+    /* 覆盖 composer.css 的 `.composer-side .action-btn{width:100%}`（弹层同在 composer-side 内被误命中），
+       令按钮按内容收缩，不再把说明文字挤成窄列。remote.css 晚于 composer.css 引入，同特异度下生效。 */
+    flex-shrink: 0;
+    width: auto;
+    /* 下拉框内按钮去圆角，与弹层容器硬边一致 */
+    border-radius: 0;
+    padding: 5px 12px;
+}
+
+/* ---- 中间聊天区内联二维码卡片 ---- */
+.qrcode-card {
+    align-self: center;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: var(--qr-panel-bg);
+    border: 1px solid var(--edge-mid);
+    color: var(--qr-panel-fg);
+    text-align: center;
+}
+
+.qrcode-card .message-label {
+    align-self: flex-start;
+    color: var(--qr-accent);
+}
+
+/* 二维码图：背景随主题 --qr-code-light（与图内背景融合无缝），保证扫码对比度 */
+.qr-img {
+    width: 220px;
+    height: 220px;
+    background: var(--qr-code-light);
+    border-radius: 0;
+    padding: 6px;
+    box-sizing: content-box;
+}
+
+/* 生成失败回退：显示原始 url（可选中复制） */
+.qr-fallback {
+    font-size: 12px;
+    color: var(--qr-warn);
+    word-break: break-all;
+    max-width: 100%;
+}
+
+.qr-fallback code {
+    display: block;
+    margin-top: 4px;
+    color: var(--qr-accent);
+    user-select: all;
+}
+
+.qr-tip {
+    font-size: 12px;
+    color: var(--qr-dim);
+    line-height: 1.5;
+}
+
+.qr-connected {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--qr-ok);
+    padding: 18px 0;
+}

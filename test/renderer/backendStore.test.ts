@@ -20,6 +20,7 @@ import { useBackendStore } from '@renderer/stores/backendStore'
 import { useLeftStore } from '@renderer/stores/leftStore'
 import { useChatStore } from '@renderer/stores/chatStore'
 import { useRightStore } from '@renderer/stores/rightStore'
+import { useRuntimeStore } from '@renderer/stores/runtimeStore'
 import { EMPTY_BACKEND_SETTINGS, useSettingsStore } from '@renderer/stores/settingsStore'
 
 // applyBackendStatus 的 ready 路径会经 connect() 构造 JarvisWsClient，
@@ -66,6 +67,7 @@ beforeEach(() => {
     logs: []
   })
   useSettingsStore.setState({ backendSettings: { ...EMPTY_BACKEND_SETTINGS } })
+  useRuntimeStore.setState({ permissionMode: 'default', thinkingEffort: 'off', thinkingSupported: [] })
 })
 
 afterEach(() => {
@@ -807,5 +809,92 @@ describe('backendStore · 项目工作区', () => {
 
     expect(ok).toBe(false)
     expect(client.sendCommand).not.toHaveBeenCalled()
+  })
+})
+
+// 工作模式 / 思考强度指令路由 + state.get 初始化 runtimeStore（2026-09 桌面输入区）。
+// @author aceFelix
+describe('backendStore · 工作模式 / 思考强度', () => {
+  /** 按指令类型回执的假客户端（mode.set/think.set 回业务 dict，state.get 回快照）。 */
+  function routedClient(resultFor: (type: string) => unknown): { sendCommand: ReturnType<typeof vi.fn> } {
+    return { sendCommand: vi.fn().mockImplementation((type: string) => Promise.resolve({ ok: true, result: resultFor(type) })) }
+  }
+
+  it('setMode 成功（result.ok=true）→ 发 mode.set + 写 runtimeStore', async () => {
+    const client = routedClient(() => ({ ok: true, mode: 'plan' }))
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().setMode('plan')
+
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.ModeSet, { mode: 'plan' })
+    expect(useRuntimeStore.getState().permissionMode).toBe('plan')
+  })
+
+  it('setMode 与当前相同 → 不发指令（去重）', async () => {
+    useRuntimeStore.setState({ permissionMode: 'plan' })
+    const client = routedClient(() => ({ ok: true, mode: 'plan' }))
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().setMode('plan')
+
+    expect(client.sendCommand).not.toHaveBeenCalled()
+  })
+
+  it('setMode 业务失败（result.ok=false）→ 弹错、不写 store', async () => {
+    const client = routedClient(() => ({ ok: false, error: '未知模式: nope' }))
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().setMode('plan')
+
+    expect(useRuntimeStore.getState().permissionMode).toBe('default')
+    const sys = useChatStore.getState().messages.filter((m) => m.kind === 'system')
+    expect(sys.some((m) => m.kind === 'system' && m.text.includes('模式切换失败'))).toBe(true)
+  })
+
+  it('setThinking 成功 → 发 think.set + 写 runtimeStore', async () => {
+    const client = routedClient(() => ({ ok: true, effort: 'high' }))
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().setThinking('high')
+
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.ThinkSet, { effort: 'high' })
+    expect(useRuntimeStore.getState().thinkingEffort).toBe('high')
+  })
+
+  it('refreshState 初始化 runtimeStore（state.get 回填）', async () => {
+    const client = routedClient((type) =>
+      type === Cmd.StateGet
+        ? {
+            mcp: null,
+            permission_mode: 'accept_edits',
+            thinking_effort: 'medium',
+            thinking_supported: ['off', 'low', 'medium', 'high']
+          }
+        : null
+    )
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().refreshState()
+
+    const s = useRuntimeStore.getState()
+    expect(s.permissionMode).toBe('accept_edits')
+    expect(s.thinkingEffort).toBe('medium')
+    expect(s.thinkingSupported).toEqual(['off', 'low', 'medium', 'high'])
+  })
+
+  it('refreshState 脏值宽容：非法模式/档位回退默认，supported 剔脏', async () => {
+    const client = routedClient((type) =>
+      type === Cmd.StateGet
+        ? { permission_mode: 'ghost', thinking_effort: 'extreme', thinking_supported: ['off', 'bogus', 'high'] }
+        : null
+    )
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().refreshState()
+
+    const s = useRuntimeStore.getState()
+    expect(s.permissionMode).toBe('default')
+    expect(s.thinkingEffort).toBe('off')
+    expect(s.thinkingSupported).toEqual(['off', 'high'])
   })
 })

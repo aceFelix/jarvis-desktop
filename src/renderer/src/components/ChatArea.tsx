@@ -23,6 +23,11 @@ import { useBackendStore, type SendAttachments } from '../stores/backendStore'
 import { useChatStore, type MessageItem } from '../stores/chatStore'
 import { useLeftStore } from '../stores/leftStore'
 import { useAttachStore } from '../stores/attachStore'
+import { useRuntimeStore } from '../stores/runtimeStore'
+import ThemedSelect, { type SelectOption } from './ThemedSelect'
+import RemoteConnectMenu from './RemoteConnectMenu'
+import QrcodeCard from './QrcodeCard'
+import type { PermissionMode, ThinkingEffort } from '../../../shared/contracts'
 import { voiceStatusLabels } from '../api/dispatcher'
 import { useT } from '../i18n'
 import { useGlyphs } from '../glyphs'
@@ -31,6 +36,15 @@ import { useGlyphs } from '../glyphs'
 // @author aceFelix
 const ATTACH_ACCEPT =
   'image/png,image/jpeg,image/webp,image/gif,.md,.txt,.py,.json,.toml,.yaml,.yml,.csv,.log,.js,.ts,.jsx,.tsx,.html,.css,.ini,.xml,.sql,.sh,.bat,.ps1'
+
+// 思考档位 → i18n 文案键（输入区思考选择器标签映射）。@author aceFelix
+const THINK_KEYS: Record<ThinkingEffort, string> = {
+  off: 'chat.think.off',
+  on: 'chat.think.on',
+  low: 'chat.think.low',
+  medium: 'chat.think.medium',
+  high: 'chat.think.high'
+}
 
 /** 工具项（消息判别联合窄化，工具组使用）。 */
 type ToolItem = Extract<MessageItem, { kind: 'tool' }>
@@ -100,7 +114,14 @@ function MessageView({ item }: { item: MessageItem }): JSX.Element {
     case 'user':
       return (
         <div className="message user" data-testid="msg-user">
-          <div className="message-label">{t('chat.you')}</div>
+          <div className="message-label">
+            {/* 远端入站消息标来源（微信 / 手机），本地输入显“你” */}
+            {item.source === 'wechat'
+              ? t('chat.wechat')
+              : item.source === 'phone'
+                ? t('chat.phone')
+                : t('chat.you')}
+          </div>
           {item.images?.length ? (
             <div className="msg-thumbs" data-testid="msg-thumbs">
               {item.images.map((src, i) => (
@@ -137,12 +158,30 @@ function MessageView({ item }: { item: MessageItem }): JSX.Element {
           </div>
         </details>
       )
-    case 'system':
+    case 'system': {
+      const errCls = item.tone === 'error' ? ' error-msg' : ''
+      // 多行系统/警告/错误提示（如工具失败重试的长 dump）折叠：首行做标题、
+      // 点开看全文，避免一大块铺满聊天区；单行短提示（如“微信已断开”）保持原样。
+      // @author aceFelix
+      const nl = item.text.indexOf('\n')
+      if (nl < 0) {
+        return (
+          <div className={`message system${errCls}`} data-testid="msg-system">
+            {item.text}
+          </div>
+        )
+      }
       return (
-        <div className={`message system${item.tone === 'error' ? ' error-msg' : ''}`} data-testid="msg-system">
-          {item.text}
-        </div>
+        <details className={`message system collapsible${errCls}`} data-testid="msg-system">
+          <summary>{item.text.slice(0, nl)}</summary>
+          <div className="system-body">{item.text.slice(nl + 1)}</div>
+        </details>
       )
+    }
+    // 跨设备协同连接二维码卡片（手机 / 微信）：url 由 QrcodeCard 用 qrcode 库
+    // 画成图，微信卡片额外内联配对码输入。@author aceFelix
+    case 'qrcode':
+      return <QrcodeCard item={item} />
   }
 }
 
@@ -234,9 +273,15 @@ export default function ChatArea(): JSX.Element {
   const sendMessage = useBackendStore((s) => s.sendMessage)
   const abortReply = useBackendStore((s) => s.abortReply)
   const answerUser = useBackendStore((s) => s.answerUser)
-  const toggleTalk = useBackendStore((s) => s.toggleTalk)
   const toggleVoice = useBackendStore((s) => s.toggleVoice)
   const interruptVoice = useBackendStore((s) => s.interruptVoice)
+  // 输入区工具条：工作（权限）模式 + 思考强度（初值由 state.get 回填 runtimeStore）。
+  // @author aceFelix
+  const permissionMode = useRuntimeStore((s) => s.permissionMode)
+  const thinkingEffort = useRuntimeStore((s) => s.thinkingEffort)
+  const thinkingSupported = useRuntimeStore((s) => s.thinkingSupported)
+  const setMode = useBackendStore((s) => s.setMode)
+  const setThinking = useBackendStore((s) => s.setThinking)
   // 半双工语音：会话运行中标记 + 当前阶段（驱动状态条文案）。
   const voiceActive = useLeftStore((s) => s.voiceActive)
   const voiceState = useLeftStore((s) => s.voiceState)
@@ -302,6 +347,24 @@ export default function ChatArea(): JSX.Element {
 
   const t = useT()
   const g = useGlyphs()
+
+  // 输入区工具条两个选择器的选项（工作模式固定四项；思考按当前厂商 supported 动态取档）。
+  // supported 为空=该厂商无思考控制 → 渲染单条「关闭思考」并置灰（disabled）。
+  // @author aceFelix
+  const modeOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: 'default', label: t('chat.mode.default') },
+      { value: 'plan', label: t('chat.mode.plan') },
+      { value: 'accept_edits', label: t('chat.mode.acceptEdits') },
+      { value: 'yolo', label: t('chat.mode.yolo') }
+    ],
+    [t]
+  )
+  const thinkOptions = useMemo<SelectOption[]>(() => {
+    const opts = thinkingSupported.map((e) => ({ value: e, label: t(THINK_KEYS[e] ?? 'chat.think.off') }))
+    return opts.length ? opts : [{ value: thinkingEffort, label: t('chat.think.off') }]
+  }, [thinkingSupported, thinkingEffort, t])
+  const thinkingDisabled = thinkingSupported.length === 0
 
   /** 截屏 → 附件区（主进程 desktopCapturer 抓主屏缩略图，复用附件 vision 链路）。 */
   const doCapture = async (): Promise<void> => {
@@ -415,25 +478,46 @@ export default function ChatArea(): JSX.Element {
             e.target.value = '' // 清空允许重复选同一文件
           }}
         />
-        <button
-          className="action-btn"
-          data-testid="btn-attach"
-          title={t('chat.attachTip')}
-          onClick={() => fileInputRef.current?.click()}
-          disabled={!wsConnected || busy}
-        >
-          {g.attach}
-        </button>
-        {/* 📸 截屏入口（自右栏快捷操作迁入输入栏）：截图入附件区随消息上送 */}
-        <button
-          className="action-btn"
-          data-testid="btn-capture"
-          title={t('chat.captureTip')}
-          onClick={() => void doCapture()}
-          disabled={!wsConnected || busy}
-        >
-          {g.capture}
-        </button>
+        {/* 左侧控制区：📎 附件 / 📸 截屏 + 工作模式 / 思考强度，2×2 竖排成一组。
+            模式与思考切换下轮生效（引擎指令队列串行），busy/未连接时不禁用切换。@author aceFelix */}
+        <div className="composer-side composer-side-left">
+          <button
+            className="action-btn"
+            data-testid="btn-attach"
+            title={t('chat.attachTip')}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!wsConnected || busy}
+          >
+            {g.attach}
+          </button>
+          {/* 📸 截屏入口（自右栏快捷操作迁入输入栏）：截图入附件区随消息上送 */}
+          <button
+            className="action-btn"
+            data-testid="btn-capture"
+            title={t('chat.captureTip')}
+            onClick={() => void doCapture()}
+            disabled={!wsConnected || busy}
+          >
+            {g.capture}
+          </button>
+          <div className="composer-toolbar" data-testid="composer-toolbar">
+            <ThemedSelect
+              testid="select-mode"
+              ariaLabel={t('chat.modeTip')}
+              value={permissionMode}
+              options={modeOptions}
+              onChange={(v) => void setMode(v as PermissionMode)}
+            />
+            <ThemedSelect
+              testid="select-think"
+              ariaLabel={t('chat.thinkTip')}
+              value={thinkingEffort}
+              options={thinkOptions}
+              disabled={thinkingDisabled}
+              onChange={(v) => void setThinking(v as ThinkingEffort)}
+            />
+          </div>
+        </div>
         <textarea
           ref={inputRef}
           rows={1}
@@ -443,7 +527,7 @@ export default function ChatArea(): JSX.Element {
             setDraft(e.target.value)
             const el = e.target
             el.style.height = 'auto'
-            el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+            el.style.height = `${Math.min(el.scrollHeight, 240)}px`
           }}
           onPaste={(e) => {
             // 粘贴图片入附件区（截图后 Ctrl+V 直接贴图）；纯文本粘贴不受影响
@@ -459,37 +543,34 @@ export default function ChatArea(): JSX.Element {
             }
           }}
         />
-        {/* 发送/停止双态按钮：busy 时变“■ 停止”，再点发 reply.abort 中断回复。
-            停止不依赖 WS 回执前先置灰，故不加 wsConnected 禁用以外的限制。
+        {/* 右侧控制区：发送/停止 + 实时语音，竖排一列。
+            发送/停止双态按钮：busy 时变“■ 停止”，再点发 reply.abort 中断回复。
             @author aceFelix */}
-        {busy ? (
-          <button
-            className="action-btn danger"
-            data-testid="btn-stop"
-            title={t('chat.stopTip')}
-            onClick={() => void abortReply()}
-            disabled={!wsConnected}
-          >
-            {t('chat.stop')}
-          </button>
-        ) : (
-          <button
-            className="action-btn primary"
-            data-testid="btn-send"
-            onClick={doSend}
-            disabled={!wsConnected}
-          >
-            {t('chat.send')}
-          </button>
-        )}
-        <button
-          className={`action-btn${wsConnected ? '' : ' disabled'}`}
-          title={t('chat.micTip')}
-          onClick={() => void toggleTalk()}
-          disabled={!wsConnected}
-        >
-          {g.modeTalk}
-        </button>
+        <div className="composer-side composer-side-right">
+          {busy ? (
+            <button
+              className="action-btn danger"
+              data-testid="btn-stop"
+              title={t('chat.stopTip')}
+              onClick={() => void abortReply()}
+              disabled={!wsConnected}
+            >
+              {t('chat.stop')}
+            </button>
+          ) : (
+            <button
+              className="action-btn primary"
+              data-testid="btn-send"
+              onClick={doSend}
+              disabled={!wsConnected}
+            >
+              {t('chat.send')}
+            </button>
+          )}
+          {/* 跨设备协同下拉按钮（取代原 [LIV] 实时语音入口：左栏已有 [LIV]）：
+              点选手机 / 微信发起连接，二维码内联回聊天区。@author aceFelix */}
+          <RemoteConnectMenu />
+        </div>
       </footer>
     </main>
   )

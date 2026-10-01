@@ -31,6 +31,16 @@
     --proj-panel: rgba(0, 24, 8, 0.6);
     --proj-hover-bg: var(--retro-bright);
     --proj-hover-fg: #020602;
+    /* 跨设备协同（下拉菜单 / 二维码卡片，组件样式在 remote.css）随复古皮肤联动 */
+    --qr-panel-bg: var(--retro-panel);
+    --qr-panel-fg: var(--retro-text);
+    --qr-dim: var(--retro-dim);
+    --qr-accent: var(--retro-bright);
+    --qr-ok: var(--retro-bright);
+    --qr-warn: var(--retro-warn);
+    /* 二维码：深绿模块 + 浅绿底（高对比可扫，呼应荧光绿 CRT 质感） */
+    --qr-code-dark: #063d18;
+    --qr-code-light: #c9ffd6;
 }
 
 /* ==================== CRT 底：黑绿实底 + 点阵抖动 + 扫描线 ==================== */
@@ -212,6 +222,11 @@
     color: var(--retro-bright);
     border-color: var(--edge-strong);
     background: rgba(51, 255, 102, 0.12);
+}
+/* 属于当前项目的会话：绿色实线描边框（本皮肤高亮色）、不填充。@author aceFelix */
+[data-theme='retro'] .list-item.in-project {
+    border-color: var(--retro-bright);
+    background: transparent;
 }
 [data-theme='retro'] .list-item .sub { color: var(--retro-dim); }
 [data-theme='retro'] .list-item:not(.noop):hover .sub { color: #020602; }

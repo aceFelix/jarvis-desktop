@@ -1,0 +1,269 @@
+/* 中栏对话展示层：#center-col 容器 / #chat-history 滚动区 / 消息气泡 / 流式光标 /
+   思考块 / 工具卡与工具组 / 消息级操作行与附件缩略图。
+   2026-10 按职责从 main.css 拆出（单文件 800 行规范），级联顺序保持在 main.css 之后、
+   controls.css 与三张皮肤之前引入；主题配色仍归各皮肤 [data-theme] 覆盖块。@author aceFelix */
+
+/* ---- 中栏对话区 ---- */
+#center-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0; /* 同三栏：长对话才能落在 #chat-history 内滚动 */
+    border-radius: 16px;
+    background: rgba(8, 18, 32, 0.34);
+    border: 1.5px solid var(--edge-strong);
+    backdrop-filter: blur(8px);
+    padding: 10px 0;
+    box-shadow: 0 10px 36px rgba(0, 0, 0, 0.38),
+                0 0 14px rgba(91, 200, 255, 0.12),
+                inset 0 1px 0 rgba(140, 220, 255, 0.18);
+}
+
+#chat-history {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px 2.3%;
+    /* 右端对齐输入栏：#chat-history 的竖向滞动条占 8px（见下方 ::-webkit-scrollbar width），
+       会把气泡内容右推 8px。用 scrollbar-gutter: stable 常驻滞动条槽 + 右侧 padding 减 8px 抵消，
+       使气泡右端 = 宽 − 2.3%，与 .glass-bar（无滞动条）两端对齐。@author aceFelix */
+    scrollbar-gutter: stable;
+    padding-right: calc(2.3% - 16.7px);
+    scrollbar-width: auto;
+/* 滚动条色变量化：fallback 保留原深蓝底肤色，三张皮肤在 :root 块里重定义
+   --scroll-thumb/--scroll-track 即随主题变色（此前写死蓝色导致其他主题下仍蓝）。@author aceFelix */
+    scrollbar-color: var(--scroll-thumb, rgba(91, 200, 255, 0.55)) var(--scroll-track, rgba(255, 255, 255, 0.06));
+}
+
+#chat-history::-webkit-scrollbar { width: 8px; }
+#chat-history::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.06); border-radius: 4px; }
+#chat-history::-webkit-scrollbar-thumb { background: rgba(91, 200, 255, 0.55); border-radius: 4px; }
+
+.message {
+    flex-shrink: 0; /* 气泡不参与压缩：消息多时滚动而非压扁 */
+    max-width: 86.3%;
+    padding: 11px 15px;
+    border-radius: 14px;
+    font-size: 14px;
+    font-weight: 450;
+    line-height: 1.6;
+    word-break: break-word;
+    white-space: pre-wrap;
+    /* 不开 backdrop-filter：每条气泡都做模糊合成，消息多时 CPU 随条数增长 */
+    animation: fadeIn 0.25s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.message.user {
+    align-self: flex-end;
+    background: rgba(91, 200, 255, 0.14);
+    border: 1px solid rgba(120, 215, 255, 0.72);
+    color: #e6f6ff;
+    border-bottom-right-radius: 4px;
+}
+
+.message.ai {
+    align-self: flex-start;
+    background: rgba(10, 22, 38, 0.62);
+    border: 1px solid rgba(140, 200, 240, 0.45);
+    color: #f2f8ff;
+    border-bottom-left-radius: 4px;
+}
+
+.message.system {
+    align-self: center;
+    max-width: 90%;
+    font-size: 12px;
+    color: #9fc4e0;
+    background: rgba(8, 18, 32, 0.48);
+    border: 1px dashed rgba(91, 200, 255, 0.6);
+}
+
+.message.error-msg { border-color: rgba(255, 90, 90, 0.5); color: #ffb0b0; }
+
+/* 多行系统提示折叠（2026-10）：与工具组一致的两级折叠——首行 summary、
+   点开看全文（正文限高内部滚动）。主题色仍由 .message.system 皮肤规则控制。@author aceFelix */
+.message.system.collapsible {
+    text-align: left;
+    padding: 5px 10px;
+}
+.message.system.collapsible > summary {
+    cursor: pointer;
+    list-style: none;
+}
+.message.system.collapsible > summary::before { content: "▸ "; }
+.message.system.collapsible[open] > summary::before { content: "▾ "; }
+.message.system.collapsible .system-body {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px dashed rgba(91, 200, 255, 0.35);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.message-label {
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    opacity: 0.85;
+    letter-spacing: 1px;
+}
+
+.message.user .message-label { color: #5bc8ff; }
+.message.ai .message-label { color: #7fe3ff; }
+
+/* 流式光标：AI 气泡打字中的闪烁竖线 */
+.cursor-blink {
+    color: #7fe3ff;
+    animation: blink 0.9s steps(1) infinite;
+}
+
+@keyframes blink {
+    50% { opacity: 0; }
+}
+
+/* 思考块（2026-09 折叠化）：收起时只剩一行 summary「思考过程 · N 字」，
+   展开后正文限高内部滚动，上千字的思考不再撑爆气泡。@author aceFelix */
+.thinking-block {
+    margin-bottom: 6px;
+    border-left: 2px solid rgba(91, 200, 255, 0.6);
+}
+
+.thinking-block > summary {
+    cursor: pointer;
+    list-style: none;
+    padding-left: 8px;
+    font-size: 12px;
+    color: #8fb8d8;
+    opacity: 0.85;
+}
+
+.thinking-block > summary::before { content: "▸ "; }
+.thinking-block[open] > summary::before { content: "▾ "; }
+
+.thinking-block .thinking-body {
+    padding-left: 8px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: #8fb8d8;
+    font-style: italic;
+    white-space: pre-wrap;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.tool-card {
+    flex-shrink: 0;
+    align-self: stretch;
+    font-size: 12px;
+    color: #b8d8f0;
+    background: rgba(8, 18, 32, 0.55);
+    border: 1px solid var(--edge-soft);
+    border-radius: 8px;
+    margin: 0 10%;
+    overflow: hidden;
+}
+
+.tool-card summary {
+    cursor: pointer;
+    padding: 5px 10px;
+    list-style: none;
+}
+
+.tool-card summary::before { content: "⚙ "; }
+.tool-card .tool-body {
+    padding: 6px 10px;
+    border-top: 1px solid var(--edge-soft);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.tool-card.error { border-color: rgba(255, 90, 90, 0.45); }
+
+/* 工具组（2026-09）：连续工具调用聚合成一条框 —— 执行中展开看进度、全部
+   完成后自动收起成一行；组内保留每条工具卡（可再展开看入参/输出），
+   形成两级折叠。@author aceFelix */
+.tool-group {
+    flex-shrink: 0;
+    align-self: stretch;
+    font-size: 12px;
+    color: #b8d8f0;
+    background: rgba(8, 18, 32, 0.55);
+    border: 1px solid var(--edge-soft);
+    border-radius: 8px;
+    margin: 0 10%;
+    overflow: hidden;
+}
+
+.tool-group > summary {
+    cursor: pointer;
+    padding: 5px 10px;
+    list-style: none;
+}
+
+.tool-group > summary::before { content: "⛭ "; }
+
+.tool-group .tool-group-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 8px;
+    border-top: 1px solid var(--edge-soft);
+}
+
+/* 组内卡片去掉自身外边距（缩进由组框承担），避免双重缩进 */
+.tool-group .tool-card { margin: 0; }
+
+.tool-group.error { border-color: rgba(255, 90, 90, 0.45); }
+.tool-group .tool-group-fail { color: #ff8a8a; }
+.tool-group .tool-group-run { opacity: 0.75; }
+
+/* AI 气泡右下角消息级操作行（复制本条回复）。@author aceFelix */
+.msg-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 6px;
+}
+
+.msg-action-btn {
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #9fc9e8;
+    background: rgba(91, 200, 255, 0.07);
+    border: 1px solid var(--edge-soft);
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.msg-action-btn:hover {
+    color: #5bc8ff;
+    background: rgba(91, 200, 255, 0.16);
+}
+
+/* 用户气泡内的附件图片缩略图（已发送）。@author aceFelix */
+.msg-thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.msg-thumbs img {
+    max-width: 180px;
+    max-height: 180px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--edge-mid);
+}

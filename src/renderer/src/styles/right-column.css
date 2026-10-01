@@ -1,0 +1,335 @@
+/* Right-column layer: metric cards (CPU/MEM/DISK) and the five sections (settings /
+   task center / usage / system status / runtime health), plus the shared
+   .settings-panel(.form-scroll) form container and .side-empty placeholder.
+   Split from main.css by responsibility (2026-10, 800-line rule); imported after
+   composer.css but before controls.css and the three skins; theme colors stay
+   in each [data-theme] override file. @author aceFelix */
+
+/* ---- 右栏指标 ---- */
+.metric-card {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1.2px solid var(--edge-soft);
+    box-shadow: inset 0 1px 0 rgba(140, 220, 255, 0.12);
+}
+
+.metric-head {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
+    color: #cfe8fa;
+    margin-bottom: 8px;
+}
+
+.metric-value { color: #7fe3ff; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.gauge {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(91, 200, 255, 0.4);
+    overflow: hidden;
+}
+
+.gauge-fill {
+    width: 0%;
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #2f7fbf, #5bc8ff, #00f0ff);
+    box-shadow: 0 0 8px rgba(91, 200, 255, 0.5);
+    transition: width 0.6s ease;
+}
+
+.gauge-fill.hot { background: linear-gradient(90deg, #ff9a3d, #ff6b35); }
+
+.metric-detail {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #9cc4e0;
+}
+
+/* ---- 右栏五区块（设置/任务中心/用量/系统状态/运行健康） ---- */
+/* 五区块叠加后超出列高：整列纵向滚动（glass-col 已 min-height:0 保证滚动生效）。 */
+#right-col { overflow-y: auto; }
+
+/* 分段小标题间距：首个 header 保持原间距，后续 header 上边界加大分隔 */
+#right-col .col-header + .col-header,
+#right-col .col-header:not(:first-child) { margin-top: 6px; }
+
+/* 空态提示（任务中心/用量/日志流共用） */
+.side-empty {
+    font-size: 12px;
+    color: #6f93b3;
+    padding: 4px 2px;
+}
+
+/* 设置面板：行式布局（标签 + 分段控件），后续新设置项按行追加。@author aceFelix */
+.settings-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* 左栏表单（添加/修改模型、添加/修改音色）字段区：面板高度不够时自身滚动。
+   2026-09-30 实机反馈：表单字段多、.settings-panel 无滚动约束时内容溢出面板，
+   与左栏底部常驻的项目区块叠在一起，下面的字段既看不见也点不到。
+   flex:1 + min-height:0 让它接受父容器（.panel，已设 flex:1/min-height:0）的
+   高度约束，overflow-y:auto 才会真正生效；滚动条外观与 .list-area 一致并走
+   --scroll-thumb/--scroll-track 变量，三套皮肤自动变色。
+   仅表单加 form-scroll：右栏 SettingsPanel 仍随外层整体滚动，不受影响。
+   @author aceFelix */
+.settings-panel.form-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: auto;
+    scrollbar-color: var(--scroll-thumb, rgba(91, 200, 255, 0.55)) var(--scroll-track, rgba(255, 255, 255, 0.06));
+    /* 留出滚动条位置，避免滑块压住输入框右边缘 */
+    padding-right: 4px;
+}
+
+.settings-panel.form-scroll::-webkit-scrollbar { width: 8px; }
+.settings-panel.form-scroll::-webkit-scrollbar-track { background: var(--scroll-track, rgba(255, 255, 255, 0.06)); border-radius: 4px; }
+.settings-panel.form-scroll::-webkit-scrollbar-thumb { background: var(--scroll-thumb, rgba(91, 200, 255, 0.55)); border-radius: 4px; }
+.settings-panel.form-scroll::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb, rgba(91, 200, 255, 0.8)); }
+
+.setting-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.setting-label {
+    font-size: 12px;
+    color: #9cc9e8;
+    letter-spacing: 1px;
+}
+
+/* 设置视图头：返回按钮 + 标题（设置面板独立成视图替换右栏）。@author aceFelix */
+.settings-head {
+    gap: 8px;
+}
+
+.settings-back {
+    width: 26px;
+    height: 26px;
+    border: 1px solid rgba(91, 200, 255, 0.35);
+    border-radius: 6px;
+    background: rgba(91, 200, 255, 0.08);
+    color: #9fc9e8;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.settings-back:hover {
+    background: rgba(91, 200, 255, 0.18);
+    color: #eafaff;
+}
+
+/* 设置项提示文案（比标签更小更弱，解释开关行为口径） */
+.setting-hint {
+    font-size: 11px;
+    color: rgba(159, 201, 232, 0.55);
+    line-height: 1.5;
+}
+
+/* 拨动开关（后端联动设置项，如主动播报 TTS）：role=switch + aria-checked。@author aceFelix */
+.toggle {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    border-radius: 11px;
+    border: 1px solid rgba(91, 200, 255, 0.35);
+    background: rgba(91, 200, 255, 0.10);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #9fc9e8;
+    transition: all 0.15s;
+}
+
+.toggle.on {
+    background: rgba(91, 200, 255, 0.45);
+    border-color: rgba(91, 200, 255, 0.7);
+}
+
+.toggle.on::after {
+    left: 20px;
+    background: #eafaff;
+}
+
+/* 时间项（简报/截止日期检查时间，HH:MM）：自绘 ThemedTimePicker（小时/分钟两个
+   .themed-select，样式见 controls.css）。原生 input[type=time] 的弹出面板由
+   Chromium 内部绘制、无法主题化，已弃用。@author aceFelix */
+
+/* 数值滑杆行（TTS 音量/语速）：滑杆 + 当前值读数。@author aceFelix */
+.setting-range {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    justify-content: flex-end;
+}
+
+.setting-range input[type='range'] {
+    width: 110px;
+    accent-color: #5bc8ff;
+    cursor: pointer;
+}
+
+.setting-range-value {
+    font-size: 11px;
+    color: rgba(159, 201, 232, 0.8);
+    min-width: 40px;
+    text-align: right;
+}
+
+/* 任务中心列表 */
+.task-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.task-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--edge-soft);
+    font-size: 12px;
+}
+
+.task-time {
+    flex-shrink: 0;
+    color: #7fe3ff;
+    font-variant-numeric: tabular-nums;
+}
+
+.task-time.due-soon { color: #ffd166; }
+.task-time.due-over { color: #ff8a8a; }
+
+.task-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #d8ecfa;
+}
+
+.task-tag {
+    flex-shrink: 0;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    color: #a0e9ff;
+    border: 1px solid rgba(91, 200, 255, 0.4);
+}
+
+/* 最近简报（折叠块） */
+.briefing-block {
+    margin-top: 8px;
+    border: 1px solid var(--edge-soft);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 12px;
+}
+
+.briefing-block summary {
+    padding: 7px 10px;
+    cursor: pointer;
+    color: #a0e9ff;
+    user-select: none;
+}
+
+.briefing-text {
+    padding: 0 10px 8px;
+    color: #c2dcf0;
+    white-space: pre-wrap;
+    max-height: 140px;
+    overflow-y: auto;
+}
+
+/* 会话与用量卡 */
+.usage-card {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1.2px solid var(--edge-soft);
+}
+
+.usage-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+    color: #9cc4e0;
+}
+
+.usage-value {
+    color: #d8ecfa;
+    font-variant-numeric: tabular-nums;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 运行健康：MCP 状态 + 日志流 */
+.mcp-line { font-size: 12px; }
+.mcp-ok { color: #7fe3b8; }
+.mcp-warn { color: #ffd166; }
+
+.mcp-failed {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #ff8a8a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.log-feed {
+    margin-top: 8px;
+    max-height: 160px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--edge-soft);
+}
+
+.log-line {
+    font-size: 11px;
+    font-family: Consolas, 'Courier New', monospace;
+    color: #9cc4e0;
+    /* 行高略放宽：复古皮肤的 CRT 扫描线（每 3px 一条暗线）会切到 11px 小字的
+       笔画，行高够大才不会让相邻行看起来糊在一起。@author aceFelix */
+    line-height: 1.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+

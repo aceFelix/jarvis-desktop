@@ -70,7 +70,7 @@ npm run dev
 
 push / PR 到 `main` 时 GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）自动在 Node 20/22 双版本上执行：`npm ci`（跳过 Electron 二进制下载）→ `typecheck` → `test` → `build`，不依赖 Python 后端与真实 Electron 运行时。
 
-## 对话区降噪（思考 / 工具折叠）
+## 对话区降噪（思考 / 工具 / 系统提示折叠）
 
 思考模型（qwen3.x 等）的思考常有上千字，一轮任务又常连跑十几个工具，全部展开会把一屏撑满。
 2026-09 起中栏按「**进行中可见、完成后收起**」口径渲染（纯渲染层，不动协议与后端）：
@@ -82,13 +82,17 @@ push / PR 到 `main` 时 GitHub Actions（[.github/workflows/ci.yml](.github/wor
   执行中自动展开、标题实时显示在跑的工具（「执行中：Bash」）；全部完成后自动收起成一行 ✓；
   有失败时**仍收起**但标题标红「✗N 失败」、边框同步变红（扫一眼即知，点开可见是哪条）；
   展开后仍是组内每条原工具卡（可再单独展开看入参/输出，两级折叠）；
+- **系统提示折叠**（2026-10）：**多行**的系统 / 警告 / 错误提示（如工具失败重试的长 dump、
+  「拒绝执行 Bash…」块）折叠为 `<details>`——首行做标题、点开看全文（正文限高 240px 内部
+  滚动），不再一大块铺满聊天区；**单行**短提示（如「微信已断开」）保持原样直接渲染，避免
+  小题大做多加一层点击；错误语气（`tone==='error'`）折叠后仍标红边框；
 - **分组边界**：只在**连续**工具项之间聚合——中间夹了 AI 文本或系统提示就切组；单条工具不包组
   （直接渲染原卡片，少一层点击）；历史回放的「历史工具调用 ×N」汇总卡（`toolId` 为空）不并入组；
 - **手点优先**：受控 `<details>` + `onToggle` 把用户操作同步回 state——自动收起只在「本轮结束 /
   全部完成」那一刻发生一次，不会把你手动展开的块抢回去。
 
 实现在 [src/renderer/src/components/ChatArea.tsx](src/renderer/src/components/ChatArea.tsx) 的
-`ThinkingBlock` / `ToolGroup` / `groupMessages`（样式在 main.css + 三张皮肤同口径）。
+`ThinkingBlock` / `ToolGroup` / `groupMessages` / `MessageView`（`system` 分支）（样式在 chat.css + 三张皮肤同口径，2026-10 由 main.css 拆出）。
 
 ## 消息附件（📎 / 粘贴）
 
@@ -102,6 +106,21 @@ push / PR 到 `main` 时 GitHub Actions（[.github/workflows/ci.yml](.github/wor
 上限（serve 入队校验快速失败，前端同口径提示）：单条 ≤8 张图片（base64 ≤10M 字符）、
 ≤5 个文件（单内容 ≤20 万字符）；待发送附件在输入栏上方以 chips 展示、可移除；
 纯图片消息（空文本）也可发送。协议细节见 [docs/architecture.md](docs/architecture.md) 「消息附件」小节。
+
+## 输入栏（工作模式 + 思考强度）
+
+输入栏分为**左侧 2×2 控制区（📎 附件 / 📸 截屏 + 工作模式 / 思考强度）、中间加高输入框、
+右侧竖排按钮（发送 / 实时语音）**三段（不再把所有控件挤在一横排），输入框默认约三行高、
+自增高上限 240px：
+
+- **工作模式**：`default`（写需确认、危险拒绝）/ `plan`（只读规划）/ `accept_edits`（文件编辑
+  自动放行）/ `yolo`（全自动，危险除外），切换发 `mode.set`；
+- **思考强度**：统一四档 **关闭 / 低 / 中 / 高**（后端按厂商 `THINKING_CONFIGS` 翻译成
+  `thinking_budget` / `reasoning_effort`）；当前厂商无干净思考开关时（如 MiniMax）选择器置灰；切换发 `think.set`；
+- **生效时机**：两项均与模型热切换同口径（引擎队列串行，正回复时于该轮结束后落地），
+  即**下一条消息生效**；busy/未连接时仍可切换。初值来自 `state.get`，存于单一职责的
+  `runtimeStore`。设计与协议链路详见 jarvis 侧
+  [docs/fixlogs/desktop-mode-thinking-controls.md](../jarvis/docs/fixlogs/desktop-mode-thinking-controls.md)。
 
 ## 左栏模型面板（切换 / 添加 / 修改 / 删除）
 
@@ -157,6 +176,21 @@ push / PR 到 `main` 时 GitHub Actions（[.github/workflows/ci.yml](.github/wor
 
 协议细节与字段口径见 [docs/architecture.md](docs/architecture.md) 「左栏模型面板（切换 / 添加 / 修改 / 删除）」小节。
 
+## 项目 ↔ 会话关联（左栏历史会话高亮）
+
+左栏底部选定当前项目（工作区）后，**历史会话列表按项目归属区分标记**（2026-10，纯渲染层）：
+
+- **当前聊天**：仍为 `.current` 填充态（半透背景 + 描边），优先级最高；
+- **属于当前项目的其它会话**：标 `.in-project`——只亮**描边框**、不填充（各皮肤用自身高亮色，
+  复古 CRT 皮肤下即绿色方框），一眼看出哪些会话在当前项目下；
+- **其它项目的会话**：普通态，两者皆无。
+
+判定口径：会话项 `workdir`（后端 `sessions.list` 已逐条回填）与当前项目 `currentProject.workdir`
+经 `normWorkdir`（去尾部路径分隔符 + 小写，Windows 路径大小写不敏感）比较相等即为同项目；
+`current` 优先于 `in-project`（当前聊天不重复标框）。无后端改动，实现在
+[src/renderer/src/components/LeftSidebar.tsx](src/renderer/src/components/LeftSidebar.tsx) 的
+`SessionItem`（`inProject` prop）+ `normWorkdir`（样式在 main.css + 三张皮肤同口径）。
+
 ## 全双工语音通路（/talk，2026-09-28）
 
 🎙 实时语音模式为**真全双工**（可对着 AI 说话打断），音频 I/O 不在 Python 侧，而在渲染进程：
@@ -169,6 +203,39 @@ push / PR 到 `main` 时 GitHub Actions（[.github/workflows/ci.yml](.github/wor
 - **开关**：`backendStore.toggleTalk` 先乐观置模式→启动采集（失败回退并报错）→`talk.start {duplex:true}`；
   服务端据此以全双工桥接模式启动（音频走 WS 帧而非本机 pyaudio，关闭半双工静音与软件回声抑制）。
 - 未授权/无麦克风时采集启动失败，模式自动回退文本态并上屏报错。
+
+## 跨设备协同（手机 / 微信，2026-10）
+
+把终端 jarvis 的 `/connect-phone`（手机 PWA）与 `/connect-wechat`（微信 ClawBot）接入桌面：
+
+- **入口**：输入栏原 `[LIV]` 实时语音按钮（左栏已有 `[LIV]`，此处冗余）换成**跨设备协同
+  下拉按钮**（`RemoteConnectMenu`，glyph `[LNK]`）——点开选「手机 / 微信」发起连接，已连接则显
+  「断开」，按钮右上角徽标计已连接通道数。
+- **二维码内联**：连接后 `qrcode` 事件（`{channel,url,fresh?}`）驱动在**中间聊天区**内联一条
+  `QrcodeCard`（`qrcode` npm 把 url 画成图，非浮层）。手机 / 微信两通道一致——**扫上即连**
+  （微信配对码为服务端偶发兜底，桌面不再内联输入）。二维码前景/背景色读皮肤 `--qr-code-*`
+  变量**随主题联动**（黑底荧光绿主题下为深绿模块 + 浅绿底，高对比仍可扫）。连接成功
+  （`remote_state`：手机 WS 客户端真正接入 / 微信登录成功）后卡片收起二维码改显「✓ 已连接」。
+  **重连二维码总在底部**：一次新连接（`fresh:true`）会清理该通道旧未连接卡片并在聊天区
+  **底部新建**一张，配合新消息自动滚底，无需往上翻找；`fresh:false` 为同一连接内二维码
+  过期刷新的就地更新（不堆叠）。
+- **下拉硬边**：`RemoteConnectMenu` 弹层与内部按钮 `border-radius:0`，与复古 CRT 方角质感一致。
+- **入站消息带来源标记**：手机 / 微信发来的消息经 `remote_user_message` 事件（`{channel,text}`）
+  上屏，按**普通用户气泡（右对齐）**渲染，仅标签改显「微信 / 手机」（不再是居中系统提示）；
+  微信每条回复在 query 结束时推 `assistant_done` 定稿，**下一条提问各自成独立气泡**（不再续写旧气泡）。
+- **远端对话即时存盘**：手机 / 微信每一轮对话结束后，后端回调引擎 `_after_turn` 增量存盘，
+  与桌面本地对话同规则写入会话历史（左栏列表可回看/恢复），纯手机 / 纯微信聊天也不会丢。
+- **任意来源都能停止**：发送/停止双态按钮的 `busy` 不再只由桌面本地 `sendMessage` 驱动——
+  只要桌面收到引擎活动事件（`assistant_text` / `assistant_thinking` / `tool_use`）就置忙、
+  按钮变“■ 停止”（手机 / 微信 / 主动任务发起的轮次也能停）；点停止发 `reply.abort`，后端
+  桥接在开跑前经 `on_query_begin`（引擎 `_remote_query_begin`）把当前任务登记为 `_send_task`，
+  使取消对任意来源的在跑轮次都生效；手机轮次收尾经 `BridgeUI.finish` 补发 `assistant_done`
+  撤销 `busy`（与微信 `end_turn` 对称，不留停止态卡死）。
+- **共享会话、串行发送**：桌面文本 / 手机 / 微信三端共用同一会话，抢**引擎唯一 query 锁**
+  串行化（都能发消息但绝不同时发），照终端 `_query_lock` 范式。
+- **重连回填**：`init` 事件调 `refreshRemote`（`phone.status`+`wechat.status`）同步按钮连接态；
+  二维码不回放（每次连接现生成）。协议与事件细节见 jarvis
+  `docs/architecture/14-跨设备与微信接入.md` 第六节与 `docs/fixlogs/desktop-cross-device-sync.md`。
 
 ## 右栏面板（四区块）与设置面板
 
@@ -229,7 +296,7 @@ jarvis-desktop/
 │   │   ├── glyphs.ts   # Glyph 符号系统（荧光绿方括号牌 / 电光蓝尖括号牌 / 金属银花括号牌，随主题切换）
 │   │   ├── components/ # 三栏组件 + 自绘标题栏 + 反应炉 canvas + ModelForm（模型添加/修改表单）+ ThemedSelect（自绘下拉）+ ThemedTimePicker（自绘时间选择器）
 │   │   ├── reactor.ts  # 反应炉动画（移植自 workbench reactor.js）
-│   │   └── styles/     # main.css（基础）+ controls.css（表单控件层：输入框/自绘下拉/自绘时间选择器/改名输入框）+ theme-retro.css（荧光绿 CRT 皮肤）+ theme-dark-y2k.css（电光蓝 Y2K 像素皮肤）+ theme-light-y2k.css（金属银 Y2K 像素皮肤）
+│   │   └── styles/     # main.css（全局底妆/标题栏/三栏/左栏）+ chat.css（中栏对话展示）+ composer.css（输入栏）+ right-column.css（右栏指标与五区块）+ boot.css（启动遮罩）+ controls.css（表单控件层：输入框/自绘下拉/自绘时间选择器/改名输入框）+ theme-retro.css（荧光绿 CRT 皮肤）+ theme-dark-y2k.css（电光蓝 Y2K 像素皮肤）+ theme-light-y2k.css（金属银 Y2K 像素皮肤）——2026-10 按单文件 800 行规范由 main.css 拆分
 │   └── shared/        # contracts.ts：主/preload/渲染共享契约（镜像 protocol.py）
 ├── test/
 │   ├── main/          # 主进程逻辑单测（node 环境）

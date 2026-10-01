@@ -38,6 +38,14 @@ describe('chatStore', () => {
     expect(plain.images).toBeUndefined()
   })
 
+  it('addUser 带来源标记（远端微信/手机），本地输入无 source', () => {
+    useChatStore.getState().addUser('后天天气', undefined, 'wechat')
+    useChatStore.getState().addUser('本地输入')
+    const msgs = useChatStore.getState().messages
+    expect(msgs[0]).toMatchObject({ kind: 'user', text: '后天天气', source: 'wechat' })
+    expect((msgs[1] as { source?: unknown }).source).toBeUndefined()
+  })
+
   it('流式增量累加到同一 AI 气泡', () => {
     const s = useChatStore.getState()
     s.appendAssistantText('你好')

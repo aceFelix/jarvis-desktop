@@ -45,6 +45,16 @@
         100% calc(100% - 6px), calc(100% - 6px) calc(100% - 6px), calc(100% - 6px) 100%,
         6px 100%, 6px calc(100% - 6px), 0 calc(100% - 6px)
     );
+    /* 跨设备协同（下拉菜单 / 二维码卡片，组件样式在 remote.css）随金属银皮肤联动 */
+    --qr-panel-bg: var(--sil-panel);
+    --qr-panel-fg: var(--sil-text);
+    --qr-dim: var(--sil-dim);
+    --qr-accent: var(--sil-bright);
+    --qr-ok: #178a4c;
+    --qr-warn: var(--sil-warn);
+    /* 二维码：黑模块 + 白底（金属银亮底保持最高扫码对比） */
+    --qr-code-dark: #1a1a1a;
+    --qr-code-light: #ffffff;
 }
 
 /* ==================== 银底赛博：亮底实底 + 网格 + 点阵抖动 + 扫描线 ==================== */
@@ -249,6 +259,11 @@
     color: var(--sil-bright);
     border-color: var(--edge-strong);
     background: rgba(0, 0, 0, 0.06);
+}
+/* 属于当前项目的会话：描边框、不填充（与 .current 淡黑底区分）。@author aceFelix */
+[data-theme='light'] .list-item.in-project {
+    border-color: var(--edge-strong);
+    background: transparent;
 }
 [data-theme='light'] .list-item .sub { color: var(--sil-dim); }
 [data-theme='light'] .list-item:not(.noop):hover .sub { color: var(--sil-bright); }

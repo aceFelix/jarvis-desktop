@@ -63,6 +63,8 @@ export default function ThemedSelect(props: {
   emptyText?: string
   /** 展开回调（在用户手势调用栈内触发，供懒加载如 queryLocalFonts）。@author aceFelix */
   onOpen?: () => void
+  /** 禁用：置灰不可展开（如当前厂商不支持思考控制）。@author aceFelix */
+  disabled?: boolean
 }): JSX.Element {
   const { value, options } = props
   const [open, setOpen] = useState(false)
@@ -107,6 +109,7 @@ export default function ThemedSelect(props: {
 
   /** 展开：重置过滤、高亮定位到当前值，先算位置再打开（避免首帧错位）。 */
   const openMenu = (): void => {
+    if (props.disabled) return
     props.onOpen?.()
     setQuery('')
     setActive(Math.max(0, options.findIndex((o) => o.value === value)))
@@ -211,13 +214,14 @@ export default function ThemedSelect(props: {
       <button
         type="button"
         ref={triggerRef}
-        className="themed-select-trigger"
+        className={`themed-select-trigger${props.disabled ? ' disabled' : ''}`}
         data-testid={props.testid}
         data-value={value}
         role="combobox"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={props.ariaLabel}
+        disabled={props.disabled}
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={handleNav}
       >

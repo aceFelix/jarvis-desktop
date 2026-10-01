@@ -26,6 +26,15 @@ import VoiceForm from './VoiceForm'
 // @author aceFelix
 import ProjectSection from './ProjectSection'
 
+/**
+ * 归一化会话/项目 workdir 用于比较：去尾部路径分隔符 + 小写（Windows 路径
+ * 大小写不敏感）。空值返回空串（视为无归属，不参与项目高亮）。@author aceFelix
+ */
+function normWorkdir(p?: string): string {
+  if (!p) return ''
+  return p.replace(/[\\/]+$/, '').toLowerCase()
+}
+
 /** 历史会话项：单击加载（220ms 延时让位双击）、双击内联改名、右键显删除按钮。
  *
  * 改名输入框：Enter/失焦提交，Esc 取消；空名或未变化视为取消。
@@ -36,6 +45,8 @@ function SessionItem(props: {
   name: string
   sub: string
   current: boolean
+  /** 属于当前项目（非当前聊天）：以亮色描边框标记，与「当前」填充态区分。@author aceFelix */
+  inProject: boolean
   pendingDelete: boolean
   editing: boolean
   delGlyph: string
@@ -62,7 +73,7 @@ function SessionItem(props: {
 
   return (
     <div
-      className={`list-item session-item${props.current ? ' current' : ''}`}
+      className={`list-item session-item${props.current ? ' current' : ''}${props.inProject ? ' in-project' : ''}`}
       role="button"
       tabIndex={0}
       onClick={() => {
@@ -255,7 +266,8 @@ export default function LeftSidebar(): JSX.Element {
     voiceFormOpen,
     voiceFormTarget,
     pendingModel,
-    pendingVoice
+    pendingVoice,
+    currentProject
   } = useLeftStore()
   const { setActivePanel, setMode, openModelForm, editModelForm, openVoiceForm, editVoiceForm } = useLeftStore()
   const backend = useBackendStore()
@@ -305,6 +317,10 @@ export default function LeftSidebar(): JSX.Element {
     else if (voiceActive) void backend.toggleVoice()
     else setMode('text')
   }
+
+  // 当前项目 workdir（归一化）：会话列表据此判定「属于当前项目」高亮。
+  // @author aceFelix
+  const curWd = normWorkdir(currentProject?.workdir)
 
   return (
     <aside id="left-col" className="glass-col">
@@ -373,6 +389,9 @@ export default function LeftSidebar(): JSX.Element {
                 name={s.name}
                 sub={`${new Date(s.updated_at * 1000).toLocaleString()} · ${t('left.messagesCount', { n: s.message_count })}`}
                 current={!!s.current}
+                inProject={
+                  !s.current && !!curWd && normWorkdir(s.workdir) === curWd
+                }
                 pendingDelete={pendingDelete === s.name}
                 editing={editing === s.name}
                 delGlyph={g.sessionDelete}

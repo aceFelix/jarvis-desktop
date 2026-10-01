@@ -13,9 +13,12 @@
  */
 
 import { create } from 'zustand'
+import type { RemoteChannel } from '../../../shared/contracts'
 
 export type MessageItem =
-  | { kind: 'user'; id: number; text: string; images?: string[] }
+  // source：远端通道（手机 / 微信）入站消息的来源标记，本地输入无此字段。
+  // 渲染时气泡样式与本地用户消息一致（右对齐），仅标签改显“微信 / 手机”。
+  | { kind: 'user'; id: number; text: string; images?: string[]; source?: RemoteChannel }
   | { kind: 'ai'; id: number; text: string; thinking: string; streaming: boolean }
   | {
       kind: 'tool'
@@ -28,6 +31,16 @@ export type MessageItem =
       done: boolean
     }
   | { kind: 'system'; id: number; text: string; tone: 'info' | 'warn' | 'error' }
+  // qrcode：跨设备协同连接卡片（手机 / 微信），url 由渲染层用 qrcode 库画成
+  // 二维码；connected 置真后卡片收起二维码改显「已连接」（连接完成后不再需要扫码）。
+  // @author aceFelix
+  | {
+      kind: 'qrcode'
+      id: number
+      channel: RemoteChannel
+      url: string
+      connected: boolean
+    }
 
 let nextId = 1
 const genId = (): number => nextId++
@@ -39,8 +52,9 @@ export interface ChatState {
   /** 状态栏：busy（思考中）/ idle。 */
   busy: boolean
 
-  /** 用户气泡：images 为缩略图 data URL（仅展示，模型侧走 WS 的 base64 字段）。 */
-  addUser: (text: string, images?: string[]) => void
+  /** 用户气泡：images 为缩略图 data URL（仅展示，模型侧走 WS 的 base64 字段）；
+   * source 为远端通道（手机 / 微信）入站消息的来源标记。 */
+  addUser: (text: string, images?: string[], source?: RemoteChannel) => void
   appendAssistantText: (delta: string) => void
   appendThinking: (delta: string) => void
   finishAssistant: () => void
@@ -49,6 +63,16 @@ export interface ChatState {
   fillToolResult: (toolId: string, name: string, content: string, isError: boolean) => void
   showAskUser: (prompt: string) => void
   hideAskUser: () => void
+  /**
+   * 新增/更新一条跨设备协同二维码卡片。
+   * - fresh=true：一次新连接 → 清理该通道旧未连接卡片，在底部新建一张（重连
+   *   自动滚到底部即可看到，无需往上翻找）。
+   * - fresh=false/缺省：同一连接内二维码过期刷新 → 就地更新最后一条未连接
+   *   卡片 url（不堆叠多张）。@author aceFelix
+   */
+  addQrcode: (channel: RemoteChannel, url: string, fresh?: boolean) => void
+  /** 把指定通道最新的二维码卡片标为已连接/未连接。@author aceFelix */
+  setQrcodeConnected: (channel: RemoteChannel, connected: boolean) => void
   setBusy: (busy: boolean) => void
   clear: () => void
   /** 恢复历史会话：清空后回放（与 workbench session_loaded 口径一致）。 */
@@ -64,16 +88,33 @@ function streamingIndex(list: MessageItem[]): number {
   return -1
 }
 
+/** 反向查找首个满足条件的下标（findLastIndex 的 es2020 兼容替身）。 */
+function findLast(
+  list: MessageItem[],
+  pred: (m: MessageItem) => boolean
+): number {
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (pred(list[i])) return i
+  }
+  return -1
+}
+
 export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   askPrompt: null,
   busy: false,
 
-  addUser: (text, images) =>
+  addUser: (text, images, source) =>
     set((s) => ({
       messages: [
         ...s.messages,
-        { kind: 'user', id: genId(), text, images: images?.length ? images : undefined }
+        {
+          kind: 'user',
+          id: genId(),
+          text,
+          images: images?.length ? images : undefined,
+          source
+        }
       ]
     })),
 
@@ -165,6 +206,49 @@ export const useChatStore = create<ChatState>((set) => ({
 
   showAskUser: (prompt) => set({ askPrompt: prompt }),
   hideAskUser: () => set({ askPrompt: null }),
+
+  addQrcode: (channel, url, fresh) =>
+    set((s) => {
+      const card: Extract<MessageItem, { kind: 'qrcode' }> = {
+        kind: 'qrcode',
+        id: genId(),
+        channel,
+        url,
+        connected: false
+      }
+      // 新连接（fresh）：先移除该通道旧未连接卡片（重连不留死二维码），
+      // 再在底部追加新卡片 → 配合自动滚底，用户总能在当前视口看到二维码。
+      // @author aceFelix
+      if (fresh) {
+        const cleaned = s.messages.filter(
+          (m) => !(m.kind === 'qrcode' && m.channel === channel && !m.connected)
+        )
+        return { messages: [...cleaned, card] }
+      }
+      // 刷新（同一连接内二维码过期重生成）→ 就地更新最后一条未连接卡片 url
+      const idx = findLast(
+        s.messages,
+        (m) => m.kind === 'qrcode' && m.channel === channel && !m.connected
+      )
+      if (idx >= 0) {
+        const list = [...s.messages]
+        const cur = list[idx] as Extract<MessageItem, { kind: 'qrcode' }>
+        list[idx] = { ...cur, url }
+        return { messages: list }
+      }
+      return { messages: [...s.messages, card] }
+    }),
+
+  setQrcodeConnected: (channel, connected) =>
+    set((s) => {
+      const idx = findLast(s.messages, (m) => m.kind === 'qrcode' && m.channel === channel)
+      if (idx < 0) return {}
+      const list = [...s.messages]
+      const cur = list[idx] as Extract<MessageItem, { kind: 'qrcode' }>
+      list[idx] = { ...cur, connected }
+      return { messages: list }
+    }),
+
   setBusy: (busy) => set({ busy }),
   clear: () => set({ messages: [], askPrompt: null, busy: false }),
 

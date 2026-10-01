@@ -1,0 +1,221 @@
+/* Input-bar layer: .glass-bar / textarea / .composer-side control groups / attach chips /
+   ask-user bar / half-duplex voice bar / shared .action-btn buttons.
+   Split from main.css by responsibility (2026-10, 800-line rule); imported after
+   main.css & chat.css but before controls.css and the three skins; theme colors stay
+   in each [data-theme] override file. @author aceFelix */
+
+/* ---- 输入区 / ask-user 条 ---- */
+/* 中栏内容水平边距统一口径：左右各留 2.3%（2026-09 由 10%→ 5%→ 2.3% 逐步收窄）。
+   共五处同改：#chat-history 的 padding + 四条横栏
+   （输入栏/附件 chips/ask-user/voice）的 margin，气泡与输入栏左右对齐。@author aceFelix */
+.glass-bar {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+    margin: 0 2.3%;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(8, 18, 32, 0.6);
+    border: 1.5px solid var(--edge-mid);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.32);
+}
+
+.glass-bar textarea {
+    flex: 1;
+    resize: none;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: #eaf6ff;
+    font-size: 14px;
+    font-family: inherit;
+    line-height: 1.5;
+    min-height: 74px;
+    max-height: 240px;
+}
+
+.glass-bar textarea::placeholder { color: rgba(159, 201, 232, 0.45); }
+
+/* 输入栏两侧控制区：左侧 2×2（📎/📸 + 工作模式/思考强度），右侧竖排一列（发送/停止 + 实时语音）。
+   配合 textarea 加高（min-height 72px），避免所有控件挤在同一横排。
+   @author aceFelix */
+.composer-side {
+    --composer-cell-w: 84px;
+    --composer-cell-h: 34px;
+    display: flex;
+    flex-shrink: 0;
+    gap: 6px;
+}
+
+.composer-side-left {
+    display: grid;
+    grid-template-columns: repeat(2, var(--composer-cell-w));
+    align-content: center;
+    gap: 6px;
+}
+
+/* 两个选择器占满第二行（跨两列），各自撑满列宽 */
+.composer-side-left .composer-toolbar {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+
+.composer-side-right {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    width: var(--composer-cell-w);
+}
+
+/* 统一尺寸：按钮与选择器触发器全部等大为“发送”按钮的单元格尺寸 */
+.composer-side .action-btn,
+.composer-side .themed-select-trigger {
+    width: 100%;
+    height: var(--composer-cell-h);
+    box-sizing: border-box;
+    font-size: 13px;
+}
+
+.composer-toolbar .themed-select-trigger {
+    padding: 0 6px;
+}
+
+.composer-toolbar .themed-select-trigger.disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* 附件 chips 区（输入栏上方）：待发送附件缩略图/文件名 + 移除按钮。
+   @author aceFelix */
+#attach-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 2.3% 6px;
+    flex-shrink: 0;
+}
+
+.attach-chip .chip-remove:hover { color: #ff5a5a; }
+
+/* AI 气泡右下角消息级操作行（复制本条回复）。@author aceFelix */
+.msg-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 6px;
+}
+
+.msg-action-btn {
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #9fc9e8;
+    background: rgba(91, 200, 255, 0.07);
+    border: 1px solid var(--edge-soft);
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.msg-action-btn:hover {
+    color: #5bc8ff;
+    background: rgba(91, 200, 255, 0.16);
+}
+
+/* 用户气泡内的附件图片缩略图（已发送）。@author aceFelix */
+.msg-thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.msg-thumbs img {
+    max-width: 180px;
+    max-height: 180px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--edge-mid);
+}
+
+#ask-user-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 0 2.3% 8px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: rgba(255, 170, 60, 0.1);
+    border: 1px solid rgba(255, 170, 60, 0.4);
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+#ask-user-text { flex: 1; color: #ffd9a0; }
+#ask-user-bar input {
+    width: 180px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 200, 120, 0.4);
+    background: rgba(8, 18, 32, 0.6);
+    color: #fff;
+    outline: none;
+}
+
+/* ---- 半双工语音状态条（ChatArea，voice 模式显示阶段 + 打断/退出） ---- */
+#voice-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 0 2.3% 8px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: rgba(90, 200, 250, 0.1);
+    border: 1px solid rgba(90, 200, 250, 0.4);
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+#voice-bar .voice-state {
+    flex: 1;
+    color: #a0e9ff;
+}
+
+/* ---- 按钮 ---- */
+.action-btn {
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #e0f2ff;
+    background: rgba(91, 200, 255, 0.1);
+    border: 1px solid var(--edge-mid);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+}
+
+.action-btn:hover { background: rgba(91, 200, 255, 0.22); color: #5bc8ff; }
+
+.action-btn.primary {
+    color: #04121f;
+    background: linear-gradient(135deg, #5bc8ff, #00d5ff);
+    border: none;
+    font-weight: 600;
+}
+
+.action-btn.primary:hover { filter: brightness(1.12); color: #04121f; }
+
+.action-btn.danger {
+    color: #ffd7d7;
+    background: rgba(255, 90, 90, 0.15);
+    border-color: rgba(255, 90, 90, 0.5);
+}
+
+.action-btn.disabled,
+.action-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+

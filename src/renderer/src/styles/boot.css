@@ -1,0 +1,81 @@
+/* Boot-overlay layer: full-screen waiting card while backend is not ready
+   (title / spinner / error detail).
+   Split from main.css by responsibility (2026-10, 800-line rule); imported after
+   right-column.css but before controls.css and the three skins; theme colors stay
+   in each [data-theme] override file. @author aceFelix */
+
+/* ---- 启动遮罩（后端未就绪） ---- */
+#boot-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(4, 10, 20, 0.72);
+    backdrop-filter: blur(6px);
+}
+
+.boot-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    max-width: 560px;
+    padding: 32px 40px;
+    border-radius: 16px;
+    background: rgba(8, 18, 32, 0.85);
+    border: 1.5px solid var(--edge-strong);
+    box-shadow: 0 10px 48px rgba(0, 0, 0, 0.6), 0 0 20px rgba(91, 200, 255, 0.15);
+    text-align: center;
+}
+
+.boot-title {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 6px;
+    color: #5bc8ff;
+    text-shadow: 0 0 14px rgba(91, 200, 255, 0.7);
+}
+
+.boot-spinner {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 3px solid rgba(91, 200, 255, 0.2);
+    border-top-color: #5bc8ff;
+    animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.boot-hint {
+    font-size: 13px;
+    color: #a9cde8;
+    line-height: 1.7;
+}
+
+.boot-error {
+    font-size: 15px;
+    font-weight: 600;
+    color: #ff8f8f;
+}
+
+.boot-detail {
+    max-width: 480px;
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255, 90, 90, 0.08);
+    border: 1px solid rgba(255, 90, 90, 0.35);
+    color: #ffc9c9;
+    font-size: 12px;
+    font-family: Consolas, monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+    text-align: left;
+}
+

@@ -21,6 +21,7 @@ import { useChatStore } from '@renderer/stores/chatStore'
 import { useLeftStore } from '@renderer/stores/leftStore'
 import { useMetricsStore } from '@renderer/stores/metricsStore'
 import { useRightStore } from '@renderer/stores/rightStore'
+import { useRemoteStore } from '@renderer/stores/remoteStore'
 import type { JarvisConnection } from '@renderer/stores/backendStore'
 
 /** 假连接门面：八个刷新动作 + 提醒已读回执均为 spy。 */
@@ -36,6 +37,9 @@ function makeConn(): JarvisConnection {
     // 项目区刷新（2026-08）：init / project_switched 都会拉取一次。
     // @author aceFelix
     refreshProjects: vi.fn().mockResolvedValue(undefined),
+    // 跨设备协同连接态刷新（2026-10）：init 拉取一次回填 remoteStore。
+    // @author aceFelix
+    refreshRemote: vi.fn().mockResolvedValue(undefined),
     ackProactive: vi.fn()
   }
 }
@@ -61,6 +65,9 @@ beforeEach(() => {
   })
   useMetricsStore.setState({ cpu: 0, memory: null, disk: null })
   useRightStore.setState({ reminders: [], deadlines: [], latestBriefing: '', cost: null, mcp: null, logs: [] })
+  // 跨设备协同连接态（2026-10）：复位避免串场。
+  // @author aceFelix
+  useRemoteStore.setState({ phoneConnected: false, wechatConnected: false })
 })
 
 describe('dispatchServerEvent · 文本对话流', () => {
@@ -90,6 +97,28 @@ describe('dispatchServerEvent · 文本对话流', () => {
     useChatStore.getState().setBusy(true)
     dispatchServerEvent({ event: 'assistant_done', data: null }, makeConn())
     expect(useChatStore.getState().busy).toBe(false)
+  })
+
+  it('远端轮次活动事件自动置 busy（busy 初始 false，模拟手机/微信发起）', () => {
+    // 桌面未本地 sendMessage（busy=false），但收到引擎活动事件时应切为“正在工作”，
+    // 使发送按钮变“停止”。@author aceFelix
+    expect(useChatStore.getState().busy).toBe(false)
+    dispatchServerEvent({ event: 'assistant_text', data: '回复中' }, makeConn())
+    expect(useChatStore.getState().busy).toBe(true)
+  })
+
+  it('tool_use / assistant_thinking 也置 busy（无前置文本直接开跑）', () => {
+    // 计划模式直接执行工具、或先思考再回复：都应让按钮进入停止态。
+    // @author aceFelix
+    expect(useChatStore.getState().busy).toBe(false)
+    dispatchServerEvent(
+      { event: 'tool_use', data: { name: 'Bash', id: 'c1', input: { command: 'ls' } } },
+      makeConn()
+    )
+    expect(useChatStore.getState().busy).toBe(true)
+    useChatStore.getState().setBusy(false)
+    dispatchServerEvent({ event: 'assistant_thinking', data: '想' }, makeConn())
+    expect(useChatStore.getState().busy).toBe(true)
   })
 
   it('assistant_done 收尾未回填的工具卡（取消/报错后不留“执行中”）', () => {
@@ -163,6 +192,8 @@ describe('dispatchServerEvent · 会话与初始化', () => {
     expect(conn.refreshSettings).toHaveBeenCalled()
     // 2026-08 项目工作区：init 一并拉 project.get + projects.list
     expect(conn.refreshProjects).toHaveBeenCalled()
+    // 2026-10 跨设备协同：init 拉 phone.status + wechat.status 回填连接态
+    expect(conn.refreshRemote).toHaveBeenCalled()
     // 握手完成即把状态栏从「等待后端启动...」切到「就绪」（2026-08 修复）。@author aceFelix
     expect(onStatus).toHaveBeenCalledWith({ text: '就绪', tone: 'idle' } satisfies StatusLabel)
   })
@@ -596,5 +627,99 @@ describe('dispatchServerEvent · 主动播报 proactive_notify', () => {
     )
     const sys = useChatStore.getState().messages.filter((m) => m.kind === 'system')
     expect(sys).toHaveLength(1)
+  })
+})
+
+describe('dispatchServerEvent · 跨设备协同（qrcode / remote_state）', () => {
+  // qrcode 事件→内联二维码卡片；remote_state 事件→remoteStore + 卡片 connected 同步。@author aceFelix
+  it('qrcode 事件上屏一条手机二维码卡片', () => {
+    dispatchServerEvent(
+      { event: 'qrcode', data: { channel: 'phone', url: 'http://127.0.0.1:8765/?token=abc' } },
+      makeConn()
+    )
+    const card = useChatStore.getState().messages[0]
+    expect(card).toMatchObject({ kind: 'qrcode', channel: 'phone', connected: false })
+  })
+
+  it('同通道重复 qrcode 事件就地刷新 url（不堆叠）', () => {
+    dispatchServerEvent({ event: 'qrcode', data: { channel: 'phone', url: 'u1' } }, makeConn())
+    dispatchServerEvent({ event: 'qrcode', data: { channel: 'phone', url: 'u2' } }, makeConn())
+    const qr = useChatStore.getState().messages.filter((m) => m.kind === 'qrcode')
+    expect(qr).toHaveLength(1)
+    expect(qr[0]).toMatchObject({ url: 'u2' })
+  })
+
+  it('fresh 新连接：清理旧未连接卡片并在底部新建（重连不往上翻）', () => {
+    // 先有一条旧未连接二维码 + 一条后续消息（模拟历史往下堆）
+    dispatchServerEvent({ event: 'qrcode', data: { channel: 'wechat', url: 'old' } }, makeConn())
+    dispatchServerEvent({ event: 'info', data: '微信已断开' }, makeConn())
+    // 重连：fresh=True → 旧未连接卡片被移除，新卡片在列表末尾
+    dispatchServerEvent(
+      { event: 'qrcode', data: { channel: 'wechat', url: 'new', fresh: true } },
+      makeConn()
+    )
+    const msgs = useChatStore.getState().messages
+    const qr = msgs.filter((m) => m.kind === 'qrcode')
+    expect(qr).toHaveLength(1)
+    expect(qr[0]).toMatchObject({ url: 'new', connected: false })
+    // 新二维码卡片位于消息列表末尾（配合自动滚底即在当前视口）
+    expect(msgs[msgs.length - 1]).toMatchObject({ kind: 'qrcode', url: 'new' })
+  })
+
+  it('fresh 新连接：保留已连接历史卡片，仅清理未连接旧卡片', () => {
+    dispatchServerEvent(
+      { event: 'qrcode', data: { channel: 'phone', url: 'p1', fresh: true } },
+      makeConn()
+    )
+    // 上一张连上了 → 变已连接（应作为历史保留）
+    dispatchServerEvent({ event: 'remote_state', data: { channel: 'phone', connected: true } }, makeConn())
+    // 再次新连接：已连接旧卡保留，底部新建一张未连接
+    dispatchServerEvent(
+      { event: 'qrcode', data: { channel: 'phone', url: 'p2', fresh: true } },
+      makeConn()
+    )
+    const qr = useChatStore.getState().messages.filter((m) => m.kind === 'qrcode')
+    expect(qr).toHaveLength(2)
+    expect(qr[0]).toMatchObject({ url: 'p1', connected: true })
+    expect(qr[1]).toMatchObject({ url: 'p2', connected: false })
+  })
+
+  it('remote_state 写 phone 连接态并收起对应二维码卡片', () => {
+    dispatchServerEvent({ event: 'qrcode', data: { channel: 'phone', url: 'u1' } }, makeConn())
+    dispatchServerEvent({ event: 'remote_state', data: { channel: 'phone', connected: true } }, makeConn())
+    expect(useRemoteStore.getState().phoneConnected).toBe(true)
+    expect(useChatStore.getState().messages[0]).toMatchObject({ kind: 'qrcode', channel: 'phone', connected: true })
+  })
+
+  it('remote_state 无卡片时仅写连接态（微信登录无扫码上屏场景）', () => {
+    dispatchServerEvent({ event: 'remote_state', data: { channel: 'wechat', connected: true } }, makeConn())
+    expect(useRemoteStore.getState().wechatConnected).toBe(true)
+    expect(useChatStore.getState().messages.filter((m) => m.kind === 'qrcode')).toHaveLength(0)
+  })
+
+  it('channel 缺失的畸形事件静默忽略', () => {
+    expect(() => dispatchServerEvent({ event: 'remote_state', data: { connected: true } }, makeConn())).not.toThrow()
+  })
+
+  it('remote_user_message 上屏一条带来源标记的用户气泡（微信）', () => {
+    dispatchServerEvent(
+      { event: 'remote_user_message', data: { channel: 'wechat', text: '后天天气如何' } },
+      makeConn()
+    )
+    const m = useChatStore.getState().messages[0]
+    expect(m).toMatchObject({ kind: 'user', text: '后天天气如何', source: 'wechat' })
+  })
+
+  it('remote_user_message 先收尾上一条未定稿的流式 AI 气泡（防续写）', () => {
+    // 模拟上一条微信回复的 assistant_done 漏收：气泡仍 streaming
+    useChatStore.getState().appendAssistantText('旧回复')
+    dispatchServerEvent(
+      { event: 'remote_user_message', data: { channel: 'wechat', text: '新问题' } },
+      makeConn()
+    )
+    const msgs = useChatStore.getState().messages
+    const ai = msgs.find((m) => m.kind === 'ai')
+    expect(ai && ai.kind === 'ai' && ai.streaming).toBe(false)
+    expect(msgs[msgs.length - 1]).toMatchObject({ kind: 'user', source: 'wechat', text: '新问题' })
   })
 })

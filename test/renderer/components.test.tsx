@@ -24,6 +24,7 @@ import { useMetricsStore } from '@renderer/stores/metricsStore'
 import { useBackendStore } from '@renderer/stores/backendStore'
 import { useRightStore } from '@renderer/stores/rightStore'
 import { useAttachStore } from '@renderer/stores/attachStore'
+import { useRuntimeStore } from '@renderer/stores/runtimeStore'
 import { EMPTY_BACKEND_SETTINGS, useSettingsStore } from '@renderer/stores/settingsStore'
 import { useUiStore } from '@renderer/stores/uiStore'
 import { Cmd } from '../../src/shared/contracts'
@@ -60,6 +61,8 @@ beforeEach(() => {
   useSettingsStore.setState({ backendSettings: { ...EMPTY_BACKEND_SETTINGS } })
   useUiStore.setState({ rightView: 'dashboard' })
   useBackendStore.setState({ client: null })
+  // 输入区运行时选择态（工作模式/思考）为瞬态：复位避免串场。@author aceFelix
+  useRuntimeStore.setState({ permissionMode: 'default', thinkingEffort: 'off', thinkingSupported: [] })
 })
 
 afterEach(() => {
@@ -77,6 +80,14 @@ describe('ChatArea', () => {
     expect(ai).toHaveTextContent('正在回复')
     // streaming 气泡带闪烁光标
     expect(ai.querySelector('.cursor-blink')).not.toBeNull()
+  })
+
+  it('远端来源用户气泡：标签显「微信」而非「你」（样式仍为普通用户气泡）', () => {
+    useChatStore.getState().addUser('后天天气如何', undefined, 'wechat')
+    render(<ChatArea />)
+    const u = screen.getByTestId('msg-user')
+    expect(u).toHaveTextContent('后天天气如何')
+    expect(u).toHaveTextContent('微信')
   })
 
   it('finishAssistant 后不再有流式光标', () => {
@@ -128,6 +139,25 @@ describe('ChatArea', () => {
     render(<ChatArea />)
     expect(screen.getByTestId('tool-card')).toBeInTheDocument()
     expect(screen.getByTestId('msg-system')).toHaveTextContent('已就绪')
+  })
+
+  it('多行系统提示折叠为 details（首行标题 + 正文），单行保持原样', () => {
+    // 降噪：长 dump（工具失败重试等）折叠，避免铺满聊天区；短提示不折叠。
+    // @author aceFelix
+    useChatStore.getState().addSystem('单行提示，无需折叠')
+    useChatStore.getState().addSystem('Bash 执行失败：配置错误\n第二行详情\n第三行', 'error')
+    render(<ChatArea />)
+    const systems = screen.getAllByTestId('msg-system')
+    // 单行：普通 div，无 collapsible 类
+    const single = systems.find((el) => el.textContent?.includes('单行提示'))
+    expect(single?.tagName).toBe('DIV')
+    expect(single?.className).not.toContain('collapsible')
+    // 多行：details.collapsible，summary 为首行、正文为其余行
+    const multi = systems.find((el) => el.tagName === 'DETAILS')
+    expect(multi).toBeTruthy()
+    expect(multi?.className).toContain('collapsible')
+    expect(multi?.querySelector('summary')?.textContent).toBe('Bash 执行失败：配置错误')
+    expect(multi?.querySelector('.system-body')?.textContent).toContain('第二行详情')
   })
 
   // ---- 降噪折叠（2026-09）：思考块与工具组在「本轮结束」自动收起 ----
@@ -382,6 +412,32 @@ describe('LeftSidebar 面板切换', () => {
     expect(screen.getByText('gpt-4')).toBeInTheDocument()
     fireEvent.click(screen.getByText('<VOC> 音色'))
     expect(screen.getByText('晓晓')).toBeInTheDocument()
+  })
+
+  it('属于当前项目的会话标 in-project（描边框），当前聊天仍为 current（填充）', () => {
+    // 项目↔会话关联：同 workdir 的非当前会话 = in-project；当前会话 = current（优先）；
+    // 其它项目会话两者皆无。@author aceFelix
+    useLeftStore.setState({
+      sessions: [
+        { name: '当前聊天', updated_at: 1, message_count: 2, model: 'gpt', current: true, workdir: 'C:/projA' },
+        { name: '同项目历史', updated_at: 2, message_count: 5, model: 'gpt', workdir: 'C:/projA' },
+        { name: '别的项目', updated_at: 3, message_count: 1, model: 'gpt', workdir: 'C:/projB' }
+      ],
+      currentProject: { workdir: 'C:/projA', name: 'projA', persisted: true },
+      activePanel: 'history',
+      mode: 'text',
+      talkActive: false
+    })
+    render(<LeftSidebar />)
+    const cur = screen.getByText('当前聊天').closest('.list-item')
+    expect(cur).toHaveClass('current')
+    expect(cur).not.toHaveClass('in-project')
+    const sib = screen.getByText('同项目历史').closest('.list-item')
+    expect(sib).toHaveClass('in-project')
+    expect(sib).not.toHaveClass('current')
+    const other = screen.getByText('别的项目').closest('.list-item')
+    expect(other).not.toHaveClass('in-project')
+    expect(other).not.toHaveClass('current')
   })
 
   it('重复点选同一模型：只发一次指令、不本地弹提示，列表标「待生效」', async () => {
@@ -1367,5 +1423,44 @@ describe('TitleBar 窗口控制', () => {
     expect(screen.getByTestId('btn-open-settings').className).toContain('active')
     fireEvent.click(screen.getByTestId('btn-open-settings'))
     expect(useUiStore.getState().rightView).toBe('dashboard')
+  })
+})
+
+// 输入区工具条：工作模式 + 思考强度两个选择器（2026-09 桌面模式与思考强度）。
+// @author aceFelix
+describe('ChatArea · 输入区工具条（工作模式 / 思考强度）', () => {
+  it('渲染两个选择器，初值取 runtimeStore', () => {
+    useRuntimeStore.setState({ permissionMode: 'plan', thinkingEffort: 'low', thinkingSupported: ['off', 'low', 'medium', 'high'] })
+    render(<ChatArea />)
+    expect(screen.getByTestId('composer-toolbar')).toBeInTheDocument()
+    expect(screen.getByTestId('select-mode')).toHaveAttribute('data-value', 'plan')
+    expect(screen.getByTestId('select-think')).toHaveAttribute('data-value', 'low')
+  })
+
+  it('选择工作模式 → 调 setMode(值)', () => {
+    const setMode = vi.fn()
+    useBackendStore.setState({ setMode } as never)
+    render(<ChatArea />)
+    fireEvent.click(screen.getByTestId('select-mode'))
+    fireEvent.click(screen.getByTestId('select-mode-option-accept_edits'))
+    expect(setMode).toHaveBeenCalledWith('accept_edits')
+  })
+
+  it('选择思考档位 → 调 setThinking(值)', () => {
+    const setThinking = vi.fn()
+    useRuntimeStore.setState({ thinkingSupported: ['off', 'low', 'medium', 'high'] })
+    useBackendStore.setState({ setThinking } as never)
+    render(<ChatArea />)
+    fireEvent.click(screen.getByTestId('select-think'))
+    fireEvent.click(screen.getByTestId('select-think-option-high'))
+    expect(setThinking).toHaveBeenCalledWith('high')
+  })
+
+  it('厂商不支持思考（supported 空）→ 思考选择器 disabled', () => {
+    useRuntimeStore.setState({ thinkingSupported: [] })
+    render(<ChatArea />)
+    expect(screen.getByTestId('select-think')).toBeDisabled()
+    // 工作模式选择器始终可用
+    expect(screen.getByTestId('select-mode')).toBeEnabled()
   })
 })

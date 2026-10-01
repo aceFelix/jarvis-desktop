@@ -101,7 +101,7 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
   不热重载）而前端已热更新，错误文案会提示「请重启后端后重试」。
 - 握手（stdout 单行）：`{"type": "jarvis-serve-ready", "port", "http_port", "token", "pid"}`。
 
-### 指令一览（34 条）
+### 指令一览（36 条）
 
 | 指令 | 参数 | result |
 |---|---|---|
@@ -121,7 +121,9 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `voices.add` | `name`, `voice_id`［, `model`, `description`, `vendor`］ | `{ok, name}`（左栏「＋ 添加音色」表单 / 双击自定义项编辑：name、voice_id 必填（serve 校验 raise → ok=false），内置名遮蔽拒绝；upsert 即编辑（同名覆盖），写 settings.toml 的 `[tts.custom_voices]`） |
 | `voices.delete` | `name` | `{ok, name}`（左栏右键自定义音色项 → 项内删除按钮：仅 custom 可删，内置回 ok=false；外科式删 `[tts.custom_voices."<name>"]` 段） |
 | `metrics.get` | — | `{cpu, memory, disk}` |
-| `state.get` | — | `{provider, model, ..., mcp}`（`mcp` 为连接快照 `{connected, failed, tools}` 或 null） |
+| `state.get` | — | `{provider, model, ..., permission_mode, thinking_effort, thinking_supported, mcp}`（`mcp` 为连接快照 `{connected, failed, tools}` 或 null；`permission_mode`/`thinking_effort` 为输入区两选择器初值，`thinking_supported`=当前厂商可选档位（空=不支持思考、选择器置灰）） |
+| `mode.set` | `mode`（default/plan/accept_edits/yolo） | `{ok, mode}`（工作/权限模式热切换：serve 校验枚举后入队引擎 `set_mode`，引擎线程内重建 checker/orchestrator（不重建 QueryLoop，会话/用量保留），入队即返回、下一轮消息生效；非法模式 ok=false，2026-09） |
+| `think.set` | `effort`（off/on/low/medium/high） | `{ok, effort}`（思考强度切换：serve 校验后入队引擎 `set_thinking`，同步 loop/provider 与 settings、开关变化时重建系统提示词；后端按 THINKING_CONFIGS 把统一档位翻译成厂商原生 budget/reasoning_effort，2026-09） |
 | `schedule.list` | — | `{reminders: [{id, content, trigger_at, repeat}], deadlines: [{id, title, due_date, days_left, status}]}`（hub 未装配时空列表） |
 | `cost.get` | — | `{provider, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cache_hit_rate（百分比，口径同 REPL `/cost`）, dialogs, messages}` |
 | `answer_user` | `text` | null（回填 ask_user 弹窗） |
@@ -140,7 +142,7 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `projects.list` | — | `[{path, name, last_opened, exists}]`（按 `last_opened` 倒序；`exists=false` 前端置灰仍可移除） |
 | `projects.forget` | `path` | bool（是否确有移除；只清 `~/.jarvis/projects.toml` 记录，**不删磁盘目录**） |
 
-### 中栏降噪（思考 / 工具折叠，2026-09）
+### 中栏降噪（思考 / 工具 / 系统提示折叠，2026-09）
 
 思考模型（qwen3.x 等）单轮思考常上千字，多步任务又常连跑十几个工具调用；两者原先都是
 「全展开」渲染（思考块是普通 `div`、每个 `tool_use` 各占一张 `details` 卡），一轮任务就能把
@@ -157,12 +159,17 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
   **轮次收尾兜底**：`finishAssistant`（`assistant_done` 驱动，含 `reply.abort` 取消与中途
   报错路径）会把仍未收到 `tool_result` 的工具卡一并定稿为 `done + isError`（附中断说明），
   避免被 kill 的 Bash 等子进程不回结果时卡片永久停在「执行中」（2026-09-30）；
+- **系统提示折叠**（`MessageView` 的 `system` 分支，2026-10）：**多行**系统 / 警告 / 错误提示
+  （如工具失败重试的长 dump）折叠为 `<details class="message system collapsible">`——首行做
+  `<summary>` 标题、其余行进 `.system-body`（限高 240px 内部滚动）；**单行**短提示（如「微信
+  已断开」）仍渲染普通 `div`不折叠（避免多加一层点击）；`tone==='error'` 折叠后仍标红边框。
+  样式在 chat.css；
 - **手点优先**：两者都是受控 `<details>` + `onToggle` 把用户操作同步回 state，自动收起只在
   状态跃迁（`streaming` true→false / `allDone` false→true）那一次发生，用户手点后不被抢回；
 - **零协议改动**：store 消息模型、WS 事件、后端一概没动——分组只发生在渲染层，
   `chatStore.messages` 仍是「一条工具一个 item」，历史回放与既有测试口径不变。
 
-样式：`.thinking-block` / `.tool-group` 在 main.css 定基础，三张皮肤（theme-retro /
+样式：`.thinking-block` / `.tool-group` 在 chat.css（2026-10 由 main.css 拆出）定基础，三张皮肤（theme-retro /
 theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配色，
 `:where(...)` 去圆角列表同步纳入 `.tool-group`。
 
@@ -177,6 +184,33 @@ theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配�
 - 校验在 `DesktopBridgeServer._cmd_message` 入队前快速失败（reply ok=false），不进引擎队列；
 - 纯图片消息（空文本）可发送；历史回放（`session_loaded`）不传 base64，图片块折叠为
   `[图片×N]` 标记。
+
+### 输入栏分区布局（工作模式 + 思考强度，2026-09）
+
+输入栏 `footer#input-bar`（`.glass-bar`，`align-items: stretch`）分**左控制区 / textarea / 右控制区**
+三段：左侧 `div.composer-side-left` 把 📎/📸 两个按钮与工作模式/思考强度两个选择器排成 **2×2 网格**
+（`grid-template-columns: repeat(2, minmax(76px, auto))`，选择器行 `grid-column:1/-1` 跨两列）；
+右侧 `div.composer-side-right` 把发送/停止与实时语音按钮**竖排一列**；中间 textarea 加高填满。
+不再把所有控件挤在同一横排（协议链路与后端翻译见 jarvis 侧 `docs/architecture/07-UI层.md`
+的「工作模式与思考强度热切换」、`docs/fixlogs/desktop-mode-thinking-controls.md`）：
+
+- **工作模式**：四项 default/plan/accept_edits/yolo，`onChange`→`backendStore.setMode`→`mode.set`；
+- **思考**：`thinking_supported` 为空则 `disabled`（该厂商无干净思考开关，如 MiniMax）；否则按
+  可选档位渲染关闭/低/中/高，`onChange`→`setThinking`→`think.set`；
+- **状态分层**：新增 `runtimeStore`（zustand，职责单一：`permissionMode`/`thinkingEffort`/
+  `thinkingSupported`），不与 chatStore 混；`state.get` 回执经 `contracts.parseRuntimeState` 宽容
+  解析（非法 mode→`default`、effort→`off`、supported 过滤为合法子集）→ `refreshState` 双写
+  rightStore.mcp 与 runtimeStore，dispatcher 的 `init` 事件触发完成首屏/重连初始化；
+- **动作口径**：`setMode/setThinking` 与 `selectModel` 同构——同值短路、`runCommand` 后按
+  `result.ok` 判定成功才写 runtimeStore、失败弹错；切换在下一轮消息生效（引擎队列串行），
+  busy/未连接时不禁用切换；
+- **控件统一尺寸**（纯 CSS）：输入栏内所有按钮与选择器触发器统一为“发送”按钮的固定单元格
+  （`.composer-side` 上 `--composer-cell-w:84px` / `--composer-cell-h:34px`，左网格 `repeat(2, var(--composer-cell-w))`、
+  右列 `width:var(--composer-cell-w)`，`.composer-side .action-btn, .composer-side .themed-select-trigger` 同取
+  `width:100%` + `height:var(--composer-cell-h)`），消除大小不一；选择器仍复用 `ThemedSelect` 皮肤；
+- **输入框加高**（纯 CSS）：`#input-bar textarea` `min-height` 44→**74px** 起（= 两行单元格 34×2 + 间距 6）、
+  自增高上限 200→240px（ChatArea 内联 `Math.min(el.scrollHeight, 240)`）；
+  i18n 新增 `chat.modeTip`/`chat.mode.*`/`chat.thinkTip`/`chat.think.*` 中英文。
 
 ### 左栏项目工作区（切项目，2026-08）
 
@@ -193,6 +227,12 @@ theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配�
   `backendStore`（`setProject` / `refreshProjects` / `forgetProject`）。点选后用
   `pendingProjectPath` 打「待生效」标记（镜像 `pendingModel`），`project_switched` 事件到达时
   只清匹配项（快速连点不误清）；`init`（每连接首帧）与事件后各刷一次 `project.get` + `projects.list`。
+- **项目 ↔ 会话关联**（2026-10，纯渲染层）：左栏历史会话按项目归属区分标记——当前聊天为
+  `.current` 填充态（优先级最高）；属于当前项目的其它会话标 `.in-project`（只亮描边框、不
+  填充，各皮肤用自身高亮色，复古 CRT 下即绿色方框）；其它项目会话两者皆无。判定：会话项
+  `workdir`（后端 `sessions.list` 已逐条回填）与 `currentProject.workdir` 经 `normWorkdir`（去尾部
+  分隔符 + 小写）相等即同项目；实现在 `LeftSidebar.tsx` 的 `SessionItem`（`inProject` prop），
+  `.list-item.in-project` 样式在 main.css + 三张皮肤。
 - **配色随皮肤**：项目区不写死色值——描边用三皮肤共用的 `--edge-strong/mid/soft`，文本与
   强调色用 `--proj-text/bright/dim/error/panel/hover-bg/hover-fg`（同 `--scroll-thumb` 范式，
   由 `theme-dark-y2k.css` / `theme-retro.css` / `theme-light-y2k.css` 的 `:root[data-theme]` 块赋值），
@@ -254,7 +294,8 @@ theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配�
   互斥，运行时优先标 `current`），并加 `.pending`（各皮肤虚线框 + 亮字）与 `.noop`（`cursor: default`
   + `pointer-events: none`，连带让主题层的 `:hover` 规则失效，无需逐皮肤重写悬停色）。
 - **表单字段区滚动**（`ModelForm` / `VoiceForm` 共用，2026-09-30 实机修复）：两个表单的
-  字段容器除 `.settings-panel` 外另带 `.form-scroll`（样式在 `styles/main.css`）——
+  字段容器除 `.settings-panel` 外另带 `.form-scroll`（样式在 `styles/right-column.css`，
+    2026-10 由 main.css 拆出）——
   `flex: 1` + `min-height: 0` + `overflow-y: auto`，面板高度不够时字段区自身出滚动条
   （外观与 `.list-area` 一致，走 `--scroll-thumb` / `--scroll-track` 变量随三张皮肤变色）。
   此前 `.settings-panel` 无滚动约束，字段溢出面板后与左栏底部常驻的「项目」区
@@ -329,8 +370,16 @@ theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配�
   回落到一份常见字体预设，见 `lib/fontUtils.ts` + `components/FontPicker.tsx`）；语言经 `i18n.ts` 的 zh/en 字典 + `useT()` 驱动。三者 localStorage 持久化、重启保持。
   控件类基底样式（输入框、自绘下拉 `.themed-select-*`、自绘时间选择器 `.themed-time*`、
   会话改名输入框、模型表单提示与动作区）
-  位于 `styles/controls.css`——`main.tsx` 中紧随 `main.css`、早于三张皮肤引入（main.css 已超
+  位于 `styles/controls.css`——`main.tsx` 中晚于基础层、早于三张皮肤引入（main.css 已超
   项目单文件 800 行规范，2026-09 按职责拆出控件层，只放基础取值、主题配色仍归各皮肤）。
+  - **基础层拆分（2026-10）**：main.css 再度超限（1246 行），按组件职责继续拆分——
+    `styles/chat.css`（中栏对话展示：#center-col / #chat-history / 气泡 / 思考块 / 工具卡组 /
+    消息级操作）、`styles/composer.css`（输入栏：.glass-bar / .composer-side / 附件 chips /
+    ask-user / voice / .action-btn）、`styles/right-column.css`（右栏指标 + 五区块，含
+    .settings-panel(.form-scroll)）、`styles/boot.css`（启动遮罩）；main.css 保留全局底妆 /
+    标题栏 / 三栏布局 / 分段按钮 / 左栏面板。`main.tsx` 引入顺序为 main → chat → composer →
+    right-column → boot → controls → project-section → 三张皮肤，与拆分前同一文件内的级联
+    完全一致（纯搬迁零规则改动，花括号配平与行数总和已逐文件校验）。
   主进程 `BrowserWindow.backgroundColor` 为复古黑绿底 `#020602`（与默认荧光绿一致，防启动白闪）。
   - **荧光绿（CRT 终端）皮肤层**：`styles/theme-retro.css`（`[data-theme='retro']` 覆盖块，
     在 `main.tsx` 于 main.css 之后 import）——黑底荧光绿、扫描线叠层、点阵抖动、

@@ -312,8 +312,128 @@ export const Cmd = {
   /** 列出最近项目（按 last_opened 倒序）。 */
   ProjectsList: 'projects.list',
   /** 从最近列表移除指定项目（不删磁盘目录）。 */
-  ProjectsForget: 'projects.forget'
+  ProjectsForget: 'projects.forget',
+  /**
+   * 工作（权限）模式切换（mode.set）：default/plan/accept_edits/yolo。
+   * 服务端入队即返回，引擎在当前轮结束后热重建 orchestrator（与 models.select 同口径）。
+   * @author aceFelix
+   */
+  ModeSet: 'mode.set',
+  /**
+   * 思考强度切换（think.set）：off/on/low/medium/high。
+   * 服务端按厂商 THINKING_CONFIGS 翻译成原生参数；入队即返回。
+   * @author aceFelix
+   */
+  ThinkSet: 'think.set',
+  /**
+   * 跨设备协同（2026-10）：手机 PWA / 微信 ClawBot 接入桌面。
+   * connect/disconnect 入队即回执，二维码走 qrcode 事件、连接态走 remote_state；
+   * status 供重开桌面回填；wechat.pairing 回喂手机端数字配对码。
+   * @author aceFelix
+   */
+  PhoneConnect: 'phone.connect',
+  PhoneDisconnect: 'phone.disconnect',
+  PhoneStatus: 'phone.status',
+  WechatConnect: 'wechat.connect',
+  WechatDisconnect: 'wechat.disconnect',
+  WechatStatus: 'wechat.status',
+  WechatPairing: 'wechat.pairing'
 } as const
+
+/** 跨设备协同通道（qrcode / remote_state 事件的 channel 字段）。 */
+export type RemoteChannel = 'phone' | 'wechat'
+
+/**
+ * qrcode 事件 payload（镜像 protocol.EVT_QRCODE）：连接二维码就绪。
+ * url = 扫码/访问地址字符串，前端用 qrcode 库内联渲染成聊天区卡片。
+ * fresh=true 表示一次新连接（在底部新建卡片、清理旧未连接卡片），否则为
+ * 同一连接内二维码过期刷新（就地刷新最后一张未连接卡片，不堆叠）。
+ */
+export interface QrcodePayload {
+  channel: RemoteChannel
+  url: string
+  fresh?: boolean
+}
+
+/** remote_state 事件 payload（镜像 protocol.EVT_REMOTE_STATE）：连接态变更。 */
+export interface RemoteStatePayload {
+  channel: RemoteChannel
+  connected: boolean
+}
+
+/**
+ * remote_user_message 事件 payload（镜像 protocol.EVT_REMOTE_USER_MESSAGE）：
+ * 手机 / 微信入站用户消息，桌面按普通用户气泡渲染并标注来源 channel。
+ */
+export interface RemoteUserMessagePayload {
+  channel: RemoteChannel
+  text: string
+}
+
+/** phone.status 回执 result。 */
+export interface PhoneStatusResult {
+  active: boolean
+  url: string
+}
+
+/** wechat.status 回执 result。 */
+export interface WechatStatusResult {
+  connected: boolean
+}
+
+/**
+ * 工作（权限）模式：镜像 jarvis 侧 agent.permissions.modes 与终端 /mode。
+ * default=写需确认/危险拒绝 / plan=只读规划 / accept_edits=文件编辑自动放行 / yolo=全自动。
+ * @author aceFelix
+ */
+export type PermissionMode = 'default' | 'plan' | 'accept_edits' | 'yolo'
+
+/**
+ * 思考强度统一档位：镜像 jarvis 侧 off/on/low/medium/high（后端按厂商翻译为
+ * thinking_budget / reasoning_effort 等原生参数）。
+ * @author aceFelix
+ */
+export type ThinkingEffort = 'off' | 'on' | 'low' | 'medium' | 'high'
+
+/**
+ * state.get 中与输入区两个选择器相关的运行时快照（供 runtimeStore 首屏/重连初始化）。
+ * @author aceFelix
+ */
+export interface RuntimeStateSnapshot {
+  permissionMode: PermissionMode
+  thinkingEffort: ThinkingEffort
+  /** 当前厂商可选档位（空数组=不支持思考，选择器置灰）。 */
+  thinkingSupported: ThinkingEffort[]
+}
+
+const PERMISSION_MODES: readonly PermissionMode[] = ['default', 'plan', 'accept_edits', 'yolo']
+const THINKING_EFFORTS: readonly ThinkingEffort[] = ['off', 'on', 'low', 'medium', 'high']
+
+/**
+ * state.get 回执的宽容解析：非法/缺失模式回退 default，思考档位回退 off，
+ * supported 过滤为合法档位集合子集（脏值剔除）。缺字段视为后端未升级 → 保守默认。
+ * @author aceFelix
+ */
+export function parseRuntimeState(payload: unknown): RuntimeStateSnapshot {
+  const p = (payload ?? {}) as Record<string, unknown>
+  const mode =
+    typeof p.permission_mode === 'string' &&
+    (PERMISSION_MODES as readonly string[]).includes(p.permission_mode)
+      ? (p.permission_mode as PermissionMode)
+      : 'default'
+  const effort =
+    typeof p.thinking_effort === 'string' &&
+    (THINKING_EFFORTS as readonly string[]).includes(p.thinking_effort)
+      ? (p.thinking_effort as ThinkingEffort)
+      : 'off'
+  const supported = Array.isArray(p.thinking_supported)
+    ? (p.thinking_supported.filter(
+        (v): v is ThinkingEffort =>
+          typeof v === 'string' && (THINKING_EFFORTS as readonly string[]).includes(v)
+      ) as ThinkingEffort[])
+    : []
+  return { permissionMode: mode, thinkingEffort: effort, thinkingSupported: supported }
+}
 
 /**
  * 项目工作区数据契约（镜像 jarvis 侧 WorkbenchAPI 与 projects_registry）。

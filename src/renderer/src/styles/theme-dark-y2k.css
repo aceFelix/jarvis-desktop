@@ -259,6 +259,11 @@
     background: rgba(0, 229, 255, 0.12);
     box-shadow: 0 0 8px rgba(0, 229, 255, 0.25);
 }
+/* 属于当前项目的会话：亮青描边框、不填充（与 .current 发光填充区分）。@author aceFelix */
+[data-theme='dark'] .list-item.in-project {
+    border-color: var(--edge-strong);
+    background: transparent;
+}
 [data-theme='dark'] .list-item .sub { color: var(--y2k-dim); }
 [data-theme='dark'] .list-item:not(.noop):hover .sub { color: #031018; }
 
