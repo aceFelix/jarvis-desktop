@@ -268,8 +268,11 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
       if (state === 'ready' && info) {
         // 接管原 session_ready 携带的「清屏初始化」语义：后端进程换代
         // （崩溃重启，pid 变化）时清掉上一后端的旧气泡。放在 session_ready
-        // 里清会吞首发用户气泡（该事件总在首轮回合中途到达）。@author aceFelix
-        if (prevInfo && prevInfo.pid !== info.pid) useChatStore.getState().clear()
+        // 里清会吞首发用户气泡（该事件总在首轮回合中途到达）。
+        // @author aceFelix
+        if (prevInfo && prevInfo.pid !== info.pid) {
+          useChatStore.getState().clear()
+        }
         get().connect(info)
       } else if (state === 'error' || state === 'exited') {
         // 后端崩溃/退出：断开 WS，状态栏提示（重连由主进程重启后端驱动）
@@ -586,7 +589,9 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
 
     refreshSessions: async () => {
       const result = await runCommand(Cmd.SessionsList)
-      if (result !== null) useLeftStore.getState().setSessions(asSessionList(result))
+      if (result === null) return
+      const list = asSessionList(result)
+      useLeftStore.getState().setSessions(list)
     },
 
     refreshModels: async () => {
