@@ -78,6 +78,16 @@ describe('dispatchServerEvent · 文本对话流', () => {
     expect(ai).toMatchObject({ kind: 'ai', text: '你好世界', streaming: true })
   })
 
+  // ask_user 应答闭环入口：事件→应答条状态（后端 answer_user 才能解锁），
+  // 链路断在任意一环都会让引擎干等 600s 超时表现为整轮卡死。
+  // @author aceFelix
+  it('ask_user 事件弹出应答条（askPrompt），应答后可收起', () => {
+    dispatchServerEvent({ event: 'ask_user', data: '是否重试一次?' }, makeConn())
+    expect(useChatStore.getState().askPrompt).toBe('是否重试一次?')
+    useChatStore.getState().hideAskUser()
+    expect(useChatStore.getState().askPrompt).toBeNull()
+  })
+
   it('assistant_thinking 累加思考文本', () => {
     dispatchServerEvent({ event: 'assistant_thinking', data: '想' }, makeConn())
     expect(useChatStore.getState().messages[0]).toMatchObject({ kind: 'ai', thinking: '想' })
