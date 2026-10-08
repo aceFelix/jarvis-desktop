@@ -238,3 +238,28 @@
 .model-form-actions .action-btn {
     flex: 1;
 }
+
+/* ---- / 命令补全弹层（slash-ac-*，2026-10） ---- */
+/* 叠在 .themed-select-menu/-option 基础皮肤上（三张主题的覆盖块自动
+   接管配色），项改为「命令名 + 描述」双列：名称等宽字体高亮，
+   描述暗显单行省略。浮层定位（fixed/bottom/maxHeight）由内联 style 给定。
+   组件见 SlashAutocomplete.tsx。@author aceFelix */
+
+.slash-ac-name {
+    flex-shrink: 0;
+    min-width: 96px;
+    font-family: Consolas, 'Courier New', monospace;
+    /* 颜色不写死：高亮行反相（亮底深字）时能随选项 color 继承变深，
+       非高亮行的亮色由三张皮肤的覆盖块给定 */
+    color: inherit;
+}
+
+.slash-ac-desc {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    opacity: 0.65;
+}

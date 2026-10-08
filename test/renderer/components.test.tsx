@@ -117,20 +117,16 @@ describe('ChatArea', () => {
     expect(screen.queryByTestId('btn-copy-msg')).toBeNull()
   })
 
-  it('📸 截屏按钮：主进程返回 base64 后入附件区 chips', async () => {
-    // 截屏入口自右栏快捷操作迁入输入栏：captureScreen → attachStore.addImage
-    // → chips 渲染，随下一条消息走 vision 上送。@author aceFelix
-    ;(window as unknown as { jarvisDesktop?: unknown }).jarvisDesktop = {
-      captureScreen: vi.fn().mockResolvedValue({ data: 'QUJD', media_type: 'image/png' })
-    }
-    useBackendStore.setState({ client: null, wsConnected: true })
+  it('🗜 压缩按钮：点击透传 /compact（替掉原截屏）', () => {
+    // 手动压缩上下文按钮：点击经 backendStore.execSlash 透传 /compact，
+    // 结果走 slash_result 命令输出卡片。@author aceFelix
+    const prevExec = useBackendStore.getState().execSlash
+    const execSlash = vi.fn().mockResolvedValue(undefined)
+    useBackendStore.setState({ client: null, wsConnected: true, execSlash })
     render(<ChatArea />)
-    fireEvent.click(screen.getByTestId('btn-capture'))
-    await vi.waitFor(() => expect(screen.getByTestId('attach-chips')).toBeInTheDocument())
-    const pending = useAttachStore.getState().pending
-    expect(pending).toHaveLength(1)
-    expect(pending[0]).toMatchObject({ kind: 'image', b64: 'QUJD', mediaType: 'image/png' })
-    useBackendStore.setState({ wsConnected: false })
+    fireEvent.click(screen.getByTestId('btn-compact'))
+    expect(execSlash).toHaveBeenCalledWith('/compact')
+    useBackendStore.setState({ execSlash: prevExec, wsConnected: false })
   })
 
   it('渲染工具卡片与系统提示', () => {
@@ -270,11 +266,11 @@ describe('ChatArea', () => {
     expect(screen.getByText('是否继续？')).toBeInTheDocument()
   })
 
-  it('未连接时发送/附件/截屏按钮禁用', () => {
+  it('未连接时发送/附件/压缩按钮禁用', () => {
     render(<ChatArea />)
     expect(screen.getByTestId('btn-send')).toBeDisabled()
     expect(screen.getByTestId('btn-attach')).toBeDisabled()
-    expect(screen.getByTestId('btn-capture')).toBeDisabled()
+    expect(screen.getByTestId('btn-compact')).toBeDisabled()
   })
 
   it('busy 时发送按钮切换为“■ 停止”，点击发 reply.abort', async () => {
@@ -1373,6 +1369,49 @@ describe('RightSidebar 任务中心与用量', () => {
     render(<RightSidebar />)
     expect(screen.getByTestId('usage-card')).toHaveTextContent('deepseek-chat')
     expect(screen.queryByTestId('usage-cache-hit-rate')).toBeNull()
+  })
+
+  it('用量卡渲染上下文窗口占比（context_*）与进度条', () => {
+    // 上下文窗口占用（口径同 /context）：一行百分比 + 下方 gauge；
+    // title 透出已用/窗口 token 与窗口来源。@author aceFelix
+    useRightStore.setState({
+      cost: {
+        provider: 'deepseek',
+        model: 'deepseek-chat',
+        input_tokens: 100,
+        output_tokens: 20,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        context_used: 40000,
+        context_window: 200000,
+        context_percent: 20.0,
+        context_configured: true,
+        dialogs: 1,
+        messages: 2
+      }
+    })
+    render(<RightSidebar />)
+    const ctx = screen.getByTestId('usage-context')
+    expect(ctx).toHaveTextContent('上下文窗口')
+    expect(ctx).toHaveTextContent('20.0%')
+    expect(document.querySelector('.usage-context-gauge .gauge-fill')).not.toBeNull()
+  })
+
+  it('旧后端无 context_* 字段时隐藏上下文行', () => {
+    useRightStore.setState({
+      cost: {
+        provider: 'deepseek',
+        model: 'deepseek-chat',
+        input_tokens: 100,
+        output_tokens: 20,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        dialogs: 1,
+        messages: 2
+      }
+    })
+    render(<RightSidebar />)
+    expect(screen.queryByTestId('usage-context')).toBeNull()
   })
 })
 

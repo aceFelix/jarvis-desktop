@@ -53,22 +53,13 @@ export const IpcChannels = {
   RendererLog: 'jarvis:renderer-log',
   /** 渲染进程 → 主进程：系统通知（主动播报弹 Windows 通知，单向 send）。 */
   SystemNotify: 'jarvis:system-notify',
-  /** invoke：截取主屏缩略图（右栏快捷操作「截屏发给贾维斯」）。 */
-  CaptureScreen: 'jarvis:capture-screen',
   /**
-    * invoke：弹出系统目录选择器（左栏「项目」区「打开文件夹」）。
+    * invoke：弹出系统目录选择器（左栏「项目」区「打开文件夹」。
    * 返回选中绝对路径或 null（取消）。后端对路径做二次校验，不自动建目录。
    * @author aceFelix
    */
   SelectDirectory: 'jarvis:select-directory'
 } as const
-
-/** 截屏结果（主进程 desktopCapturer → 渲染进程附件区）。 */
-export interface ScreenCapture {
-  /** PNG base64（随 message 指令 images 字段上送，走 vision）。 */
-  data: string
-  media_type: string
-}
 
 /** 系统通知请求体（渲染进程 → 主进程，主进程 Electron Notification 弹窗）。 */
 export interface NotifyRequest {
@@ -263,6 +254,16 @@ export const Cmd = {
   SessionsNew: 'sessions.new',
   SessionsRename: 'sessions.rename',
   SessionsDelete: 'sessions.delete',
+  /**
+   * 消息级回溯（撤回，2026-10）：桌面用户气泡「撤回」。
+   * preview 只读预览回滚影响面（同步直返）；rewind 截断对话 + 可选回滚工作区
+   * 文件（入队即返回，真实结果走 rewound 事件）。
+   * 定位口径 = user_tail_count：从尾部数第 N 条用户消息（含），两端按用户消息
+   * 顺序共享计数，不依赖消息 id（emit 时后端消息尚未创建、上下文压缩会漂移索引）。
+   * @author aceFelix
+   */
+  CheckpointPreview: 'checkpoint.preview',
+  CheckpointRewind: 'checkpoint.rewind',
   ModelsList: 'models.list',
   ModelsSelect: 'models.select',
   /** 左栏「添加模型」表单：添加/覆盖自定义模型并持久化（models.add）。 */
@@ -337,7 +338,21 @@ export const Cmd = {
   WechatConnect: 'wechat.connect',
   WechatDisconnect: 'wechat.disconnect',
   WechatStatus: 'wechat.status',
-  WechatPairing: 'wechat.pairing'
+  WechatPairing: 'wechat.pairing',
+  /**
+   * 斜杠命令透传（slash.exec，2026-10）：输入框 / 前缀命令转进后端引擎，
+   * 复用终端命令路由 dispatch_command（白名单/交互禁令/输出捕获在
+   * slash_bridge）。RPC 只确认受理，执行结果走 slash_result 事件。
+   * @author aceFelix
+   */
+  SlashExec: 'slash.exec',
+  /**
+   * 斜杠命令补全目录（slash.commands，2026-10）：只读 RPC 返回桌面可执行
+   * 命令列表（{ name, description, source }），供输入框 / 前缀弹层补全，
+   * 口径与后端 slash_bridge 执行护栏一致（白名单透传/原生控件/已安装技能）。
+   * @author aceFelix
+   */
+  SlashCommands: 'slash.commands'
 } as const
 
 /** 跨设备协同通道（qrcode / remote_state 事件的 channel 字段）。 */
@@ -368,6 +383,70 @@ export interface RemoteStatePayload {
 export interface RemoteUserMessagePayload {
   channel: RemoteChannel
   text: string
+}
+
+/**
+ * slash_result 事件 payload（镜像 protocol.EVT_SLASH_RESULT）：斜杠命令透传
+ * 执行结果。text = 捕获的命令行输出全文（Rich 渲染后纯文本，含表格/面板），
+ * 前端渲染为等宽命令输出卡片；技能命令（/<skill-name>）另有正常对话流式事件。
+ * @author aceFelix
+ */
+export interface SlashResultPayload {
+  command: string
+  ok: boolean
+  text: string
+}
+
+/**
+ * slash.commands 响应项（斜杠命令补全目录，2026-10）：镜像后端
+ * slash_bridge.build_desktop_commands。source 区分执行链路：
+ * passthrough=白名单透传（slash.exec）、native=桌面原生控件对应命令、
+ * skill=已安装技能（/<skill-name>）。
+ * @author aceFelix
+ */
+export interface SlashCommandItem {
+  name: string
+  description: string
+  source: 'passthrough' | 'native' | 'skill'
+}
+
+/**
+ * checkpoint.preview 回执 result 的单项文件改动（镜像 checkpoint_ops.describe）。
+ * status = git 状态字母（M=改 / A=新 / D=删 等），path = 相对工作目录路径。
+ * @author aceFelix
+ */
+export interface CheckpointFileChange {
+  status: string
+  path: string
+}
+
+/**
+ * checkpoint.preview 回执 result（撤回预览：回滚会改动哪些工作区文件）。
+ * 业务结果在 ok（传输失败由 runCommand 弹错回 null）；has_checkpoint=false 时
+ * 只能仅回退对话（files 为空、reason 给降级说明）。
+ * @author aceFelix
+ */
+export interface CheckpointPreviewResult {
+  ok: boolean
+  has_checkpoint: boolean
+  checkpoint_id?: string
+  files: CheckpointFileChange[]
+  untracked: string[]
+  reason: string
+}
+
+/**
+ * rewound 事件 payload（镜像 protocol.EVT_REWOUND）：checkpoint.rewind 落地后推一次。
+ * removed_user = 撤回的用户消息条数（= 请求时的 user_tail_count，前端据此裁气泡）；
+ * ok=false 时 removed/files_restored 为初始值、前端保持原样不裁。
+ * @author aceFelix
+ */
+export interface RewoundPayload {
+  ok: boolean
+  removed: number
+  removed_user?: number
+  files_restored: boolean
+  reason: string
 }
 
 /** phone.status 回执 result。 */

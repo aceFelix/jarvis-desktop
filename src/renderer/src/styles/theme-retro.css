@@ -217,6 +217,11 @@
 [data-theme='retro'] .themed-select-option.active { background: var(--retro-bright); color: #020602; }
 [data-theme='retro'] .themed-select-option.selected { color: var(--retro-bright); }
 [data-theme='retro'] .themed-select-option.selected.active { background: var(--retro-bright); color: #020602; }
+/* / 命令补全弹层：非高亮行命令名用本皮肤高亮绿；高亮行反相（亮底）时
+   名称/描述随选项继承深字，描述提不透明度保可读。@author aceFelix */
+[data-theme='retro'] .slash-ac-name { color: var(--retro-bright); }
+[data-theme='retro'] .themed-select-option.active .slash-ac-name { color: inherit; }
+[data-theme='retro'] .themed-select-option.active .slash-ac-desc { color: inherit; opacity: 0.85; }
 [data-theme='retro'] .model-form-error { color: var(--retro-error); }
 [data-theme='retro'] .list-item.current {
     color: var(--retro-bright);

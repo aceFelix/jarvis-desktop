@@ -165,4 +165,57 @@ describe('chatStore', () => {
     expect(st.busy).toBe(false)
     expect(st.askPrompt).toBeNull()
   })
+
+  // 消息级回溯（撤回）：从尾部数第 N 条用户气泡起裁到列表末尾（与后端
+  // checkpoint_ops.rewind 截断 _messages 同口径）。
+  // @author aceFelix
+  it('rewindTailFromUser(2)：从倒数第 2 条用户气泡起（含）全部删除', () => {
+    const s = useChatStore.getState()
+    s.addUser('问一')
+    s.appendAssistantText('答一')
+    s.finishAssistant()
+    s.addUser('问二')
+    s.appendAssistantText('答二')
+    s.finishAssistant()
+    expect(useChatStore.getState().messages).toHaveLength(4)
+    expect(useChatStore.getState().rewindTailFromUser(2)).toBe(true)
+    expect(useChatStore.getState().messages).toHaveLength(0)
+  })
+
+  it('rewindTailFromUser(1)：只删最后一条用户轮，保留更早的', () => {
+    const s = useChatStore.getState()
+    s.addUser('问一')
+    s.appendAssistantText('答一')
+    s.finishAssistant()
+    s.addUser('问二')
+    s.appendAssistantText('答二')
+    s.finishAssistant()
+    expect(useChatStore.getState().rewindTailFromUser(1)).toBe(true)
+    expect(useChatStore.getState().messages.map((m) => m.kind)).toEqual(['user', 'ai'])
+  })
+
+  it('rewindTailFromUser 不足条数：返回 false、不动列表', () => {
+    const s = useChatStore.getState()
+    s.addUser('唯一一条')
+    expect(useChatStore.getState().rewindTailFromUser(3)).toBe(false)
+    expect(useChatStore.getState().messages).toHaveLength(1)
+  })
+
+  it('rewindTailFromUser 非法入参（<1）：返回 false', () => {
+    useChatStore.getState().addUser('x')
+    expect(useChatStore.getState().rewindTailFromUser(0)).toBe(false)
+    expect(useChatStore.getState().messages).toHaveLength(1)
+  })
+
+  it('rewindTailFromUser 同时复位 busy / askPrompt', () => {
+    const s = useChatStore.getState()
+    s.addUser('问')
+    s.setBusy(true)
+    s.showAskUser('确认?')
+    expect(useChatStore.getState().rewindTailFromUser(1)).toBe(true)
+    const st = useChatStore.getState()
+    expect(st.messages).toHaveLength(0)
+    expect(st.busy).toBe(false)
+    expect(st.askPrompt).toBeNull()
+  })
 })

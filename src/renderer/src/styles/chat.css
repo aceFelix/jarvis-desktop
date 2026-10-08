@@ -110,6 +110,32 @@
     overflow-y: auto;
 }
 
+/* 斜杠命令输出卡片（slash.exec，2026-10）：叠加在 .message.system 皮肤上只补
+   结构样式——summary 命令原文、正文等宽 pre。命令行表格对齐靠空格，禁折行
+   改横向滚动；限高内部滚动防长输出铺满聊天区。@author aceFelix */
+.message.slash {
+    text-align: left;
+    padding: 5px 10px;
+}
+.message.slash > summary {
+    cursor: pointer;
+    list-style: none;
+    font-family: Consolas, 'Courier New', monospace;
+}
+.message.slash > summary::before { content: "▸ "; }
+.message.slash[open] > summary::before { content: "▾ "; }
+.message.slash .slash-body {
+    margin: 4px 0 0;
+    padding-top: 4px;
+    border-top: 1px dashed rgba(91, 200, 255, 0.35);
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 12px;
+    white-space: pre;
+    overflow: auto;
+    max-height: 320px;
+    color: inherit;
+}
+
 .message-label {
     font-size: 11px;
     font-weight: 600;
@@ -266,4 +292,118 @@
     object-fit: cover;
     border-radius: 8px;
     border: 1px solid var(--edge-mid);
+}
+
+/* 用户气泡撤回入口（消息级回溯，2026-10）：默认隐藏，hover / 键盘聚焦
+   气泡时才显（与 AI 气泡常驻的复制行区分：撤回是破坏性操作，不常驻）。@author aceFelix */
+.message.user .msg-actions {
+    opacity: 0;
+    transition: opacity 0.12s ease;
+}
+
+.message.user:hover .msg-actions,
+.message.user:focus-within .msg-actions {
+    opacity: 1;
+}
+
+.message.user .msg-action-btn:hover {
+    color: #ff9a9a;
+    background: rgba(255, 90, 90, 0.14);
+    border-color: rgba(255, 90, 90, 0.45);
+}
+
+/* 撤回确认弹窗（消息级回溯，2026-10）：终端风遮罩 + 居中卡片，沿用玻璃/按钮皮肤类。@author aceFelix */
+.rewind-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(2px);
+}
+
+.rewind-dialog {
+    width: min(520px, 90vw);
+    max-height: 80vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 18px;
+    border: 1px solid var(--edge-soft);
+    border-radius: 12px;
+    background: rgba(10, 22, 38, 0.94);
+    color: #e6f6ff;
+}
+
+.rewind-title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.rewind-subhead {
+    font-size: 12px;
+    opacity: 0.85;
+    margin-bottom: 4px;
+}
+
+.rewind-body {
+    font-size: 13px;
+}
+
+.rewind-hint {
+    font-size: 12px;
+    color: #9fc4e0;
+    font-style: italic;
+}
+
+.rewind-hint.error {
+    color: #ffb0b0;
+    font-style: normal;
+}
+
+.rewind-files {
+    margin: 0;
+    padding: 0 0 0 4px;
+    list-style: none;
+    max-height: 220px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.rewind-files li {
+    font-size: 12px;
+    word-break: break-all;
+}
+
+.rewind-file-status {
+    display: inline-block;
+    min-width: 18px;
+    color: #7fe3ff;
+    font-weight: 600;
+}
+
+.rewind-restore {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.rewind-restore.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.rewind-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 4px;
 }

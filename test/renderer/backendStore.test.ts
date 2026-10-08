@@ -21,6 +21,7 @@ import { useLeftStore } from '@renderer/stores/leftStore'
 import { useChatStore } from '@renderer/stores/chatStore'
 import { useRightStore } from '@renderer/stores/rightStore'
 import { useRuntimeStore } from '@renderer/stores/runtimeStore'
+import { useSlashStore } from '@renderer/stores/slashStore'
 import { EMPTY_BACKEND_SETTINGS, useSettingsStore } from '@renderer/stores/settingsStore'
 
 // applyBackendStatus 的 ready 路径会经 connect() 构造 JarvisWsClient，
@@ -896,5 +897,177 @@ describe('backendStore · 工作模式 / 思考强度', () => {
     expect(s.permissionMode).toBe('default')
     expect(s.thinkingEffort).toBe('off')
     expect(s.thinkingSupported).toEqual(['off', 'high'])
+  })
+})
+
+// 消息级回溯（撤回）：previewCheckpoint 只读预览回滚影响面，rewindMessage 发
+// 截断+可选回滚指令（真实结果走 rewound 事件，本地不裁消息）。
+// @author aceFelix
+describe('backendStore · 消息回溯 checkpoint.*', () => {
+  it('previewCheckpoint 上送 checkpoint.preview（user_tail_count）并透传业务 dict', async () => {
+    const previewResult = {
+      ok: true,
+      has_checkpoint: true,
+      checkpoint_id: 'abc123',
+      files: [{ status: 'M', path: 'src/a.py' }],
+      untracked: ['new.txt'],
+      reason: ''
+    }
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: true, result: previewResult })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    const res = await useBackendStore.getState().previewCheckpoint(2)
+
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.CheckpointPreview, { user_tail_count: 2 })
+    expect(res).toMatchObject({ ok: true, has_checkpoint: true, checkpoint_id: 'abc123' })
+  })
+
+  it('previewCheckpoint 业务失败（ok=false）仍透传 dict（调用方展 reason），不当传输错误回 null', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({
+      ok: true,
+      result: { ok: false, has_checkpoint: false, reason: '用户消息数不足' }
+    })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    const res = await useBackendStore.getState().previewCheckpoint(9)
+
+    expect(res).not.toBeNull()
+    expect(res?.ok).toBe(false)
+    expect(res?.reason).toBe('用户消息数不足')
+  })
+
+  it('previewCheckpoint 传输失败（ok=false）：回 null + 错误进聊天流', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: false, error: 'user_tail_count 必须 ≥ 1' })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    expect(await useBackendStore.getState().previewCheckpoint(0)).toBeNull()
+    const sys = useChatStore.getState().messages.filter((m) => m.kind === 'system')
+    expect(sys.some((m) => m.kind === 'system' && m.text.includes('user_tail_count'))).toBe(true)
+  })
+
+  it('rewindMessage 上送 checkpoint.rewind（user_tail_count + restore_files）', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: true, result: { ok: true, pending: true } })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().rewindMessage(1, true)
+
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.CheckpointRewind, {
+      user_tail_count: 1,
+      restore_files: true
+    })
+  })
+
+  it('rewindMessage restore_files=false：透传不回滚工作区', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: true, result: { ok: true, pending: true } })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().rewindMessage(3, false)
+
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.CheckpointRewind, {
+      user_tail_count: 3,
+      restore_files: false
+    })
+  })
+
+  it('未连接（client 为 null）：previewCheckpoint 回 null、rewindMessage 不抛异常', async () => {
+    useBackendStore.setState({ client: null })
+    expect(await useBackendStore.getState().previewCheckpoint(1)).toBeNull()
+    await expect(useBackendStore.getState().rewindMessage(1, true)).resolves.not.toThrow()
+  })
+})
+
+// ---- 斜杠命令透传（slash.exec，2026-10） ----
+// @author aceFelix
+describe('backendStore · execSlash', () => {
+  it('受理回执：本地回显命令气泡 + 置 busy，发 slash.exec（收尾留给 slash_result 事件）', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: true, result: { ok: true, command: '/cost' } })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().execSlash('/cost')
+
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.SlashExec, { command: '/cost' })
+    const msgs = useChatStore.getState().messages
+    expect(msgs[0]).toMatchObject({ kind: 'user', text: '/cost' })
+    expect(useChatStore.getState().busy).toBe(true)
+  })
+
+  it('拒绝回执（ok=false，不会有 slash_result）：本地落错态卡片并解除 busy', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: true, result: { ok: false, error: '不是斜杠命令' } })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().execSlash('/x')
+
+    const slash = useChatStore.getState().messages.filter((m) => m.kind === 'slash')
+    expect(slash.some((m) => m.kind === 'slash' && m.isError && m.text.includes('不是斜杠命令'))).toBe(true)
+    expect(useChatStore.getState().busy).toBe(false)
+  })
+
+  it('非斜杠输入：不发指令不动状态', async () => {
+    const client = fakeClient()
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().execSlash('普通文本')
+
+    expect(client.sendCommand).not.toHaveBeenCalled()
+    expect(useChatStore.getState().busy).toBe(false)
+  })
+
+  it('未连接（client null）：runCommand 回 null → 本地错态收尾不卡 busy', async () => {
+    useBackendStore.setState({ client: null })
+
+    await useBackendStore.getState().execSlash('/doctor')
+
+    const slash = useChatStore.getState().messages.filter((m) => m.kind === 'slash')
+    expect(slash.length).toBe(1)
+    expect(useChatStore.getState().busy).toBe(false)
+  })
+})
+
+// 斜杠命令补全目录刷新（slash.commands，2026-10）：只读、失败静默保留旧目录。
+// @author aceFelix
+describe('backendStore · refreshSlashCommands', () => {
+  const items = [{ name: '/cost', description: '查看花费', source: 'passthrough' as const }]
+
+  it('数组回执 → 全量回填 slashStore', async () => {
+    useSlashStore.getState().setCommands([])
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: true, result: items })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().refreshSlashCommands()
+
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.SlashCommands, {})
+    expect(useSlashStore.getState().commands).toEqual(items)
+  })
+
+  it('ok=false / 非数组回执：静默保留旧目录（不弹错入聊天流）', async () => {
+    useSlashStore.getState().setCommands(items)
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: false, error: '未知指令' })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    await useBackendStore.getState().refreshSlashCommands()
+
+    expect(useSlashStore.getState().commands).toEqual(items)
+    expect(useChatStore.getState().messages.length).toBe(0)
+
+    client.sendCommand.mockResolvedValue({ ok: true, result: { bad: 'shape' } })
+    await useBackendStore.getState().refreshSlashCommands()
+    expect(useSlashStore.getState().commands).toEqual(items)
+  })
+
+  it('未连接（client null）：直接返回不抛错', async () => {
+    useSlashStore.getState().setCommands(items)
+    useBackendStore.setState({ client: null })
+
+    await expect(useBackendStore.getState().refreshSlashCommands()).resolves.toBeUndefined()
+    expect(useSlashStore.getState().commands).toEqual(items)
   })
 })

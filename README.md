@@ -23,7 +23,12 @@ jarvis（Python）                         jarvis-desktop（Electron）
 
 ## 前置条件
 
-一期为 **dev 模式**：桌面壳依赖本机 `jarvis` 源码仓库与 Python 环境（不捆绑 Python）。
+分两种形态：
+
+- **dev 模式（开发者本机跑）**：桌面壳依赖本机 `jarvis` 源码仓库与 Python 环境（不捆绑 Python），跑 `python -m agent.serve`。
+- **打包态（发给终端用户）**：后端经 PyInstaller 冻结成 `jarvis-serve.exe` 随安装包分发，用户**无需安装 Python**，下载双击即用。见下文「打包发布」。
+
+dev 模式依赖：
 
 1. **jarvis 仓库**：默认位于本仓库同级 `../jarvis`，或用环境变量 `JARVIS_REPO` 指定。
 2. **Python 环境**：`jarvis` 的运行环境（`websockets` 已为其核心依赖，随安装自动就绪）。默认用 `python`，或用 `JARVIS_PYTHON` 指定解释器（如 venv 内的绝对路径）。
@@ -54,8 +59,9 @@ npm run dev
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `JARVIS_PYTHON` | `python` | 拉起 `agent.serve` 用的 Python 解释器 |
-| `JARVIS_REPO` | `../jarvis`（相对本仓库） | jarvis 源码仓库路径 |
+| `JARVIS_PYTHON` | `python` | 拉起 `agent.serve` 用的 Python 解释器（dev 态） |
+| `JARVIS_REPO` | `../jarvis`（相对本仓库） | jarvis 源码仓库路径（dev 态） |
+| `JARVIS_SERVE_EXE` | （未设） | 显式指定冻结后端 exe；优先级高于打包内置 exe，供自测/特殊部署 |
 
 ## 脚本
 
@@ -63,12 +69,87 @@ npm run dev
 |---|---|
 | `npm run dev` | electron-vite 开发模式（热重载 + 拉起后端） |
 | `npm run build` | 打包主进程 / preload / 渲染进程到 `out/` |
+| `npm run serve:build` | 调 jarvis 仓 `packaging/build_serve.ps1`，用 PyInstaller 冻结后端到 `../jarvis/dist/jarvis-serve/` |
+| `npm run dist` | 一键发布：`build` → `serve:build`（重冻结）→ `electron-builder --win` 出 NSIS 安装包到 `dist/` |
+| `npm run dist:fast` | 同上但跳过重冻结，复用已有 `jarvis-serve/`（只改壳时快很多） |
 | `npm run typecheck` | tsc 类型检查（node + web 两套程序） |
 | `npm run test` | vitest 单测（227 用例：握手解析、生命周期状态机、图标解析、系统通知、WS 客户端、事件分发（含主动播报、半双工语音 `voice_*`、`assistant_done` 撤销 busy、init 七路刷新、briefing 任务中心联动）、store（含 `toggleVoice`/`interruptVoice`/`abortReply` 指令路由、`sendMessage` 附件 payload、右栏 schedule/cost/state 刷新映射、settings.get/set 接线（白名单全键回填/乐观更新/失败回滚/值未变不发指令）、`addModel` 添加模型（`models.add` 带表单参数、成功刷模型列表、回执失败回 false）、`editModel`/`removeModel` 模型改配与删除、settingsStore 主题（含复古、首启默认与非法值回退）/语言持久化与 backendSettings 镜像（含 parseBackendSettings 宽容解析）、i18n 查键）、glyphs 符号系统三主题映射、preload 契约、React 组件（含语音模式 UI、发送/停止双态按钮、📎 附件 chips 与气泡缩略图、AI 气泡复制按钮、输入栏 📸 截屏、中栏降噪折叠（思考块流式中展开/结束后自动收起、连续工具调用聚合成一条框（执行中展开显在跑的工具、全部完成后自动收起、失败标红计数）、单条工具不包组、中间夹提示切组、历史汇总卡不并组、手点展开不被抢回）、右栏四区块、独立设置面板（含复古主题切换、glyph 联动与简报/截止日期/TTS 音量语速四组后端联动控件）、左栏「＋ 添加模型」表单流（字段默认值 / 空名本地校验 / 自绘主题化下拉 ThemedSelect 的展开-选值-键盘-外点关闭 / models.add 提交后刷列表并回列表 / 回执失败保持表单打开）、左栏模型配置修改与删除（双击预填 / 内置名锁定 / Key 留空保持 / 右键删除）与标题栏齿轮切换）） |
 
 ### CI
 
-push / PR 到 `main` 时 GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）自动在 Node 20/22 双版本上执行：`npm ci`（跳过 Electron 二进制下载）→ `typecheck` → `test` → `build`，不依赖 Python 后端与真实 Electron 运行时。
+- **验证流水线**（[.github/workflows/ci.yml](.github/workflows/ci.yml)）：push / PR 到 `main` 时在 Node 20/22 双版本执行 `npm ci`（跳过 Electron 二进制下载）→ `typecheck` → `test` → `build`，不依赖 Python 后端与真实 Electron 运行时。
+- **发布流水线**（[.github/workflows/release.yml](.github/workflows/release.yml)）：见下文「打包发布 → CI 自动发布」，在 `windows-latest` 上出 NSIS 安装包并挂到 GitHub Releases。
+
+## 打包发布（Windows NSIS 安装包）
+
+目标：产出一个**下载双击即装、无需 Python** 的安装包。核心难点是把 Python 后端
+（`jarvis serve`）随包分发——采用 **PyInstaller 将 `agent.serve` 冻结成独立
+`jarvis-serve.exe`**，经 electron-builder 的 `extraResources` 放入安装包。
+
+### 流程
+
+```powershell
+# 在 jarvis-desktop 目录，一键出安装包（先冻结后端再打包）
+# 国内网络需先设 Electron / electron-builder 二进制镜像：
+$env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
+$env:ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder-binaries/"
+npm run dist
+```
+
+串联三步：`npm run build`（electron-vite → `out/`）→ `npm run serve:build`（调
+`../jarvis/packaging/build_serve.ps1` 用 PyInstaller 冻结到 `../jarvis/dist/jarvis-serve/`）
+→ `electron-builder --win`（NSIS，产物在 `jarvis-desktop/dist/`）。
+
+### 前置
+
+- jarvis 的 `.venv` 已 `pip install -e .`（`websockets` 为核心依赖，自动就绪）；
+- 构建机装 `PyInstaller`（`build_serve.ps1` 未装时会即时 `pip install`；它是构建期工具，**不进运行时依赖**）。
+
+### 产物
+
+- `dist/JARVIS Desktop-Setup-<version>.exe`：NSIS 安装程序（用户用）。
+- `dist/win-unpacked/`：免安装绿色目录（含 `resources/jarvis-serve/jarvis-serve.exe`，调试集成用）。
+
+### CI 自动发布（GitHub Releases）
+
+本机出包会受 `winCodeSign` 符号链接权限限制（见下「已知环境注意事项」），**发布统一交给 GitHub
+Actions**（[.github/workflows/release.yml](.github/workflows/release.yml)）在 `windows-latest`
+上完成——该 runner 自带所需权限，且顺带解决「上传」诉求。
+
+工作流会**并列检出** `jarvis-desktop`（本仓库）与 `jarvis`（后端仓库，默认 `master`），装好
+Node 20 与 Python 3.12（`pip install -e .` + `pyinstaller`），执行 `npm run dist` 产出安装包，
+再用 `softprops/action-gh-release` 把 `*-Setup-*.exe` 挂到对应 tag 的 Release。
+
+触发方式（二选一）：
+
+```powershell
+# ① 推荐：打 tag 推送即自动出包并发布（版本号取自 tag）
+git tag v0.1.0 ; git push origin v0.1.0
+```
+
+② 或在 Actions 页手动 **Run workflow**（`workflow_dispatch`），可临时指定发布 tag 名与 `jarvis`
+检出的分支/tag。
+
+> 若 `jarvis` 后端仓库为**私有**：跨仓库检出需要一个能读 `aceFelix/jarvis` 的 PAT，存为仓库 Secret
+> `JARVIS_REPO_TOKEN`，并把 workflow 中 jarvis checkout 步骤的 `token` 指向它（文件内已注明）。
+
+### 运行时分发机制
+
+- 打包态（`app.isPackaged`）：`backend.ts::resolveLaunchPlan` 选择 `resources/jarvis-serve/jarvis-serve.exe`作为后端；
+- dev 态：回退本机 `python -m agent.serve`（`JARVIS_REPO`/`JARVIS_PYTHON`）。
+- 基础包不含重型可选 extras（playwright/cv2/mediapipe/paddleocr），对应截屏/浏览器/视觉工具运行时
+  懒加载失败即优雅降级；文本对话、文件、命令、MCP 等核心能力不受影响。
+
+### 已知环境注意事项
+
+- **未签名 SmartScreen**：安装包无代码签名，首次运行会弹「未知发布者」，点「更多信息→仍要运行」即可。
+- **winCodeSign 符号链接权限**：electron-builder 在 Windows 上拉取 `winCodeSign` 依赖包时需解压
+  包内的 macOS `.dylib` 符号链接，普通账户缺 `SeCreateSymbolicLinkPrivilege`会报
+  「客户端没有所需的特权」。解决任选其一：① 开启 **Windows 开发者模式**（设置→隐私和安全性→开发者
+  其他选项→开发人员模式）；② **以管理员身份**运行构建；③ 在 **CI（GitHub Actions windows-latest）**
+  上构建（自带所需权限，适合发布）。（`win-unpacked/` 不依赖 winCodeSign，可在普通账户下产出。）
+- **杀毒/Defender 误报**：未签名且新建的大体积 exe 易被实时扫描短暂锁定；若打包在 `addWinAsarIntegrity`
+  报 `UNKNOWN`，已将 `asar: false` 避开该回写（详见 development.md）。
 
 ## 对话区降噪（思考 / 工具 / 系统提示折叠）
 
@@ -107,9 +188,47 @@ push / PR 到 `main` 时 GitHub Actions（[.github/workflows/ci.yml](.github/wor
 ≤5 个文件（单内容 ≤20 万字符）；待发送附件在输入栏上方以 chips 展示、可移除；
 纯图片消息（空文本）也可发送。协议细节见 [docs/architecture.md](docs/architecture.md) 「消息附件」小节。
 
+## 消息撤回（对话 + 文件回滚，2026-10）
+
+发错一条消息？悬停用户气泡点「撤回」：
+
+- 确认弹窗先展示该轮**工作区改动文件清单**（`checkpoint.preview` 预览，M/A/D + 新增未跟踪）；
+- 勾选「同时回滚工作区文件」（默认勾）后确认，工作区恢复到该消息**发出前**的
+  shadow git 检查点，对话同步截断（`checkpoint.rewind` → `rewound` 事件裁气泡）；
+- 降级：后端未装 git / `[checkpoint] enabled=false` / 检查点被配额修剪时，复选框
+  禁用、仅回退对话；文件回滚失败则整次撤回放弃（消息不丢，原子性由后端保证）。
+
+机制与协议细节见 jarvis 侧 [docs/architecture/15-消息回溯与检查点.md](../jarvis/docs/architecture/15-消息回溯与检查点.md)。
+
+## 斜杠命令透传与补全（`/` 前缀，2026-10）
+
+输入框直接敲 `/` 开头的命令（无待发送附件时）不再当普通文本发给 LLM，而是走 `slash.exec`
+指令透传引擎执行，结果以 `slash_result` 事件回推，渲染成命令输出卡片（summary=命令原文、
+正文=终端捕获输出，可折叠展开）：
+
+- **白名单放行**：`/context` `/compact` `/cost` `/c` `/diff` `/doctor` `/tools` `/mcp`
+  `/skills` `/memory` `/plugin(s)` —— 一次改动把一大批终端能力带进桌面；桌面已有原生控件的
+  （mode/think/model/sessions/rewind 等）不透传，防双入口口径漂移；
+- **交互禁令**：命令试图弹交互选择器/询问时干净失败提示「请在终端 jarvis 中使用」（serve 的
+  stdin 是协议管道，不能抢）；
+- **技能动态放行**：白名单外命中已安装技能（`/<skill-name>`）照常执行，与对话轮次共用 query
+  锁串行，busy 时可在输入栏点「■ 停止」中断。
+
+输入框 `/` 前缀弹层补全（手感对齐终端 jarvis）：命令目录来自只读指令 `slash.commands`
+（init 时拉取，口径与后端执行护栏对齐——补出来的每条命令必然可执行）：
+
+- **前缀匹配**：输 `/c` 匹配所有 c 开头命令、输 `/` 展示全部；打空格即收起；
+- **键盘手感**：↑↓ 循环高亮、Tab/Enter 选中回填「命令名 + 空格」（再按 Enter 发送；
+  前缀已是完整命令名时 Enter 直通发送）、Esc 收起（重新编辑即恢复）；
+- **实现**：`SlashAutocomplete.tsx`（弹层 + hook）+ `slashStore.ts`（目录缓存），复用
+  ThemedSelect 皮肤类保持视觉一致。
+
+护栏与补全实现见本仓 [docs/architecture.md](docs/architecture.md) 「斜杠命令透传与补全」小节与
+ jarvis 侧 [docs/architecture/07-UI层.md](../jarvis/docs/architecture/07-UI层.md)。
+
 ## 输入栏（工作模式 + 思考强度）
 
-输入栏分为**左侧 2×2 控制区（📎 附件 / 📸 截屏 + 工作模式 / 思考强度）、中间加高输入框、
+输入栏分为**左侧 2×2 控制区（📎 附件 / 🗜 手动压缩上下文 + 工作模式 / 思考强度）、中间加高输入框、
 右侧竖排按钮（发送 / 实时语音）**三段（不再把所有控件挤在一横排），输入框默认约三行高、
 自增高上限 240px：
 
@@ -245,8 +364,9 @@ push / PR 到 `main` 时 GitHub Actions（[.github/workflows/ci.yml](.github/wor
 - **任务中心**：待触发提醒（⏰ + 时间 + 重复标签）与活跃截止日期（倒计时，临期标黄、
   逾期标红），以及最近一条每日简报（折叠块）；
 - **会话与用量**：当前模型、token 累计（输入/输出/缓存）、**缓存命中率**（百分比，
-  悬停看「命中 / 输入」明细）与对话轮数/消息条数，口径同 REPL `/cost`（命中率由后端
-  `Usage.cache_hit_rate` 统一计算，前端不重算）；
+  悬停看「命中 / 输入」明细）、**上下文窗口占比**（百分比 + 进度条，>85% 标红，悬停看
+  「窗口/假设窗口 + 已用 token」，口径同 REPL `/context`）与对话轮数/消息条数，命中率与
+  token 口径同 REPL `/cost`（均由后端算好后经 `cost.get` 下发，前端不重算；旧后端无上下文字段时隐藏该行）；
 - **系统状态**：CPU / 内存 / 磁盘三指标卡（每 2 秒推送，CPU>85% 进度条变红）；
 - **运行健康**：MCP 连接快照（成功/失败名单 + 工具数）与运行日志流（滚动 30 条）。MCP 为
   后台预热（约 9s），`init` 时快照常为 null（显“MCP 未启用”），连接落定后后端推 `mcp_ready`
@@ -269,7 +389,7 @@ push / PR 到 `main` 时 GitHub Actions（[.github/workflows/ci.yml](.github/wor
   `settings.set` 写回：外科式落盘 + 运行时生效，简报/截止日期改动额外触发调度热重注册；
   乐观更新 + 失败回滚，未连接时对应行显离线态）。
 
-原「快捷操作」区块已拆解：📸 截屏入口迁入输入栏（📎 旁，截图入附件区随消息走 vision）；
+原「快捷操作」区块已拆解：🗜 手动压缩上下文按钮迁入输入栏（📎 旁，点击透传 `/compact`、结果走命令输出卡片）；曾有的 📸 主屏截屏入口因实用性低已于 2026-10 整体删除（需截图时用户自行截取后经 📎/粘贴入附件）；
 📋 复制改为 AI 气泡右下角的消息级「复制」按钮（流式结束后出现）；＋新会话沿用左栏
 「新建会话」，■停止回复沿用输入栏发送/停止双态按钮。语言切换 v1 覆盖静态界面文案，
 运行时状态文本与后端事件消息保持中文。
@@ -312,9 +432,11 @@ jarvis-desktop/
 - [docs/architecture.md](docs/architecture.md)：运行时拓扑、启动流程、持久化数据、安全边界、协议契约。
 - [docs/development.md](docs/development.md)：本地环境、env 变量、测试、人工走查清单、二期路线图。
 
-## 一期边界
+## 一期边界与打包态
 
-- dev 模式依赖本机 jarvis 源码仓库，**不捆绑 Python 运行时**（PyInstaller 打包为二期目标）。
+- **dev 态**依赖本机 jarvis 源码仓库，**不捆绑 Python**（跑 `python -m agent.serve`）。
+- **打包态**已由 `npm run dist` 实现：PyInstaller 将后端冻结成 `jarvis-serve.exe` 经 `extraResources`
+  随 NSIS 安装包分发（见「打包发布」）。目前首发仅 Windows、未签名。
 - 现有 pywebview 工作台（`jarvis --gui`）保留不动，与桌面壳并存：`--gui` 走工作台，`--serve` 走桌面壳。
 - 本仓库已推送 GitHub（`origin/main`，https://github.com/aceFelix/jarvis-desktop ），CI 随 push/PR 自动运行。
 

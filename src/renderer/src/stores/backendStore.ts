@@ -19,14 +19,15 @@ import {
   type BackendSettingKey,
   type BackendSettings,
   type BackendState,
+  type CheckpointPreviewResult,
   type CurrentProject,
   type ModelAddPayload,
   type ModelEditPayload,
   type PermissionMode,
   type ProjectItem,
+  type SlashCommandItem,
   type ThinkingEffort,
-  type VoiceAddPayload,
-  type VoiceSelectResult
+  type VoiceAddPayload
 } from '../../../shared/contracts'
 import { JarvisWsClient } from '../api/ws'
 import { startTalkCapture, stopTalkCapture } from '../audio/talkCapture'
@@ -40,9 +41,13 @@ import {
 import { useChatStore } from './chatStore'
 import { useLeftStore } from './leftStore'
 import { useRuntimeStore } from './runtimeStore'
-import { useRemoteStore } from './remoteStore'
+// 模式/思考/模型/音色动作已拆出，remote store 不再直接引用
 import { useSettingsStore } from './settingsStore'
 import { useMetricsStore, type MetricsPayload } from './metricsStore'
+import { useSlashStore } from './slashStore'
+// 资源/协同两组动作拆出动作工厂（遵守单文件 800 行上限，行为不变）。@author aceFelix
+import { buildResourceActions } from './resourceActions'
+import { buildRemoteActions } from './remoteActions'
 import {
   useRightStore,
   type CostInfo,
@@ -81,6 +86,8 @@ export interface JarvisConnection {
   refreshProjects: () => Promise<void>
   /** 跨设备协同连接态刷新（phone.status + wechat.status → remoteStore）。@author aceFelix */
   refreshRemote: () => Promise<void>
+  /** 斜杠命令补全目录刷新（slash.commands → slashStore；init 时调一次）。@author aceFelix */
+  refreshSlashCommands: () => Promise<void>
   /** 提醒已读回执（proactive.ack）：fire-and-forget，失败静默。 */
   ackProactive: (taskId: string) => void
 }
@@ -128,6 +135,18 @@ export interface BackendStoreState {
   // ---- 指令动作（组件层入口） ----
   /** 发送消息（可带附件）：images 走 vision，files 由后端拼进正文。 */
   sendMessage: (text: string, attachments?: SendAttachments) => Promise<void>
+  /**
+   * 斜杠命令透传（slash.exec，2026-10）：输入框 / 前缀命令 → 本地回显命令
+   * 气泡并置 busy，执行结果由 slash_result 事件收尾渲染（命令输出卡片）。
+   * @author aceFelix
+   */
+  execSlash: (command: string) => Promise<void>
+  /**
+   * 斜杠命令补全目录刷新（slash.commands，2026-10）：拉桌面可执行命令
+   * 列表回填 slashStore，供输入框 / 前缀弹层补全；失败静默保留旧目录。
+   * @author aceFelix
+   */
+  refreshSlashCommands: () => Promise<void>
   /** 停止当前回复（reply.abort）：busy 由服务端 assistant_done 事件收尾。 */
   abortReply: () => Promise<void>
   newSession: () => Promise<void>
@@ -136,6 +155,20 @@ export interface BackendStoreState {
   renameSession: (name: string, newName: string) => Promise<void>
   /** 会话删除（成功由 session_deleted 事件刷列表；删当前会话另收 session_new）。@author aceFelix */
   deleteSession: (name: string) => Promise<void>
+  /**
+   * 撤回预览（checkpoint.preview）：查“从尾部数第 userTailCount 条用户消息起撤回”
+   * 会连带回滚哪些工作区文件（只读同步直返，供确认弹窗展示）。
+   * 返回业务 dict（result.ok 为业务结果）；传输失败由 runCommand 弹错并回 null。
+   * @author aceFelix
+   */
+  previewCheckpoint: (userTailCount: number) => Promise<CheckpointPreviewResult | null>
+  /**
+   * 撤回消息（checkpoint.rewind）：截断该用户消息起（含）的对话 + 可选回滚工作区。
+   * 入队即返回，真实结果走 rewound 事件（dispatcher 据此裁气泡 + 提示）；
+   * 本地不在此处裁消息（避免与事件双裁）。
+   * @author aceFelix
+   */
+  rewindMessage: (userTailCount: number, restoreFiles: boolean) => Promise<void>
   selectModel: (name: string) => Promise<void>
   /**
    * 切换工作（权限）模式（mode.set）：成功后写 runtimeStore.permissionMode。
@@ -214,6 +247,7 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     refreshSettings: () => get().refreshSettings(),
     refreshProjects: () => get().refreshProjects(),
     refreshRemote: () => get().refreshRemote(),
+    refreshSlashCommands: () => get().refreshSlashCommands(),
     ackProactive: (taskId) => {
       // 提醒已读回执：只发不等（send），失败静默——不因回执问题把错误
       // 写进聊天流（与 runCommand 的显式指令不同，这是后台自动确认）。
@@ -341,6 +375,9 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
         images.length ? images.map((i) => `data:${i.media_type};base64,${i.data}`) : undefined
       )
       chat.setBusy(true)
+      // 新一轮开始：清除上一轮可能残留的停止闸门，恢复正常流式渲染。
+      // @author aceFelix
+      chat.setAborted(false)
       set({ statusLabel: { text: '思考中...', tone: 'busy' } })
       const result = await runCommand(Cmd.Message, {
         text: trimmed,
@@ -354,12 +391,49 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
       }
     },
 
+    execSlash: async (command) => {
+      // 斜杠命令透传（slash.exec）：引擎不会为命令回推 user_message，
+      // 本地先把命令原文上屏成用户气泡，再发指令；执行结果走 slash_result
+      // 事件（dispatcher 收尾 busy/状态栏）。@author aceFelix
+      const text = command.trim()
+      if (!text.startsWith('/')) return
+      const chat = useChatStore.getState()
+      chat.addUser(text)
+      chat.setBusy(true)
+      chat.setAborted(false)
+      set({ statusLabel: { text: '执行命令...', tone: 'busy' } })
+      const result = await runCommand(Cmd.SlashExec, { command: text })
+      // 传输失败（null）或形态校验拒绝（ok=false，不会有 slash_result 事件）：
+      // 本地就地收尾，避免卡 busy。@author aceFelix
+      const r = result as { ok?: boolean; error?: string } | null
+      if (r === null || (r && r.ok === false)) {
+        const c = useChatStore.getState()
+        c.addSlash(text, r?.error || '命令未被后端受理（连接异常）', true)
+        c.setBusy(false)
+        set({ statusLabel: { text: '就绪', tone: 'idle' } })
+      }
+    },
+
     abortReply: async () => {
       // 停止回复：只发指令不改 busy——引擎取消后 _handle_send 的 finally
       // 仍会发 assistant_done，由 dispatcher 统一收尾（setBusy(false)+状态栏）。
+      // 同时本地立即上开停止闸门：后端取消虽即时，但取消前已经 WS 送达 /
+      // 正在渲染的思考增量会被 dispatcher 丢弃，从而“点了马上就停”。
       // @author aceFelix
+      useChatStore.getState().setAborted(true)
       set({ statusLabel: { text: '正在停止...', tone: 'busy' } })
-      await runCommand(Cmd.ReplyAbort)
+      const result = await runCommand(Cmd.ReplyAbort)
+      // 竞态兜底：后端回执 false 表示当时已无在跑轮次可取消（刚好卡在
+      // assistant_done 已发但未送达前端的窗口），此时不会再有收尾事件，
+      // 本地直接解除闸门并结束本轮，避免状态卡在“正在停止...”。
+      // @author aceFelix
+      if (result === false) {
+        const c = useChatStore.getState()
+        c.setAborted(false)
+        c.finishAssistant()
+        c.setBusy(false)
+        set({ statusLabel: { text: '就绪', tone: 'idle' } })
+      }
     },
 
     newSession: async () => {
@@ -382,163 +456,32 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
       await runCommand(Cmd.SessionsDelete, { name })
     },
 
-    selectModel: async (name) => {
-      const left = useLeftStore.getState()
-      // 已是当前模型 / 已点选同一模型：不发指令、不重复提示（列表标记已表明选择被接受）。
+    previewCheckpoint: async (userTailCount) => {
+      // 只读预览：runCommand 传输失败（参数非法/未连接）已弹错并回 null；
+      // 业务结果在返回 dict 的 ok（“消息数不足”等情况 ok=false，调用方展示 reason）。
       // @author aceFelix
-      if (name === left.pendingModel) return
-      if (left.models.some((m) => m.name === name && m.current)) return
-      // 乐观标记「待生效」：写盘成功后引擎会在指令队列里热切换运行中的模型，
-      // 落地后推 model_switched（本事件清标记 + 刷列表让「当前」移动）；
-      // 先标记后发指令，免得事件比回执先到时标记残留。切换成功的气泡由
-      // 引擎的 info 事件上屏，这里不重复提示。@author aceFelix
-      left.setPendingModel(name)
-      const result = await runCommand(Cmd.ModelsSelect, { name })
-      if (result !== true) {
-        // 回执 ok=false（runCommand 已写错误）或写盘失败：撤销标记，用户可重试
-        useLeftStore.getState().setPendingModel('')
-        if (result === false) {
-          useChatStore
-            .getState()
-            .addSystem(`✗ 模型切换失败（未能写入用户级配置）：${name}`, 'error')
-        }
-        return
-      }
-      // 列表此刻仍标旧模型为 current：切换落地后由 model_switched 再刷一次
-      await get().refreshModels()
+      const result = await runCommand(Cmd.CheckpointPreview, { user_tail_count: userTailCount })
+      return (result as CheckpointPreviewResult | null) ?? null
     },
 
-    setMode: async (mode) => {
-      // 工作（权限）模式切换：入队即返回，业务结果在 result.ok（mode.set 回执 dict）。
-      // 成功后写 runtimeStore（下轮生效，引擎队列串行）；失败由 runCommand 统一弹错。
+    rewindMessage: async (userTailCount, restoreFiles) => {
+      // 入队即返回 {ok:true,pending:true}；真实结果走 rewound 事件（dispatcher 裁气泡）。
+      // 本方法只发指令：传输失败由 runCommand 弹错；不在此处动本地消息列表。
       // @author aceFelix
-      const cur = useRuntimeStore.getState().permissionMode
-      if (cur === mode) return
-      const result = await runCommand(Cmd.ModeSet, { mode })
-      if (result === null) return
-      const res = result as { ok?: boolean; error?: string }
-      if (!res?.ok) {
-        useChatStore.getState().addSystem(`✗ 模式切换失败：${res?.error ?? mode}`, 'error')
-        return
-      }
-      useRuntimeStore.getState().setMode(mode)
+      await runCommand(Cmd.CheckpointRewind, {
+        user_tail_count: userTailCount,
+        restore_files: restoreFiles
+      })
     },
 
-    setThinking: async (effort) => {
-      // 思考强度切换：同 setMode 口径（result.ok 为业务结果）。
-      // @author aceFelix
-      const cur = useRuntimeStore.getState().thinkingEffort
-      if (cur === effort) return
-      const result = await runCommand(Cmd.ThinkSet, { effort })
-      if (result === null) return
-      const res = result as { ok?: boolean; error?: string }
-      if (!res?.ok) {
-        useChatStore.getState().addSystem(`✗ 思考档位切换失败：${res?.error ?? effort}`, 'error')
-        return
-      }
-      useRuntimeStore.getState().setThinking(effort)
-    },
-
-    addModel: async (payload) => {
-      // 左栏「添加模型」表单提交：后端校验 + 写盘 + 内存同步，成功后刷模型列表；
-      // 失败由 runCommand 统一弹错误并回 false（表单保持打开，用户可修正重试）。
-      // @author aceFelix
-      const result = await runCommand(Cmd.ModelsAdd, { ...payload })
-      if (result === null) return false
-      const info = result as { name?: string }
-      useChatStore
-        .getState()
-        .addSystem(`模型「${info.name ?? payload.name}」已添加，点击列表项可切换`)
-      await get().refreshModels()
-      return true
-    },
-
-    editModel: async (payload) => {
-      // 左栏双击模型项 → 编辑表单提交：后端按新配置写盘 + 同步内存；改的是
-      // 当前运行模型时还会强制热切换 provider（回执 hot_switched），端点/接口
-      // 类型改动立即生效。刷列表让名字/厂商/端点收敛。@author aceFelix
-      const result = await runCommand(Cmd.ModelsEdit, { ...payload })
-      if (result === null) return false
-      const info = result as { name?: string; hot_switched?: boolean }
-      const target = info.name ?? payload.name
-      useChatStore
-        .getState()
-        .addSystem(
-          info.hot_switched
-            ? `模型「${target}」配置已更新，当前会话已按新配置重连`
-            : `模型「${target}」配置已更新`
-        )
-      await get().refreshModels()
-      return true
-    },
-
-    removeModel: async (name) => {
-      // 左栏右键模型项 → 删除按钮：仅自定义模型可删（内置模型由后端拒绝）。
-      // 删的是当前运行模型时后端回报 was_current（不动运行中的 provider，
-      // 不打断正在跑的回复），这里提示用户另选。@author aceFelix
-      const result = await runCommand(Cmd.ModelsRemove, { name })
-      if (result === null) return false
-      const info = result as { was_current?: boolean }
-      useChatStore
-        .getState()
-        .addSystem(
-          info.was_current
-            ? `模型「${name}」已删除，当前会话仍在用它，建议另选一个模型`
-            : `模型「${name}」已删除`
-        )
-      await get().refreshModels()
-      return true
-    },
-
-    selectVoice: async (name) => {
-      // 去重与失败判定同 selectModel；2026-09-28 音色-模型适配后回执升级为
-      // dict：业务结果在 result.ok（传输层失败 runCommand 已回 null 并弹错），
-      // linked_model 非空 = 后端联动换了 TTS 模型，提示里明示口径。
-      // @author aceFelix
-      const left = useLeftStore.getState()
-      if (name === left.pendingVoice) return
-      const result = await runCommand(Cmd.VoicesSelect, { name })
-      if (result === null) return
-      const res = result as VoiceSelectResult
-      if (!res?.ok) {
-        useChatStore.getState().addSystem(`✗ 音色切换失败：${res?.error ?? name}`, 'error')
-        return
-      }
-      left.setPendingVoice(res.name ?? name)
-      useChatStore
-        .getState()
-        .addSystem(
-          res.linked_model
-            ? `音色已切换为 ${res.name ?? name}（联动 TTS 模型 ${res.linked_model}，下次语音生效）`
-            : `音色已切换为 ${res.name ?? name}（下次语音生效）`
-        )
-      await get().refreshVoices()
-    },
-
-    addVoice: async (payload) => {
-      // 左栏音色表单提交：后端校验 + 写盘 + 内存同步（同名 upsert=编辑），
-      // 成功后刷音色列表；失败由 runCommand 统一弹错误并回 null（表单保持
-      // 打开，用户可修正重试）。@author aceFelix
-      const result = await runCommand(Cmd.VoicesAdd, { ...payload })
-      if (result === null) return false
-      const info = result as { name?: string }
-      useChatStore
-        .getState()
-        .addSystem(`音色「${info.name ?? payload.name}」已保存，点击列表项可切换`)
-      await get().refreshVoices()
-      return true
-    },
-
-    deleteVoice: async (name) => {
-      // 左栏右键自定义音色 → 删除按钮：仅自定义音色可删（内置音色由后端
-      // 拒绝弹错）。删的是当前在用音色仍允许（[tts] voice 不变，下次合成
-      // 照旧，与模型面板删当前模型同口径）。@author aceFelix
-      const result = await runCommand(Cmd.VoicesDelete, { name })
-      if (result === null) return false
-      useChatStore.getState().addSystem(`音色「${name}」已删除`)
-      await get().refreshVoices()
-      return true
-    },
+    // 资源/运行时切换动作（模型 CRUD / 音色 CRUD / 模式 / 思考档位）：
+    // 成块拆出 resourceActions.ts 遵守单文件 800 行上限，行为不变。
+    // @author aceFelix
+    ...buildResourceActions({
+      runCommand,
+      refreshModels: () => get().refreshModels(),
+      refreshVoices: () => get().refreshVoices()
+    }),
 
     answerUser: async (text) => {
       useChatStore.getState().hideAskUser()
@@ -727,42 +670,22 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
       }
     },
 
-    // ---- 跨设备协同（手机 / 微信）----
-    connectPhone: async () => {
-      // 入队即返回：真正的 ensure_session + 起桥接在引擎串行落地，
-      // 完成后推 qrcode / remote_state 事件。失败由 runCommand 统一弹错。
-      // @author aceFelix
-      await runCommand(Cmd.PhoneConnect)
-    },
+    // ---- 跨设备协同（手机 / 微信）：动作成块拆出 remoteActions.ts（800 行上限）。----
+    ...buildRemoteActions(runCommand),
 
-    disconnectPhone: async () => {
-      await runCommand(Cmd.PhoneDisconnect)
-    },
-
-    connectWechat: async () => {
-      await runCommand(Cmd.WechatConnect)
-    },
-
-    disconnectWechat: async () => {
-      await runCommand(Cmd.WechatDisconnect)
-    },
-
-    submitWechatPairing: async (code) => {
-      // 微信配对码：回喂引擎 login 线程阻塞等待的队列（终端是 input()）。
-      // @author aceFelix
-      await runCommand(Cmd.WechatPairing, { code })
-    },
-
-    refreshRemote: async () => {
-      // 重开/重连桌面时回填连接态（二维码卡片不回放，仅按钮态需准确）。
-      // @author aceFelix
-      const phone = await runCommand(Cmd.PhoneStatus)
-      if (phone !== null) {
-        useRemoteStore.getState().setPhone(!!(phone as { active?: boolean }).active)
-      }
-      const wechat = await runCommand(Cmd.WechatStatus)
-      if (wechat !== null) {
-        useRemoteStore.getState().setWechat(!!(wechat as { connected?: boolean }).connected)
+    refreshSlashCommands: async () => {
+      // 斜杠命令补全目录（slash.commands）只读刷新：不走 runCommand（那是
+      // 用户显式指令的统一弹错出口），离线/拒绝/形态异常一律静默保留旧
+      // 目录——补全弹层不出而已，不打扰聊天流。@author aceFelix
+      const client = get().client
+      if (!client) return
+      try {
+        const reply = await client.sendCommand(Cmd.SlashCommands, {})
+        if (reply.ok && Array.isArray(reply.result)) {
+          useSlashStore.getState().setCommands(reply.result as SlashCommandItem[])
+        }
+      } catch {
+        // 忽略（保留旧目录）
       }
     }
   }

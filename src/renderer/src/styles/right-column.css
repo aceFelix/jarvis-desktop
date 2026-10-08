@@ -294,6 +294,12 @@
     white-space: nowrap;
 }
 
+/* 上下文窗口占比进度条：紧跟其 usage-row，负边距抵消卡片 gap 贴到行下方。
+   @author aceFelix */
+.usage-context-gauge {
+    margin-top: -2px;
+}
+
 /* 运行健康：MCP 状态 + 日志流 */
 .mcp-line { font-size: 12px; }
 .mcp-ok { color: #7fe3b8; }

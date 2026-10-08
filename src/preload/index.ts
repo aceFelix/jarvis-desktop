@@ -15,7 +15,6 @@ import {
   type BackendInfo,
   type BackendStatusEvent,
   type NotifyRequest,
-  type ScreenCapture,
   type WindowAction
 } from '../shared/contracts'
 
@@ -49,15 +48,6 @@ const api = {
   notify: (req: NotifyRequest): void => {
     ipcRenderer.send(IpcChannels.SystemNotify, req)
   },
-
-  /**
-   * 截屏桥：主进程 desktopCapturer 取主屏缩略图（右栏「截屏发给贾维斯」）。
-   * 返回 PNG base64；无可用屏源时返回 null。
-   *
-   * @author aceFelix
-   */
-  captureScreen: (): Promise<ScreenCapture | null> =>
-    ipcRenderer.invoke(IpcChannels.CaptureScreen),
 
   /**
    * 项目工作区：目录选择器桥（左栏「项目」区「打开文件夹」）。

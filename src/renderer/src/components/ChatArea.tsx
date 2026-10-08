@@ -5,7 +5,7 @@
  * - Enter 发送、Shift+Enter 换行、输入框自适应高度（封顶 120px）；
  * - 新消息自动滚底；
  * - AI 气泡完成流式后右下角带「复制」消息级操作（替代原右栏复制回复）；
- * - 输入栏 📎 附件 / 📸 截屏（主进程 desktopCapturer → 附件区，随消息上送）。
+ * - 输入栏 📎 附件（选择 / 粘贴图片→ 附件区，随消息上送）/ 🗜 手动压缩上下文（/compact）。
  *
  * 降噪口径（2026-09，纯渲染层，不动 store / 协议）：
  * - 思考块：流式中自动展开（实时可见），本轮回复结束（streaming=false）
@@ -20,14 +20,17 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useBackendStore, type SendAttachments } from '../stores/backendStore'
-import { useChatStore, type MessageItem } from '../stores/chatStore'
+import { useChatStore } from '../stores/chatStore'
 import { useLeftStore } from '../stores/leftStore'
 import { useAttachStore } from '../stores/attachStore'
 import { useRuntimeStore } from '../stores/runtimeStore'
 import ThemedSelect, { type SelectOption } from './ThemedSelect'
 import RemoteConnectMenu from './RemoteConnectMenu'
-import QrcodeCard from './QrcodeCard'
-import type { PermissionMode, ThinkingEffort } from '../../../shared/contracts'
+// 消息流渲染组件集（自本文件拆出，2026-10 遵守单文件 800 行上限）
+import { MessageView, ToolGroup, groupMessages } from './ChatMessageViews'
+// 输入框 / 命令补全弹层（slash.commands，2026-10）
+import { useSlashAutocomplete } from './SlashAutocomplete'
+import type { PermissionMode, ThinkingEffort, CheckpointPreviewResult } from '../../../shared/contracts'
 import { voiceStatusLabels } from '../api/dispatcher'
 import { useT } from '../i18n'
 import { useGlyphs } from '../glyphs'
@@ -46,218 +49,101 @@ const THINK_KEYS: Record<ThinkingEffort, string> = {
   high: 'chat.think.high'
 }
 
-/** 工具项（消息判别联合窄化，工具组使用）。 */
-type ToolItem = Extract<MessageItem, { kind: 'tool' }>
-
-/** AI 气泡右下角操作行：复制本条回复（复制成功短暂变「已复制」）。 */
-function CopyRow({ text }: { text: string }): JSX.Element {
-  const [copied, setCopied] = useState(false)
+/**
+ * 撤回确认弹窗（消息级回溯，2026-10）：展示该轮将回滚的工作区文件清单
+ * （来自 checkpoint.preview）+ 「同时回滚工作区文件」开关（无检查点时禁用）
+ * + 确认/取消。沿用终端风玻璃面/按钮皮肤类。@author aceFelix
+ */
+function RewindDialog({
+  loading,
+  preview,
+  restoreFiles,
+  setRestoreFiles,
+  onConfirm,
+  onCancel
+}: {
+  loading: boolean
+  preview: CheckpointPreviewResult | null
+  restoreFiles: boolean
+  setRestoreFiles: (v: boolean) => void
+  onConfirm: () => void
+  onCancel: () => void
+}): JSX.Element {
   const t = useT()
   const g = useGlyphs()
-
-  const doCopy = async (): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1500)
-    } catch {
-      useChatStore.getState().addSystem(t('chat.copyFail'), 'error')
-    }
-  }
-
+  const canRestore = !!preview?.has_checkpoint
+  const files = preview?.files ?? []
+  const MAX_SHOW = 30
+  const shown = files.slice(0, MAX_SHOW)
   return (
-    <div className="msg-actions">
-      <button
-        className="msg-action-btn"
-        data-testid="btn-copy-msg"
-        title={t('chat.copyTip')}
-        onClick={() => void doCopy()}
+    <div className="rewind-backdrop" data-testid="rewind-backdrop" onClick={onCancel}>
+      <div
+        className="rewind-dialog glass-bar"
+        data-testid="rewind-dialog"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
       >
-        {copied ? t('chat.copied') : `${g.copy} ${t('chat.copy')}`}
-      </button>
+        <div className="rewind-title">{t('chat.rewindTitle')}</div>
+        <div className="rewind-body">
+          {loading ? (
+            <div className="rewind-hint" data-testid="rewind-loading">
+              {t('chat.rewindPreviewLoading')}
+            </div>
+          ) : !preview || !preview.ok ? (
+            <div className="rewind-hint error" data-testid="rewind-preview-fail">
+              {t('chat.rewindPreviewFail', { reason: preview?.reason || t('chat.rewindNoCheckpoint') })}
+            </div>
+          ) : !canRestore ? (
+            <div className="rewind-hint" data-testid="rewind-no-checkpoint">
+              {preview.reason || t('chat.rewindNoCheckpoint')}
+            </div>
+          ) : files.length ? (
+            <>
+              <div className="rewind-subhead">{t('chat.rewindFilesHeading')}</div>
+              <ul className="rewind-files" data-testid="rewind-files">
+                {shown.map((f, i) => (
+                  <li key={i}>
+                    <span className="rewind-file-status">{f.status}</span> {f.path}
+                  </li>
+                ))}
+              </ul>
+              {files.length > shown.length ? (
+                <div className="rewind-hint">{t('chat.rewindMore', { n: files.length })}</div>
+              ) : null}
+            </>
+          ) : (
+            <div className="rewind-hint" data-testid="rewind-files-none">
+              {t('chat.rewindFilesNone')}
+            </div>
+          )}
+        </div>
+        <label className={`rewind-restore${canRestore ? '' : ' disabled'}`}>
+          <input
+            type="checkbox"
+            data-testid="rewind-restore-checkbox"
+            checked={canRestore && restoreFiles}
+            disabled={!canRestore}
+            onChange={(e) => setRestoreFiles(e.target.checked)}
+          />
+          {t('chat.rewindRestoreFiles')}
+        </label>
+        <div className="rewind-actions">
+          <button className="action-btn" data-testid="rewind-cancel" onClick={onCancel}>
+            {t('chat.rewindCancel')}
+          </button>
+          <button
+            className="action-btn danger"
+            data-testid="rewind-confirm"
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            {g.rewind} {t('chat.rewindConfirm')}
+          </button>
+        </div>
+      </div>
     </div>
   )
-}
-
-/**
- * 思考块（2026-09 折叠化）：流式中自动展开，本轮回复结束自动收起成一行。
- *
- * 自动态跟随 streaming（流式结束 effect 收起）；用户手点后 onToggle 同步回
- * state，React 不会把用户的选择抢回去（此后 streaming 不再变化即不再干预）。
- *
- * @author aceFelix
- */
-function ThinkingBlock({ text, streaming }: { text: string; streaming: boolean }): JSX.Element {
-  const t = useT()
-  const [open, setOpen] = useState(streaming)
-  useEffect(() => setOpen(streaming), [streaming])
-
-  return (
-    <details
-      className="thinking-block"
-      data-testid="thinking-block"
-      open={open}
-      onToggle={(e) => setOpen(e.currentTarget.open)}
-    >
-      <summary>
-        {t('chat.thinking')} · {t('chat.thinkingChars', { n: text.length })}
-      </summary>
-      <div className="thinking-body">{text}</div>
-    </details>
-  )
-}
-
-/** 单条消息渲染（按 kind 判别分发）。 */
-function MessageView({ item }: { item: MessageItem }): JSX.Element {
-  const t = useT()
-  switch (item.kind) {
-    case 'user':
-      return (
-        <div className="message user" data-testid="msg-user">
-          <div className="message-label">
-            {/* 远端入站消息标来源（微信 / 手机），本地输入显“你” */}
-            {item.source === 'wechat'
-              ? t('chat.wechat')
-              : item.source === 'phone'
-                ? t('chat.phone')
-                : t('chat.you')}
-          </div>
-          {item.images?.length ? (
-            <div className="msg-thumbs" data-testid="msg-thumbs">
-              {item.images.map((src, i) => (
-                <img key={i} src={src} alt={`附件图片 ${i + 1}`} />
-              ))}
-            </div>
-          ) : null}
-          <div>{item.text}</div>
-        </div>
-      )
-    case 'ai':
-      return (
-        <div className="message ai" data-testid="msg-ai">
-          <div className="message-label">{t('chat.jarvis')}</div>
-          {item.thinking ? <ThinkingBlock text={item.thinking} streaming={item.streaming} /> : null}
-          <div>
-            {item.text}
-            {item.streaming ? <span className="cursor-blink">▍</span> : null}
-          </div>
-          {/* 流式结束后才给复制入口（复制半成品无意义） */}
-          {item.text && !item.streaming ? <CopyRow text={item.text} /> : null}
-        </div>
-      )
-    case 'tool':
-      return (
-        <details className={`tool-card${item.isError ? ' error' : ''}`} data-testid="tool-card">
-          <summary>
-            {item.name}
-            {item.done ? (item.isError ? ' ✗' : ' ✓') : ' …'}
-          </summary>
-          <div className="tool-body">
-            {item.input ? `${item.input}\n────\n` : ''}
-            {item.output || '(执行中...)'}
-          </div>
-        </details>
-      )
-    case 'system': {
-      const errCls = item.tone === 'error' ? ' error-msg' : ''
-      // 多行系统/警告/错误提示（如工具失败重试的长 dump）折叠：首行做标题、
-      // 点开看全文，避免一大块铺满聊天区；单行短提示（如“微信已断开”）保持原样。
-      // @author aceFelix
-      const nl = item.text.indexOf('\n')
-      if (nl < 0) {
-        return (
-          <div className={`message system${errCls}`} data-testid="msg-system">
-            {item.text}
-          </div>
-        )
-      }
-      return (
-        <details className={`message system collapsible${errCls}`} data-testid="msg-system">
-          <summary>{item.text.slice(0, nl)}</summary>
-          <div className="system-body">{item.text.slice(nl + 1)}</div>
-        </details>
-      )
-    }
-    // 跨设备协同连接二维码卡片（手机 / 微信）：url 由 QrcodeCard 用 qrcode 库
-    // 画成图，微信卡片额外内联配对码输入。@author aceFelix
-    case 'qrcode':
-      return <QrcodeCard item={item} />
-  }
-}
-
-/**
- * 工具组（2026-09）：连续的工具调用聚合成一条框，消掉「十几个框堆满一屏」。
- *
- * - 执行中：自动展开，标题实时显示当前跑的是哪个工具；
- * - 全部完成：自动收起成一行「⛭ 工具调用 ×N ✓」；
- * - 有失败：仍收起，但标题标红计数（error class 同步标红边框），
- *   点开是组内每条原工具卡（可再单独展开看入参/输出，两级折叠）。
- *
- * @author aceFelix
- */
-function ToolGroup({ items }: { items: ToolItem[] }): JSX.Element {
-  const t = useT()
-  const allDone = items.every((i) => i.done)
-  const failed = items.filter((i) => i.isError).length
-  const running = items.find((i) => !i.done)
-  const [open, setOpen] = useState(!allDone)
-  useEffect(() => setOpen(!allDone), [allDone])
-
-  return (
-    <details
-      className={`tool-group${failed ? ' error' : ''}`}
-      data-testid="tool-group"
-      open={open}
-      onToggle={(e) => setOpen(e.currentTarget.open)}
-    >
-      <summary>
-        {t('chat.toolGroup', { n: items.length })}
-        {failed ? (
-          <span className="tool-group-fail"> · {t('chat.toolGroupFail', { n: failed })}</span>
-        ) : running ? (
-          <span className="tool-group-run"> · {t('chat.toolGroupRun', { name: running.name })}</span>
-        ) : (
-          ' ✓'
-        )}
-      </summary>
-      <div className="tool-group-body">
-        {items.map((it) => (
-          <MessageView key={it.id} item={it} />
-        ))}
-      </div>
-    </details>
-  )
-}
-
-/** 渲染节点：单条消息，或一个工具组（连续工具项聚合）。 */
-type RenderNode = { key: string; item: MessageItem } | { key: string; tools: ToolItem[] }
-
-/**
- * 消息流 → 渲染节点分组（纯函数）：
- * - 连续的 tool 项且 **≥2 条** 聚成一个工具组（单条不包组，少一层点击）；
- * - 历史回放的工具占位（toolId 为空，本身是「历史工具调用 ×N」汇总卡）不并入组；
- * - 其余节点（用户/AI/系统提示）保持原序单条渲染；中间夹非 tool 项即切组。
- *
- * @author aceFelix
- */
-function groupMessages(messages: MessageItem[]): RenderNode[] {
-  const nodes: RenderNode[] = []
-  let buf: ToolItem[] = []
-  const flush = (): void => {
-    if (!buf.length) return
-    nodes.push(buf.length === 1 ? { key: `t${buf[0].id}`, item: buf[0] } : { key: `g${buf[0].id}`, tools: buf })
-    buf = []
-  }
-  for (const m of messages) {
-    if (m.kind === 'tool' && m.toolId) {
-      buf.push(m)
-      continue
-    }
-    flush()
-    nodes.push({ key: `m${m.id}`, item: m })
-  }
-  flush()
-  return nodes
 }
 
 export default function ChatArea(): JSX.Element {
@@ -266,12 +152,32 @@ export default function ChatArea(): JSX.Element {
   // 节点 key 由首条消息 id 决定，分组变化不会让工具组重挂载丢折叠态。
   // @author aceFelix
   const nodes = useMemo(() => groupMessages(messages), [messages])
+  // 用户气泡 → 尾部数（从最后一条往前数第几 user 气泡，含）：撤回按钮据此定位
+  // user_tail_count，与后端 _is_visible_user_message 的尾部计数口径对齐。
+  // @author aceFelix
+  const userTailById = useMemo(() => {
+    const map: Record<number, number> = {}
+    let seen = 0
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].kind === 'user') {
+        seen += 1
+        map[messages[i].id] = seen
+      }
+    }
+    return map
+  }, [messages])
   const askPrompt = useChatStore((s) => s.askPrompt)
   // busy：回复进行中（sendMessage 置位，assistant_done 收尾），驱动
   // 发送按钮切换为“停止”态。@author aceFelix
   const busy = useChatStore((s) => s.busy)
   const sendMessage = useBackendStore((s) => s.sendMessage)
+  // 斜杠命令透传（slash.exec）：输入框 / 前缀走命令通道而非 LLM。@author aceFelix
+  const execSlash = useBackendStore((s) => s.execSlash)
   const abortReply = useBackendStore((s) => s.abortReply)
+  // 消息级回溯（撤回）：预览取改动清单、rewind 发指令（真实结果走 rewound 事件）。
+  // @author aceFelix
+  const previewCheckpoint = useBackendStore((s) => s.previewCheckpoint)
+  const rewindMessage = useBackendStore((s) => s.rewindMessage)
   const answerUser = useBackendStore((s) => s.answerUser)
   const toggleVoice = useBackendStore((s) => s.toggleVoice)
   const interruptVoice = useBackendStore((s) => s.interruptVoice)
@@ -290,17 +196,34 @@ export default function ChatArea(): JSX.Element {
 
   const [draft, setDraft] = useState('')
   const [answer, setAnswer] = useState('')
-  // 待发送附件集中在 attachStore：与输入栏 📸 截屏按钮共用同一份
-  // chips 列表（截屏入列后在此处可见可删）。@author aceFelix
+  // 撤回确认弹窗态：rewindTail = 待撤回的尾部数（null=未开）；preview 为
+  // checkpoint.preview 回执；restoreFiles = 「同时回滚工作区文件」勾选态。
+  // reqId 防预览竞态：弹窗已关/切向新目标时旧预览回执回写。
+  // @author aceFelix
+  const [rewindTail, setRewindTail] = useState<number | null>(null)
+  const [rewindPreview, setRewindPreview] = useState<CheckpointPreviewResult | null>(null)
+  const [rewindLoading, setRewindLoading] = useState(false)
+  const [restoreFiles, setRestoreFiles] = useState(true)
+  const rewindReqRef = useRef(0)
+  // 待发送附件集中在 attachStore：选文件 / 粘贴图片共用同一份
+  // chips 列表（入列后在此处可见可删）。@author aceFelix
   const pending = useAttachStore((s) => s.pending)
   const addFiles = useAttachStore((s) => s.addFiles)
-  const addImage = useAttachStore((s) => s.addImage)
   const removeAttach = useAttachStore((s) => s.remove)
   const clearAttach = useAttachStore((s) => s.clear)
   const historyRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const askInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // / 命令补全弹层（slash.commands，2026-10）：整条输入是 "/xxx" 时弹层
+  // 接管 ↑↓/Tab/Enter/Esc，选中项（命令名+尾随空格）写回输入框；
+  // Enter 发送仍由本组件 doSend 收尾（斜杠前缀走 execSlash）。@author aceFelix
+  const slashAc = useSlashAutocomplete(draft, inputRef, (name) => {
+    setDraft(name)
+    if (inputRef.current) inputRef.current.style.height = 'auto'
+    inputRef.current?.focus()
+  })
 
   // 新消息自动滚底
   useEffect(() => {
@@ -322,6 +245,15 @@ export default function ChatArea(): JSX.Element {
     if (!text && !pending.length) return
     // 回复进行中禁止再发（引擎指令串行，叠发只会排队到下一轮）
     if (busy) return
+    // 斜杠命令透传（slash.exec，2026-10）：输入以 / 开头整条按终端命令转发
+    // 后端白名单执行（不再当聊天文本发给 LLM）；命令不携带附件，有附件时
+    // 仍走普通发送。@author aceFelix
+    if (text.startsWith('/') && !pending.length) {
+      setDraft('')
+      if (inputRef.current) inputRef.current.style.height = 'auto'
+      void execSlash(text)
+      return
+    }
     // 组装附件载荷：图片 → base64 块；文本文件 → name+content
     // @author aceFelix
     let attachments: SendAttachments | undefined
@@ -366,21 +298,33 @@ export default function ChatArea(): JSX.Element {
   }, [thinkingSupported, thinkingEffort, t])
   const thinkingDisabled = thinkingSupported.length === 0
 
-  /** 截屏 → 附件区（主进程 desktopCapturer 抓主屏缩略图，复用附件 vision 链路）。 */
-  const doCapture = async (): Promise<void> => {
-    try {
-      const shot = await window.jarvisDesktop?.captureScreen?.()
-      if (!shot?.data) {
-        useChatStore.getState().addSystem(t('chat.captureFailNoSource'), 'error')
-        return
-      }
-      addImage(`屏幕截图-${new Date().toTimeString().slice(0, 8).replace(/:/g, '')}.png`, shot.data, shot.media_type)
-      useChatStore.getState().addSystem(t('chat.captureOk'))
-    } catch (err) {
-      useChatStore
-        .getState()
-        .addSystem(t('chat.captureFail', { reason: err instanceof Error ? err.message : String(err) }), 'error')
-    }
+  // 撤回：点用户气泡「撤回」→ 开弹窗并发 checkpoint.preview 取改动清单（reqId
+  // 防预览竞态）；确认后发 checkpoint.rewind（入队即返），裁气泡由 rewound 事件
+  // 经 dispatcher 驱动（本地不在此处裁，避免与事件双裁）。@author aceFelix
+  const openRewind = async (tail: number): Promise<void> => {
+    const reqId = ++rewindReqRef.current
+    setRewindTail(tail)
+    setRewindPreview(null)
+    setRestoreFiles(true)
+    setRewindLoading(true)
+    const res = await previewCheckpoint(tail)
+    if (rewindReqRef.current !== reqId) return
+    setRewindPreview(res)
+    setRewindLoading(false)
+  }
+
+  const closeRewind = (): void => {
+    rewindReqRef.current += 1
+    setRewindTail(null)
+    setRewindPreview(null)
+    setRewindLoading(false)
+  }
+
+  const confirmRewind = (): void => {
+    if (rewindTail === null) return
+    const restore = restoreFiles && !!rewindPreview?.has_checkpoint
+    void rewindMessage(rewindTail, restore)
+    closeRewind()
   }
 
   return (
@@ -390,7 +334,13 @@ export default function ChatArea(): JSX.Element {
           'tools' in n ? (
             <ToolGroup key={n.key} items={n.tools} />
           ) : (
-            <MessageView key={n.key} item={n.item} />
+            <MessageView
+              key={n.key}
+              item={n.item}
+              userTail={n.item.kind === 'user' ? userTailById[n.item.id] : undefined}
+              onRewind={(tail) => void openRewind(tail)}
+              rewindDisabled={!wsConnected || busy}
+            />
           )
         )}
       </div>
@@ -490,15 +440,16 @@ export default function ChatArea(): JSX.Element {
           >
             {g.attach}
           </button>
-          {/* 📸 截屏入口（自右栏快捷操作迁入输入栏）：截图入附件区随消息上送 */}
+          {/* 🗜 手动压缩上下文（替掉原截屏按钮）：透传 /compact 到引擎执行，
+              结果走 slash_result 命令输出卡片 */}
           <button
             className="action-btn"
-            data-testid="btn-capture"
-            title={t('chat.captureTip')}
-            onClick={() => void doCapture()}
+            data-testid="btn-compact"
+            title={t('chat.compactTip')}
+            onClick={() => void execSlash('/compact')}
             disabled={!wsConnected || busy}
           >
-            {g.capture}
+            {g.compact}
           </button>
           <div className="composer-toolbar" data-testid="composer-toolbar">
             <ThemedSelect
@@ -537,6 +488,9 @@ export default function ChatArea(): JSX.Element {
             addFiles(files)
           }}
           onKeyDown={(e) => {
+            // 补全弹层优先接管按键（↑↓/Tab/Esc/Enter 选中候选）；
+            // 未消化（含输入已完整时 Enter 直通）才走发送。@author aceFelix
+            if (slashAc.handleKeyDown(e)) return
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
               doSend()
@@ -572,6 +526,20 @@ export default function ChatArea(): JSX.Element {
           <RemoteConnectMenu />
         </div>
       </footer>
+
+      {/* / 命令补全浮层（portal 已挂 body，此处仅占位透出 JSX） */}
+      {slashAc.overlay}
+
+      {rewindTail !== null ? (
+        <RewindDialog
+          loading={rewindLoading}
+          preview={rewindPreview}
+          restoreFiles={restoreFiles}
+          setRestoreFiles={setRestoreFiles}
+          onConfirm={confirmRewind}
+          onCancel={closeRewind}
+        />
+      ) : null}
     </main>
   )
 }

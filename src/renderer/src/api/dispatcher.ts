@@ -14,6 +14,8 @@ import type {
   QrcodePayload,
   RemoteStatePayload,
   RemoteUserMessagePayload,
+  RewoundPayload,
+  SlashResultPayload,
   VoiceState
 } from '../../../shared/contracts'
 import { useChatStore } from '../stores/chatStore'
@@ -88,6 +90,10 @@ export function dispatchServerEvent(
       // 跨设备协同：回填手机/微信连接态（重开桌面后下拉按钮文案与后端一致；
       // 二维码卡片不回放，仅按钮/connect 态需准确）。@author aceFelix
       void conn.refreshRemote()
+      // 斜杠命令补全目录（slash.commands，2026-10）：首屏/重连各拉一次，
+      // 输入框 / 前缀弹层消费；技能安装变化靠下次 init 刷新。
+      // @author aceFelix
+      void conn.refreshSlashCommands()
       // 握手完成：状态栏从启动期的「等待后端启动...」切到「就绪」。init 是每连接
       // 首帧，此前只有首轮回复结束/断线才会刷新状态文案，连上后端后长期挂着
       // 「等待后端启动...」会让人误以为后端没起来。@author aceFelix
@@ -103,14 +109,21 @@ export function dispatchServerEvent(
       // 本地 sendMessage 时置 busy，远端轮次不经过它，导致 jarvis 正在跑时发送按钮
       // 仍停在“发送”。收到活动事件即视为“正在工作”，assistant_done 统一收尾。
       // @author aceFelix
+      // 停止闸门开启中（已点停止、正在等 assistant_done）：丢弃在途/排队的增量，
+      // 否则取消前已送达的 delta 会继续追加，视觉上就是“停不下来”。@author aceFelix
+      if (chat.aborted) break
       chat.setBusy(true)
       chat.appendAssistantText(String(payload ?? ''))
       break
     case 'assistant_thinking':
+      if (chat.aborted) break
       chat.setBusy(true)
       chat.appendThinking(String(payload ?? ''))
       break
     case 'assistant_done':
+      // 一轮收尾：解除停止闸门（下一次发送/渲染恢复正常），再定稿气泡。
+      // @author aceFelix
+      chat.setAborted(false)
       chat.finishAssistant()
       // 回复收尾（含 reply.abort 取消路径）：撤销 busy，发送按钮从
       // “停止”态恢复为“发送”态。@author aceFelix
@@ -124,6 +137,9 @@ export function dispatchServerEvent(
     case 'tool_use': {
       // 工具调用也是“jarvis 正在工作”的信号：远端 / 主动轮次直接开跑工具（无前置
       // 文本）时，据此把发送按钮切为“停止”。@author aceFelix
+      // 停止期丢弃在途 tool_use：否则取消前送达的调用会新建卡片并把状态又置忙。
+      // @author aceFelix
+      if (chat.aborted) break
       chat.setBusy(true)
       const p = payload as { name?: string; id?: string; input?: unknown }
       chat.addToolCard(p?.name ?? '工具', p?.id ?? '', JSON.stringify(p?.input ?? {}, null, 2))
@@ -131,6 +147,7 @@ export function dispatchServerEvent(
       break
     }
     case 'tool_result': {
+      if (chat.aborted) break
       const p = payload as { id?: string; name?: string; content?: string; is_error?: boolean }
       chat.fillToolResult(p?.id ?? '', p?.name ?? '工具', p?.content ?? '', !!p?.is_error)
       break
@@ -212,12 +229,19 @@ export function dispatchServerEvent(
       chat.clear()
       chat.addSystem('已开启新会话')
       void conn.refreshSessions()
+      // 新会话清空消息后同步刷用量卡：上下文窗口/轮数/消息数归零（否则会
+      // 残留上一会话的占比）。@author aceFelix
+      void conn.refreshCost()
       break
     case 'session_loaded': {
       const p = payload as { name?: string; messages?: Array<{ role: string; text?: string; tool_count?: number }> }
       chat.replayHistory(p?.messages ?? [])
       chat.addSystem(`已恢复会话「${p?.name ?? ''}」`)
       void conn.refreshSessions()
+      // 恢复历史会话后刷用量卡：引擎侧 _handle_load 已把 _messages/_dialog_count
+      // 填好，cost.get 据此重算上下文窗口占比与轮数/消息数（否则右栏仍停在
+      // init 时的 0）。@author aceFelix
+      void conn.refreshCost()
       break
     }
     case 'session_deleted':
@@ -225,6 +249,44 @@ export function dispatchServerEvent(
       // @author aceFelix
       void conn.refreshSessions()
       break
+
+    // ---- 消息回溯落地（撤回，checkpoint.rewind） ----
+    // ok=true：按 removed_user（= 请求的 user_tail_count）从本地尾部裁掉对应用户
+    // 气泡及其后全部气泡，再按 files_restored / reason 提示；ok=false：后端回滚
+    // 失败已放弃截断，本地保持原样只弹错（与后端「失败不截断」语义对齐）。
+    // @author aceFelix
+    case 'rewound': {
+      const p = (payload ?? {}) as RewoundPayload
+      if (!p.ok) {
+        chat.addSystem(`✗ 撤回失败：${p.reason || '未知错误'}`, 'error')
+        break
+      }
+      const tail = Number(p.removed_user) || 0
+      if (tail >= 1) chat.rewindTailFromUser(tail)
+      const note = p.files_restored
+        ? '已撤回该消息及其后的对话，工作区文件已回滚'
+        : p.reason
+          ? `已撤回该消息及其后的对话（${p.reason}）`
+          : '已撤回该消息及其后的对话（仅回退对话）'
+      chat.addSystem(note)
+      void conn.refreshSessions()
+      void conn.refreshCost()
+      break
+    }
+    // ---- 斜杠命令透传（slash.exec → slash_result 事件，2026-10） ----
+    // 命令输出卡片（不受 aborted 停止闸门影响：命令结果不是流式增量）；
+    // 收尾本次“命令轮”：解除 busy 与状态栏。技能命令（/<skill-name>）会先跑
+    // 完一轮对话再推本事件，assistant_done 已先行收尾，这里重复动作幂等无害；
+    // /compact、/memory 等会改变上下文与用量口径，统一刷右栏用量。
+    // @author aceFelix
+    case 'slash_result': {
+      const p = (payload ?? {}) as SlashResultPayload
+      chat.addSlash(String(p.command ?? ''), String(p.text ?? ''), !p.ok)
+      chat.setBusy(false)
+      onStatus?.({ text: '就绪', tone: 'idle' })
+      void conn.refreshCost()
+      break
+    }
     case 'status':
       if (typeof payload === 'string' && talkStatusLabels[payload]) {
         getReactor()?.setStatus(payload as ReactorStatus)

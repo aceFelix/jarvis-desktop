@@ -145,6 +145,32 @@ function UsageCard(): JSX.Element {
           </span>
         </div>
       ) : null}
+      {/* 上下文窗口占用（cost.get 的 context_*，口径同 REPL /context）：
+          一行百分比 + 下方进度条（>85% 标 hot），title 透出「已用/窗口 token」
+          与窗口来源（窗口/假设窗口）；旧后端无字段时整块隐藏。@author aceFelix */}
+      {typeof cost.context_percent === 'number' ? (
+        <>
+          <div className="usage-row" data-testid="usage-context">
+            <span>{t('right.context')}</span>
+            <span
+              className="usage-value"
+              title={t('right.contextTitle', {
+                used: fmtNum(cost.context_used ?? 0),
+                window: fmtNum(cost.context_window ?? 0),
+                label: t(cost.context_configured ? 'right.contextWindow' : 'right.contextAssumedWindow')
+              })}
+            >
+              {(cost.context_percent ?? 0).toFixed(1)}%
+            </span>
+          </div>
+          <div className="gauge usage-context-gauge">
+            <div
+              className={`gauge-fill${(cost.context_percent ?? 0) > 85 ? ' hot' : ''}`}
+              style={{ width: `${Math.min(cost.context_percent ?? 0, 100)}%` }}
+            />
+          </div>
+        </>
+      ) : null}
     </div>
   )
 }

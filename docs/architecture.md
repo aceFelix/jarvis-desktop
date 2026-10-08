@@ -23,7 +23,9 @@ jarvis-desktop 是 `jarvis` 的**桌面宿主壳**，本身不含 Agent 运行�
 └───────────────────────────────┘                    └───────────────────────────────┘
 ```
 
-- **主进程**只做宿主能力：拉起并守护 Python 子进程、创建窗口、转发 IPC、退出时回收进程树。
+- **主进程**只做宿主能力：拉起并守护后端子进程、创建窗口、转发 IPC、退出时回收进程树。
+  后端来源分两态：dev 态 spawn 本机 `python -m agent.serve`（依赖 jarvis 源码仓库）；
+  打包态 spawn 随包冻结的 `resources/jarvis-serve/jarvis-serve.exe`（PyInstaller，用户无需装 Python）。
 - **Python 子进程**是唯一的 Agent 运行时，与 pywebview 工作台（`jarvis --gui`）共用同一套引擎零件，仅把宿主从 pywebview 换成 WebSocket 服务。
 - **渲染进程**是纯 React UI，经 preload 暴露的最小 API 拿到连接信息后，直连 Python 的 WS 端口；不接触 Node/文件系统。
 
@@ -35,13 +37,15 @@ app.whenReady()
   → app.setAppUserModelId('AceFelix.JARVIS...')  # 任务栏图标归属（Windows AUMID）
   → registerIpc()                               # GetBackendInfo / WindowControl
   → createWindow()                              # 无边框 + sandbox，show:false
-  → createBackendManager({ appDir, onStatus })  # onStatus → webContents.send(BackendStatus)
+  → createBackendManager({ appDir, isPackaged, resourcesPath, onStatus })  # onStatus → webContents.send(BackendStatus)
   → createTray()                                # 常驻托盘
   → startBackend()
         BackendManager.start():
-          resolvePythonEnv(env, appDir)         # JARVIS_PYTHON / JARVIS_REPO
-          existsSync(repo)?  否 → error（弹窗提示）
-          spawn(python, ['-m','agent.serve'], { cwd:repo, windowsHide:true })
+          resolveLaunchPlan(env, appDir, isPackaged, resourcesPath)   # 决策 dev 还是打包内置 exe
+            · 打包态 → resources/jarvis-serve/jarvis-serve.exe（随包冻结后端，extraResources 拷入）
+            · dev 态 → JARVIS_PYTHON/JARVIS_REPO 定位 python -m agent.serve
+          existsSync(command/exe 或 repo)?  否 → error（弹窗提示）
+          spawn(command, args, { cwd, windowsHide:true })   # exe 无参；python 为 ['-m','agent.serve']
           逐行读 stdout → parseHandshakeLine()
           收到 {type:'jarvis-serve-ready', port, token, pid} → state=ready
           onStatus('ready', info) ──┐
@@ -101,7 +105,7 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
   不热重载）而前端已热更新，错误文案会提示「请重启后端后重试」。
 - 握手（stdout 单行）：`{"type": "jarvis-serve-ready", "port", "http_port", "token", "pid"}`。
 
-### 指令一览（36 条）
+### 指令一览
 
 | 指令 | 参数 | result |
 |---|---|---|
@@ -111,6 +115,8 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `sessions.new` | — | null（结果走 `session_new`） |
 | `sessions.rename` | `name`, `new_name` | null（结果走 `session_renamed`；目标名占用/源不存在走 `warn`；改当前会话名会取消未落地的自动标题任务） |
 | `sessions.delete` | `name` | null（结果走 `session_deleted`；删当前会话另走 `session_new` 清聊天区） |
+| `checkpoint.preview` | `user_tail_count` | `{ok, has_checkpoint, checkpoint_id, files, untracked, reason}`（撤回前预览：回滚会改动哪些工作区文件；只读不入队，用户消息不足回 ok=false，2026-10） |
+| `checkpoint.rewind` | `user_tail_count`, `restore_files` | `{ok: true, pending: true}`（入队即返；截断对话 + 可选 shadow git 文件回滚，真实结果走 `rewound` 事件；定位口径 = 从尾部数第 N 条**可见**用户消息，不依赖消息 id，2026-10） |
 | `models.list` | — | `[{name, vendor, desc, current, source, editable, removable, config}]`（`source`=`builtin`/`custom` 决定可改性；`config` = `{vendor, api_format, base_url, model_type, has_key}` 供编辑表单预填，**不回传明文 api_key**，只有 `has_key` 布尔） |
 | `models.select` | `name` | bool（是否持久化成功）；写盘成功后 serve 侧把 `{"cmd": "switch_model"}` 入引擎队列，引擎线程内串行热切换运行中的 provider / QueryLoop（落地推 `model_switched`，失败推 `warn`），无需重启引擎 |
 | `models.add` | `name`, `vendor`, `api_format`, `base_url`, `api_key`, `model_type` | `{name, vendor, api_format, base_url, model_type}`（左栏「添加模型」表单：写用户级 models.toml 的 `[llm.custom_models."<name>"]`，api_key 交系统 keyring；name/api_format/model_type 后端二次校验，非法回 ok=false；`base_url` 留空按厂商推断） |
@@ -124,10 +130,12 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `state.get` | — | `{provider, model, ..., permission_mode, thinking_effort, thinking_supported, mcp}`（`mcp` 为连接快照 `{connected, failed, tools}` 或 null；`permission_mode`/`thinking_effort` 为输入区两选择器初值，`thinking_supported`=当前厂商可选档位（空=不支持思考、选择器置灰）） |
 | `mode.set` | `mode`（default/plan/accept_edits/yolo） | `{ok, mode}`（工作/权限模式热切换：serve 校验枚举后入队引擎 `set_mode`，引擎线程内重建 checker/orchestrator（不重建 QueryLoop，会话/用量保留），入队即返回、下一轮消息生效；非法模式 ok=false，2026-09） |
 | `think.set` | `effort`（off/on/low/medium/high） | `{ok, effort}`（思考强度切换：serve 校验后入队引擎 `set_thinking`，同步 loop/provider 与 settings、开关变化时重建系统提示词；后端按 THINKING_CONFIGS 把统一档位翻译成厂商原生 budget/reasoning_effort，2026-09） |
+| `slash.exec` | `command`（斜杠命令原文） | `{ok, command}`（斜杠命令透传受理确认；白名单放行/交互禁令/输出捕获在引擎侧 `slash_bridge`，执行结果走 `slash_result` 事件；非斜杠形态 ok=false，2026-10） |
+| `slash.commands` | — | `[{name, description, source}]`（斜杠命令补全目录，只读：source ∈ passthrough/native/skill，口径与 `slash_bridge.run_slash` 执行护栏对齐（`build_desktop_commands`）；init 时拉取存 `slashStore`，供输入框 `/` 前缀弹层补全，2026-10） |
 | `schedule.list` | — | `{reminders: [{id, content, trigger_at, repeat}], deadlines: [{id, title, due_date, days_left, status}]}`（hub 未装配时空列表） |
-| `cost.get` | — | `{provider, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cache_hit_rate（百分比，口径同 REPL `/cost`）, dialogs, messages}` |
+| `cost.get` | — | `{provider, model, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cache_hit_rate（百分比，口径同 REPL `/cost`）, dialogs, messages, context_used, context_window, context_percent, context_configured}`（`context_*` 为上下文窗口占用：`context_used`=已估用 token（`estimate_tokens(messages)`+system prompt），`context_window`=生效窗口（配置值或回退 128000），`context_configured`=窗口是否为用户配置（true→「窗口」/false→「假设窗口」），`context_percent`=占比，口径同 REPL `/context`，由引擎只读属性 `context_usage` 经 `get_cost` 展开，2026-10） |
 | `answer_user` | `text` | null（回填 ask_user 弹窗） |
-| `reply.abort` | — | bool（停止当前回复：服务端线程安全取消引擎 send 任务，取消路径仍发 `assistant_done` 收尾；无进行中回复时 false） |
+| `reply.abort` | — | bool（停止当前回复：服务端线程安全取消引擎 send 任务，取消路径仍发 `assistant_done` 收尾；无进行中回复时 false；前端 `abortReply` 同步上开 `chatStore.aborted` 停止闸门，丢弃在途/排队的 text/thinking/tool 增量实现“点了就停”，`assistant_done` 或新一轮发送时解除，2026-10-03） |
 | `talk.start` | `duplex?: bool` | null（结果走 `talk_started`；`duplex=true` 时服务端以真全双工桥接模式启动 /talk，麦克风/喇叭音频走壳，2026-09-28） |
 | `talk.stop` | — | null（结果走 `talk_stopped`） |
 | `talk.audio` | base64 PCM16 16k 帧 | 无回执（fire-and-forget，~100ms/帧，64KB 上限；仅 duplex 会话有效，渲染进程 `audio/talkCapture.ts` → 服务端 `BridgeMic`） |
@@ -141,6 +149,60 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `project.get` | — | `{workdir, name, persisted}`（`persisted=false`：serve 启动默认值尚未写入 projects.toml） |
 | `projects.list` | — | `[{path, name, last_opened, exists}]`（按 `last_opened` 倒序；`exists=false` 前端置灰仍可移除） |
 | `projects.forget` | `path` | bool（是否确有移除；只清 `~/.jarvis/projects.toml` 记录，**不删磁盘目录**） |
+
+### 斜杠命令透传与补全（slash.exec / slash.commands，2026-10）
+
+终端 J.A.R.V.I.S 的 45 个斜杠命令过去在桌面只会当普通文本发给 LLM（引擎 `_handle_send`
+无命令路由）。现新增 `slash.exec` 一条透传指令：输入框 `text.startsWith('/')` 且无附件时
+整条按命令转发（`backendStore.execSlash`：本地回显命令气泡 + 置 busy，不入对话），
+引擎侧 `agent/ui/workbench/slash_bridge.py` 复用终端 `dispatch_command` 执行，捕获输出
+以 `slash_result` 事件（`{command, ok, text}`）回推，dispatcher 落为 `kind: 'slash'`
+命令输出卡片（`SlashCard`：summary=命令原文、正文=等宽 pre 全文，默认展开可点击收起，
+叠加 system 皮肤三主题配色；不受 aborted 停止闸门影响）。
+
+护栏三道（全在 slash_bridge，桌面与终端双仓文档口径）：
+
+- **白名单**：只放行非交互命令 `/context /compact /cost /c /diff /doctor /tools /mcp
+  /skills /memory /plugin(s)`；桌面已有原生控件的（mode/think/model/sessions/rewind…）
+  不透传防双入口口径漂移；引擎无多 Agent 运行时，/agents /tasks 也不放行；
+- **交互禁令**：serve 模式 stdin 是协议管道，执行期临时把 `pick_from_list /
+  pick_from_grouped_list / form_input`（含 handlers 模块级 import 引用）与
+  `ask_user / read_user_input_async / terminal_picker` 换成抛 `SlashInteractiveError`，
+  任何命令试图交互都干净失败不挂起不抢管道；
+- **技能动态放行**：白名单外命中已安装技能（`/<skill-name>`）照常执行——持与
+  手机/微信共用的 query 锁串行、挂 `_send_task`（可被 `reply.abort` 停止）、轮后落盘；
+  对话流事件照常渲染成 AI 回复。
+
+一次改动把 /compact /context /diff /doctor /tools /skills /memory /plugin 等一大批终端
+能力带进桌面；高频项（context 进度条、diff 视图）后续可升级为原生控件而非卡片。
+
+**`/` 前缀弹层补全（slash.commands，手感对齐终端 jarvis）**：
+
+- **数据链路**：dispatcher `init` 分支 → `conn.refreshSlashCommands()` →
+  `client.sendCommand(Cmd.SlashCommands)` 直发（不走 runCommand，失败静默保留旧目录，
+  后台只读刷新不弹错扰聊天流）→ 回执写单职责 `slashStore`（`commands`）；
+- **触发与匹配**：`slashTriggerOf` 只对 `^\/\S*$` 形态生效（输 `/c` 匹配所有 c 开头命令、
+  输 `/` 展示全部；打空格即收起）；`filterSlashCommands` 前缀不区分大小写过滤；
+- **键盘交互**：`useSlashAutocomplete` hook 拦截 textarea keydown：↑↓ 循环高亮（高亮项自动
+  滚入可视区：`active` 变化时手动推弹层容器 `scrollTop`，令滚动条跟随选中项——不用
+  `scrollIntoView` 以免连带滚动背后页面；弹层 fixed、选项 `offsetTop` 相对容器计算精确，
+  2026-10 修复）、Tab/Enter
+  选中回填「命令名 + 尾随空格」（二次 Enter 发送；前缀已等于完整命令名时 Enter 直通
+  doSend）、Esc 收起至 draft 变化；弹层 createPortal 挂 body + fixed，`bottom` 锚 textarea
+  上沿向上生长，复用 `.themed-select-menu/-option` 皮肤类；高亮行随皮肤反相（亮底深字，
+  命令名/描述继承选项色，避免被扫描线亮底盖住），非高亮行命令名用各皮肤高亮色；
+  resize/背后页面 scroll 收起（但排除弹层自身的内部滚动：候选多于可视行时，
+  滚轮/↑↓ 跟随会改 `menu.scrollTop` 并派发 capture 到 window 的 scroll 事件，
+  旧实现一律收起导致“一滚候选列表弹层就消失”，现按 `target` 是否落在 menu 内分流，
+  2026-10 修复）；
+- **配套拆分（800 行规则）**：本次集成把 ChatArea.tsx 的消息渲染子组件外移到
+  `ChatMessageViews.tsx`，backendStore.ts 的资源/协同动作外移到 `resourceActions.ts` /
+  `remoteActions.ts`（动作工厂 + spread 展开，依赖注入避免环引用）。
+
+另外，透传的 `/context` 输出窗口口径同步修正：用户配置了 `context_window`（如 200000）
+时统计头写「窗口」，仅未配置回退默认值才标「假设窗口」（jarvis 侧 `core_commands`）。
+设计复盘见 jarvis 侧
+[docs/fixlogs/desktop-slash-command-passthrough.md](../../jarvis/docs/fixlogs/desktop-slash-command-passthrough.md)。
 
 ### 中栏降噪（思考 / 工具 / 系统提示折叠，2026-09）
 
@@ -185,10 +247,32 @@ theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配�
 - 纯图片消息（空文本）可发送；历史回放（`session_loaded`）不传 base64，图片块折叠为
   `[图片×N]` 标记。
 
+### 用户气泡撤回与文件回滚（checkpoint.*，2026-10）
+
+发错一条消息 → 撤回该消息及其后全部对话与文件修改（机制见 jarvis 仓库
+`docs/architecture/15-消息回溯与检查点.md`）。壳侧链路（`ChatArea.tsx`）：
+
+- **入口**：用户气泡 hover / 键盘聚焦显示「撤回」小按钮（与复制按钮同排，
+  glyph `[RWK]`/`<RWK>`/`{RWK}`，默认 opacity 0、hover 淡入）；
+- **定位**：`userTailById` useMemo 建「消息 id → 从尾部数第几条可见用户消息」映射，
+  发给后端的始终是 `user_tail_count`（与 `_is_visible_user_message` 同口径，对
+  历史回放重建免疫）；
+- **确认弹窗** `RewindDialog`：打开先拉 `checkpoint.preview`（递增 reqId 存
+  `rewindReqRef`，异步回执比对 reqId 防连点竞态）；展示改动文件列表（M/A/D +
+  untracked，限高滚动、超出折叠）+「同时回滚工作区文件」复选框（默认勾，
+  `has_checkpoint=false` 时禁用并提示仅能回退对话）+ 确认/取消；
+- **发送**：确认后 `backendStore.rewindMessage(tail, restoreFiles)` 发
+  `checkpoint.rewind`，入队即返不等结果；
+- **落地**：裁气泡不在本地做，由 `rewound` 事件驱动（dispatcher 按 `removed_user`
+  调 `chatStore.rewindTailFromUser`，同时复位 busy/askPrompt），避免本地/事件双裁；
+  失败（含文件回滚失败，后端保证消息不截断的原子性）弹错不裁；
+- 样式沿用终端风弹窗体系（`.rewind-backdrop` / `.rewind-dialog` / `.rewind-files`
+  见 `chat.css`）；静态文案走 i18n（zh/en 各 14 键），事件驱动的系统提示保中文硬编码。
+
 ### 输入栏分区布局（工作模式 + 思考强度，2026-09）
 
 输入栏 `footer#input-bar`（`.glass-bar`，`align-items: stretch`）分**左控制区 / textarea / 右控制区**
-三段：左侧 `div.composer-side-left` 把 📎/📸 两个按钮与工作模式/思考强度两个选择器排成 **2×2 网格**
+三段：左侧 `div.composer-side-left` 把 📎 附件/🗜 手动压缩上下文两个按钮与工作模式/思考强度两个选择器排成 **2×2 网格**
 （`grid-template-columns: repeat(2, minmax(76px, auto))`，选择器行 `grid-column:1/-1` 跨两列）；
 右侧 `div.composer-side-right` 把发送/停止与实时语音按钮**竖排一列**；中间 textarea 加高填满。
 不再把所有控件挤在同一横排（协议链路与后端翻译见 jarvis 侧 `docs/architecture/07-UI层.md`
@@ -331,7 +415,10 @@ theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配�
 - **任务中心**：`schedule.list` 的待触发提醒（时间升序）+ 活跃截止日期（`days_left`
   倒计时，≤3 天标黄、逾期标红）+ 最近简报折叠块（`proactive_notify` kind=briefing 时更新）；
 - **会话与用量**：`cost.get` 的当前模型 + token 四类累计（输入/输出/缓存读/缓存写合并展示）
-  + **缓存命中率**（`cache_hit_rate`，一行百分比，`usage-cache-hit-rate`）+ 对话轮数/消息条数；
+  + **缓存命中率**（`cache_hit_rate`，一行百分比，`usage-cache-hit-rate`）+ **上下文窗口占比**
+  （`context_percent`，一行百分比 + gauge 进度条 `usage-context`，>85% 标红；title 透出「窗口/假设窗口
+  {window}，已用 {used} token」，口径同 REPL `/context`；旧后端无该字段时隐藏整行不留空白）
+  + 对话轮数/消息条数；
   命中率由后端 `Usage.cache_hit_rate` 按协议口径算好（与 REPL `/cost` 同一份实现，前端不重算），
   title 透出「命中 / 输入」明细；旧后端无该字段时隐藏整行不留空白；
 - **系统状态**：既有 CPU/内存/磁盘三指标卡（`metrics` 事件每 2 秒推送）；
@@ -339,15 +426,18 @@ theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配�
   + 事件日志流（滚动 30 条：回复完成/工具调用/info/warn/error/主动播报）。MCP 为后台
   预热（约 9s），`init` 拉到快照常为 null，连接落定后服务端推 `mcp_ready` 事件补齐。
 
-刷新时机（`dispatcher.ts` 接线）：`init` 七路齐刷（左栏三面板 + schedule/cost/state + 设置回填）；
-`assistant_done` 刷 `cost.get`（一轮对话消耗了 token）；`proactive_notify` 刷 `schedule.list`
+刷新时机（`dispatcher.ts` 接线）：`init` 十路齐刷（左栏三面板 + schedule/cost/state + 设置回填 + 项目/协同回填 + slash.commands 补全目录，2026-10）；
+`assistant_done` 刷 `cost.get`（一轮对话消耗了 token）；`session_loaded` / `session_new`
+也刷 `cost.get`（恢复历史会话后 `_messages`/`_dialog_count` 已填，右栏上下文窗口占比与
+轮数/消息数据此重算，不再停在 init 时的 0；新会话则归零，2026-10 修复）；`proactive_notify` 刷 `schedule.list`
 （fired 任务离列、days_left 更新）；`mcp_ready` 直写右栏 `mcp` 快照（payload 结构非法时退回
 主动拉一次 `state.get`，避免谎报）。待发送附件集中在 `stores/attachStore.ts`（从 ChatArea
-提升），截屏与 📎/粘贴共用同一份 chips 列表。
+提升），📎/粘贴共用同一份 chips 列表。
 
-原「快捷操作」区块（2026-09 下线）拆解去向：📸 截屏入口迁入输入栏 📎 旁（主进程
-`desktopCapturer` 取主屏 1280×720 缩略图 → preload `captureScreen` → `attachStore.addImage`
-入附件 chips，复用消息附件链路走 vision）；📋 复制改为 AI 气泡右下角消息级「复制」按钮
+原「快捷操作」区块（2026-09 下线）拆解去向：🗜 手动压缩上下文按钮居于输入栏 📎 旁（点击经
+`backendStore.execSlash('/compact')` 透传引擎 `slash.exec`，压缩结果走 `slash_result` 命令输出卡片）；
+曾有的 📸 主屏截屏入口因实用性低已于 2026-10 整体删除（截屏 IPC 通道 / `desktopCapturer` handler /
+preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链路移除，需截图时用户自行截取后经 📎/粘贴入附件）；📋 复制改为 AI 气泡右下角消息级「复制」按钮
 （`CopyRow`，流式结束后才出现，复制成功短暂变「已复制」）；＋新会话沿用左栏「新建会话」，
 ■停止回复沿用输入栏发送/停止双态按钮。
 
@@ -418,6 +508,8 @@ theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配�
 
 - **对话流**：`user_message` / `assistant_text`（流式增量）/ `assistant_thinking` / `tool_use` / `tool_result` / `assistant_done`
 - **会话**：`init` / `session_ready` / `session_loaded` / `session_new` / `session_renamed` / `session_deleted`
+- **消息回溯**：`rewound`（payload `{ok, removed, removed_user, files_restored, reason}`；`checkpoint.rewind` 引擎队列内落地后推一次：成功时 dispatcher 按 `removed_user` 调 `chatStore.rewindTailFromUser` 裁气泡（本地发送侧不裁防双裁）并提示文件回滚结果；失败弹错不裁；另刷会话列表与成本）
+- **斜杠命令透传**：`slash_result`（payload `{command, ok, text}`；`slash.exec` 每执行/拒绝一条推一次：dispatcher 落 `kind: 'slash'` 命令输出卡片、解除 busy 并刷成本；技能命令另走正常对话流式事件，2026-10）
 - **提示**：`info` / `warn` / `error` / `status` / `ask_user`
 - **模型热切换**：`model_switched`（payload `{model}`；引擎已把运行中的 provider / 模型换成 `model` 的落地回执：壳清匹配的「待生效」标记 + 刷 `models.list` / 成本 / 状态，「· 当前」随之移动）
 - **项目工作区**：`project_switched`（payload `{workdir, name}`；`project.set` 在引擎线程内落地后推一次，与 `model_switched` 同为「入队即返回、落地走事件」：壳据此写当前项目、清匹配的「待生效」标记，并刷会话列表 + 项目区）

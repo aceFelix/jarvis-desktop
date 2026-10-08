@@ -254,6 +254,10 @@
 }
 [data-theme='light'] .themed-select-option.active { background: rgba(0, 0, 0, 0.1); color: var(--sil-bright); }
 [data-theme='light'] .themed-select-option.selected { color: var(--sil-bright); font-weight: 600; }
+/* / 命令补全弹层：非高亮行命令名用本皮肤深色强调；高亮行时名称/描述
+   随选项继承，描述提不透明度保可读。@author aceFelix */
+[data-theme='light'] .slash-ac-name { color: var(--sil-bright); font-weight: 600; }
+[data-theme='light'] .themed-select-option.active .slash-ac-desc { color: inherit; opacity: 0.85; }
 [data-theme='light'] .model-form-error { color: var(--sil-error); }
 [data-theme='light'] .list-item.current {
     color: var(--sil-bright);

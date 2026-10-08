@@ -27,9 +27,10 @@ export type GlyphName =
   | 'voiceActive'
   | 'interrupt'
   | 'copy'
+  | 'rewind'
   | 'sessionDelete'
   | 'attach'
-  | 'capture'
+  | 'compact'
   | 'fileChip'
   | 'settings'
   | 'taskReminder'
@@ -50,9 +51,10 @@ export const SILVER: GlyphTable = {
   voiceActive: '{VOX}',
   interrupt: '{BRK}',
   copy: '{CPY}',
+  rewind: '{RWK}',
   sessionDelete: '{DEL}',
   attach: '{ATT}',
-  capture: '{CAP}',
+  compact: '{CMP}',
   fileChip: '{FIL}',
   settings: '{SET}',
   taskReminder: '{REM}',
@@ -72,9 +74,10 @@ export const Y2K: GlyphTable = {
   voiceActive: '<VOX>',
   interrupt: '<BRK>',
   copy: '<CPY>',
+  rewind: '<RWK>',
   sessionDelete: '<DEL>',
   attach: '<ATT>',
-  capture: '<CAP>',
+  compact: '<CMP>',
   fileChip: '<FIL>',
   settings: '<SET>',
   taskReminder: '<REM>',
@@ -94,9 +97,10 @@ export const RETRO: GlyphTable = {
   voiceActive: '[VOX]',
   interrupt: '[BRK]',
   copy: '[CPY]',
+  rewind: '[RWK]',
   sessionDelete: '[DEL]',
   attach: '[ATT]',
-  capture: '[CAP]',
+  compact: '[CMP]',
   fileChip: '[FIL]',
   settings: '[SET]',
   taskReminder: '[REM]',

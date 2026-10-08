@@ -42,6 +42,15 @@ export interface CostInfo {
    *  算好（与 REPL /cost 同一份实现），前端只展示不重算；旧后端无此字段时
    *  为 undefined，用量卡隐藏该行。@author aceFelix */
   cache_hit_rate?: number
+  /** 上下文窗口已用 token 估算（cost.get，口径同 REPL /context：消息 + system
+   *  prompt 估算）；旧后端无此字段时为 undefined，用量卡隐藏该行。@author aceFelix */
+  context_used?: number
+  /** 上下文窗口大小（用户配置的 context_window，未配置回退 128000）。 */
+  context_window?: number
+  /** 窗口占比（百分数，一位小数）。 */
+  context_percent?: number
+  /** 窗口是否为用户配置值（true=「窗口」，false=「假设窗口」）。 */
+  context_configured?: boolean
   dialogs: number
   messages: number
 }

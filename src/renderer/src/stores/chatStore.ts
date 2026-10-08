@@ -6,6 +6,7 @@
  * - ai：AI 气泡（流式增量 text/thinking，streaming 标记当前流式目标）
  * - tool：工具卡片（tool_use 创建 → tool_result 按 id 回填；轮次结束时仍未回填的收尾为中断态）
  * - system：系统提示（info/warn/error，带 tone 决定配色）
+ * - slash：斜杠命令透传输出卡片（slash.exec 的 slash_result 事件，等宽全文）
  *
  * WS 事件在 actions 里消化（dispatcher 调用），组件只订阅切片。
  *
@@ -31,6 +32,10 @@ export type MessageItem =
       done: boolean
     }
   | { kind: 'system'; id: number; text: string; tone: 'info' | 'warn' | 'error' }
+  // slash：斜杠命令透传（slash.exec，2026-10）—— slash_result 事件的命令输出卡片：
+  // command = 命令原文（summary 行），text = 捕获输出全文，isError = 执行失败态。
+  // @author aceFelix
+  | { kind: 'slash'; id: number; command: string; text: string; isError: boolean }
   // qrcode：跨设备协同连接卡片（手机 / 微信），url 由渲染层用 qrcode 库画成
   // 二维码；connected 置真后卡片收起二维码改显「已连接」（连接完成后不再需要扫码）。
   // @author aceFelix
@@ -51,6 +56,15 @@ export interface ChatState {
   askPrompt: string | null
   /** 状态栏：busy（思考中）/ idle。 */
   busy: boolean
+  /**
+   * 停止闸门：点「停止」（reply.abort）后置 true，assistant_done 到达或新一轮
+   * 发送时清 false。置 true 期间 dispatcher 丢弃在途/排队的 assistant_text /
+   * assistant_thinking / tool_use 增量——后端取消虽即时，但取消前已经 WS 送达或
+   * 正在被 React 逐条渲染的思考增量若不加闸门会继续追加（无流式气泡时还会新建
+   * 一条），表现为「点了停止 jarvis 还在输出思考、无法马上停止」。
+   * @author aceFelix
+   */
+  aborted: boolean
 
   /** 用户气泡：images 为缩略图 data URL（仅展示，模型侧走 WS 的 base64 字段）；
    * source 为远端通道（手机 / 微信）入站消息的来源标记。 */
@@ -59,6 +73,11 @@ export interface ChatState {
   appendThinking: (delta: string) => void
   finishAssistant: () => void
   addSystem: (text: string, tone?: 'info' | 'warn' | 'error') => void
+  /**
+   * 斜杠命令输出卡片（slash_result 事件）：命令原文 + 捕获全文 + 成败态。
+   * 不受 aborted 停止闸门影响（命令结果不是流式增量）。@author aceFelix
+   */
+  addSlash: (command: string, text: string, isError: boolean) => void
   addToolCard: (name: string, toolId: string, input: string) => void
   fillToolResult: (toolId: string, name: string, content: string, isError: boolean) => void
   showAskUser: (prompt: string) => void
@@ -74,7 +93,17 @@ export interface ChatState {
   /** 把指定通道最新的二维码卡片标为已连接/未连接。@author aceFelix */
   setQrcodeConnected: (channel: RemoteChannel, connected: boolean) => void
   setBusy: (busy: boolean) => void
+  /** 设置停止闸门（abortReply 置 true / assistant_done、新一轮发送清 false）。 */
+  setAborted: (aborted: boolean) => void
   clear: () => void
+  /**
+   * 撤回：从尾部数第 userTailCount 条用户气泡起（含）裁到列表末尾，
+   * 并复位 busy / askPrompt（与后端 checkpoint_ops.rewind 截断 _messages 同口径）。
+   * 用户气泡不足 userTailCount 条时不做任何改动（返回 false，调用方据此提示）。
+   * 由 dispatcher 消化 rewound 事件（ok=true）时按 removed_user 调用。
+   * @author aceFelix
+   */
+  rewindTailFromUser: (userTailCount: number) => boolean
   /** 恢复历史会话：清空后回放（与 workbench session_loaded 口径一致）。 */
   replayHistory: (messages: Array<{ role: string; text?: string; tool_count?: number }>) => void
 }
@@ -99,10 +128,11 @@ function findLast(
   return -1
 }
 
-export const useChatStore = create<ChatState>((set) => ({
+export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   askPrompt: null,
   busy: false,
+  aborted: false,
 
   addUser: (text, images, source) =>
     set((s) => ({
@@ -168,6 +198,11 @@ export const useChatStore = create<ChatState>((set) => ({
 
   addSystem: (text, tone = 'info') =>
     set((s) => ({ messages: [...s.messages, { kind: 'system', id: genId(), text, tone }] })),
+
+  addSlash: (command, text, isError) =>
+    set((s) => ({
+      messages: [...s.messages, { kind: 'slash', id: genId(), command, text, isError }]
+    })),
 
   addToolCard: (name, toolId, input) =>
     set((s) => ({
@@ -250,7 +285,27 @@ export const useChatStore = create<ChatState>((set) => ({
     }),
 
   setBusy: (busy) => set({ busy }),
-  clear: () => set({ messages: [], askPrompt: null, busy: false }),
+  setAborted: (aborted) => set({ aborted }),
+  clear: () => set({ messages: [], askPrompt: null, busy: false, aborted: false }),
+
+  rewindTailFromUser: (userTailCount) => {
+    if (userTailCount < 1) return false
+    const list = get().messages
+    let seen = 0
+    let start = -1
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].kind === 'user') {
+        seen++
+        if (seen >= userTailCount) {
+          start = i
+          break
+        }
+      }
+    }
+    if (start < 0) return false
+    set({ messages: list.slice(0, start), busy: false, askPrompt: null })
+    return true
+  },
 
   replayHistory: (messages) =>
     set(() => {

@@ -98,6 +98,50 @@
     flex-shrink: 0;
 }
 
+/* chip 基础样式：此前仅有主题色覆盖、无基础规则，导致粘贴大图按原始
+   分辨率渲染撑满窗口、✕ 按钮被推出可视区无法删除（2026-10 修复）。
+   @author aceFelix */
+.attach-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    padding: 3px 6px;
+    border-radius: 9px;
+    border: 1px solid var(--edge-mid);
+    background: rgba(8, 18, 32, 0.6);
+    font-size: 12px;
+}
+
+/* 图片缩略图锁死 56px 方块：任意尺寸截图只缩略展示，不撑布局 */
+.attach-chip img {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+/* 文本文件名过长省略号，不撞宽 chip */
+.attach-chip .chip-name {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 移除按钮：重置原生 button 样式，常驻图/名右侧可见 */
+.attach-chip .chip-remove {
+    flex-shrink: 0;
+    padding: 0 4px;
+    border: none;
+    background: transparent;
+    font-size: 12px;
+    line-height: 1.4;
+    cursor: pointer;
+    color: rgba(159, 201, 232, 0.7);
+}
+
 .attach-chip .chip-remove:hover { color: #ff5a5a; }
 
 /* AI 气泡右下角消息级操作行（复制本条回复）。@author aceFelix */

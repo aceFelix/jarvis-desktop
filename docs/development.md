@@ -20,12 +20,14 @@ $env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"; npm install
 
 ## 2. 环境变量
 
-主进程 `backend.ts::resolvePythonEnv` 读取以下变量定位 Python 后端：
+主进程 `backend.ts::resolveLaunchPlan` 依次读环境变量与 `app.isPackaged` 决策后端启动方式
+（优先级：`JARVIS_SERVE_EXE` 显式 exe → 打包内置 `resources/jarvis-serve/jarvis-serve.exe` → dev `python -m agent.serve`）：
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `JARVIS_PYTHON` | `python` | 解释器命令或绝对路径（venv 场景填 `...\Scripts\python.exe`） |
-| `JARVIS_REPO` | `<本仓库>/../jarvis` | jarvis 源码仓库根目录（须含 `agent/` 包） |
+| `JARVIS_PYTHON` | `python` | 解释器命令或绝对路径（dev 态，venv 场景填 `...\Scripts\python.exe`） |
+| `JARVIS_REPO` | `<本仓库>/../jarvis` | jarvis 源码仓库根目录（dev 态，须含 `agent/` 包） |
+| `JARVIS_SERVE_EXE` | （未设） | 显式指定冻结后端 exe；优先级高于打包内置 exe（自测/特殊部署） |
 
 示例（指定 venv 与非同级仓库）：
 
@@ -46,7 +48,35 @@ npm run build      # 打包 main/preload/renderer 到 out/
 npm run typecheck  # tsc：tsconfig.node.json（主进程/测试 main）+ tsconfig.web.json（渲染/测试 renderer）
 npm run test       # vitest run（全部单测）
 npm run test:watch # vitest 监听模式
+npm run serve:build # PyInstaller 冻结后端到 ../jarvis/dist/jarvis-serve/
+npm run dist       # build → serve:build → electron-builder --win（出 NSIS 安装包）
+npm run dist:fast  # 同上但复用已冻结的 jarvis-serve/（只改壳时快）
 ```
+
+### 打包发布（NSIS 安装包 + 随包冻结后端）
+
+目标：产出下载双击即装、无需 Python 的安装包。关键是把 Python 后端随包分发：
+
+- **后端冻结**：`jarvis/packaging/` 下 `serve_entry.py`（等价 `python -m agent.serve`）
+  + `jarvis-serve.spec`（PyInstaller onedir）+ `build_serve.ps1`（一键调用，自动定位 venv
+  Python、缺 PyInstaller 时即时装）。产物 `jarvis/dist/jarvis-serve/`（onedir：`jarvis-serve.exe` + `_internal/`）。
+- **随包分发**：`electron-builder.yml` 的 `extraResources` 把 `../jarvis/dist/jarvis-serve/` 整目
+  录拷入安装包 `resources/jarvis-serve/`；打包态 `backend.ts` 据此 spawn 内置 exe。
+- **体积剪裁**：spec `excludes` 排除 playwright/cv2/mediapipe/paddleocr 等重型可选 extras（基础
+  包从 ~300MB 降到 ~100MB）；这些工具运行时懒加载失败即优雅降级，不影响核心对话。
+- **asar: false**：避开 Windows 上 electron-builder 向新建 electron exe 回写 asar 完整性时被 Defender
+  写锁命中（`addWinAsarIntegrity` writeFile → `UNKNOWN`）。
+- **镜像**：国内网络先设 `ELECTRON_MIRROR` 与 `ELECTRON_BUILDER_BINARIES_MIRROR`（npmmirror），
+  否则下载 Electron 运行时 / electron-builder 二进制会超时。
+- **winCodeSign 符号链接权限**（重要环境卡点）：electron-builder 拉取 `winCodeSign` 依赖包时需解压包内
+  macOS `.dylib` 符号链接，普通账户缺 `SeCreateSymbolicLinkPrivilege` 会报「客户端没有所需的特权」。
+  任选：① 开 **Windows 开发者模式**；② **以管理员**运行构建；③ 在 **CI windows-latest** 构建。
+  `win-unpacked/` 不依赖 winCodeSign，可在普通账户下产出并直接验证集成。
+- **CI 自动发布**（`.github/workflows/release.yml`）：因本机出包受符号链接权限限制，发布统一交给
+  GitHub Actions 在 `windows-latest` 上跑——**并列检出** `jarvis-desktop` 与 `jarvis`（默认 `master`）、
+  装 Node 20 + Python 3.12（`pip install -e .` + `pyinstaller`）、`npm run dist` 出包，再用
+  `softprops/action-gh-release` 把 `*-Setup-*.exe` 挂到对应 tag 的 GitHub Release。触发：推 `v*` tag
+  或手动 `workflow_dispatch`。（与只做验证的 `ci.yml` 分工：ci 跑 ubuntu 快验，release 跑 windows 出包。）
 
 ### 图标资源（build/icon.ico）
 
@@ -111,9 +141,9 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 - [ ] **会话删除 / 改名**：右键会话项 → 项右侧出现删除按钮（荧光绿 `[DEL]` / 电光蓝 `<DEL>` / 金属银 `{DEL}`）→ 点击后会话从列表消失（删当前会话时中栏一并清空开新会话）；列表空白处右键 → 删除按钮收起；双击会话项 → 标题变为可编辑输入框（光标选中）→ 改名后 Enter 或点击别处提交（列表刷新为新名、不再被自动标题覆盖），Esc 或改回原名则取消；单击与双击不相互误触（想改名不会先加载一次）；改名输入框配色随主题（荧光绿/电光蓝/金属银，不再固定蓝边圆角），全选时文字高亮也随主题（荧光绿亮绿反相 / 电光蓝亮青反相 / 金属银黑底白字），无系统蓝底。
 - [ ] **右栏指标**：CPU/内存/磁盘每 ~2 秒刷新，CPU>85% 进度条变红。
 - [ ] **设置面板**：点标题栏齿轮 ⚙ → 右栏整体切为设置面板（齿轮高亮，再点或面板内 ← 返回信息面板）；点「金属银」→ 界面立即换金属银主题（荧光绿/电光蓝/金属银分段高亮跟随，荧光绿排第一）→ 重启 `npm run dev` 仍保持；点「English」→ 栏标题/按钮/空态等静态文案切英文（状态栏与事件消息仍中文），重启保持；简报时间/检查时间为自绘时间选择器（小时/分钟两个下拉，展开浮层为与皮肤同色的硬边方角、无系统白底蓝高亮），点选即写回、重选当前值不发指令；外观组另有「英文字体 / 中文字体」两行可搜索下拉——首次点开触发本机字体枚举（`queryLocalFonts`，需主进程放行 `local-fonts`；无 API/被拒环境回落常见字体预设，仍可选）、选项以自身字体预览、中文字体行「含中文」标签置顶分组、顶部过滤输入按名筛、选中即时全壳生效（代码块/工具输出仍等宽）、点「默认（终端等宽）」回落、重启保持。
-- [ ] **荧光绿主题（默认）**：全新启动（无 localStorage 持久化）默认即荧光绿——CRT 荧光绿终端风（黑底绿字、扫描线叠层、点阵抖动背景、硬边无圆角、等宽字辉光、方块滚动条）+ ASCII 方括号牌（左栏 `[TXT]/[LIV]/[VOX]`、面板 `[HIS]/[MOD]/[VOC]`、输入栏 `[ATT]/[CAP]` 等）+ 反应炉绿系像素颗粒（低分辨率放大）；设置面板切「电光蓝/金属银」→ 重启后仍保持所选（用户显式选择优先）→ 切「电光蓝」为 Y2K 像素复古电光蓝皮肤（电光蓝霓虹 + 铬金属渐变标题/选中态/主按钮 + 赛博网格底 + 像素切角 + 扫描线，尖括号牌 `<TXT>/<LIV>/<VOX>` 等，反应炉蓝系像素颗粒），切「金属银」为 Y2K 像素复古铬银亮色皮肤（铬银金属渐变 + 黑色描边/文字（无蓝相、与电光蓝区分）+ 亮底网格/点阵/扫描线，花括号牌 `{TXT}/{LIV}/{VOX}` 等）；三主题同风格仅配色不同，互切无残留。
+- [ ] **荧光绿主题（默认）**：全新启动（无 localStorage 持久化）默认即荧光绿——CRT 荧光绿终端风（黑底绿字、扫描线叠层、点阵抖动背景、硬边无圆角、等宽字辉光、方块滚动条）+ ASCII 方括号牌（左栏 `[TXT]/[LIV]/[VOX]`、面板 `[HIS]/[MOD]/[VOC]`、输入栏 `[ATT]/[CMP]` 等）+ 反应炉绿系像素颗粒（低分辨率放大）；设置面板切「电光蓝/金属银」→ 重启后仍保持所选（用户显式选择优先）→ 切「电光蓝」为 Y2K 像素复古电光蓝皮肤（电光蓝霓虹 + 铬金属渐变标题/选中态/主按钮 + 赛博网格底 + 像素切角 + 扫描线，尖括号牌 `<TXT>/<LIV>/<VOX>` 等，反应炉蓝系像素颗粒），切「金属银」为 Y2K 像素复古铬银亮色皮肤（铬银金属渐变 + 黑色描边/文字（无蓝相、与电光蓝区分）+ 亮底网格/点阵/扫描线，花括号牌 `{TXT}/{LIV}/{VOX}` 等）；三主题同风格仅配色不同，互切无残留。
 - [ ] **语音播报与后端联动设置**：连接后端后进设置面板 → 四组控件在线可改：「主动播报语音」拨动开关（立即生效，关闭后到期提醒不再 TTS 朗读，事件气泡/通知不受影响）、播报音量/语速滑杆（下一次播报即按新值）、每日简报开关 + 简报时间、截止日期开关 + 检查时间（改时间/开关后调度热重注册，无需重启）→ 重启后全部保持（已外科式落盘 settings.toml 对应节，注释与其他字段不丢）；未连接时对应行显离线态文案；后端拒绝（超范围/非法值）时控件回滚原值且聊天流出现错误文案。
-- [ ] **复制与截屏**：AI 回复结束后气泡右下出现「📋 复制」→ 点击剪贴板可取（按钮短暂变“✓已复制”）；点输入栏 📸 → 附件 chips 出现截图缩略图 → 发送后模型能描述截图内容。
+- [ ] **复制与手动压缩上下文**：AI 回复结束后气泡右下出现「📋 复制」→ 点击剪贴板可取（按钮短暂变“✓已复制”）；点输入栏 🗜（`[CMP]`）→ 经 `slash.exec` 透传 `/compact`，聊天流出现压缩命令输出卡片（原 📸 主屏截屏按钮因实用性低已于 2026-10 删除）。
 - [ ] **右栏任务中心**：对话「10 分钟后提醒我喝水」→ 提醒出现在任务中心列表（时间升序）；到点触发后条目消失、⏰ 气泡上屏；对话设截止日期后可见倒计时（临期黄/逾期红）；每日简报触发后「最近简报」折叠块可展开。
 - [ ] **右栏用量与健康**：发几轮对话后用量卡 token/轮数增长（口径同 REPL `/cost`）；运行健康显示 MCP 连接数与工具数（未启用显示“MCP 未启用”）——**MCP 为后台预热（约 9s）**，若刚连上时快照未就绪先显示“未启用”，连接落定后应自动刷新为真实连接态（依 `mcp_ready` 事件，无需重启）；日志流随对话/工具调用滚动追加。
 - [ ] **实时语音**（如后端支持）：切「实时」模式 → 反应炉进入聆听/说话律动 → 状态栏文案随 `status` 事件变化。
@@ -123,11 +153,21 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 - [ ] **主动播报**：`briefing_time` 临时改为 2 分钟后重启 `npm run dev` → 到点聊天区出现简报气泡 + Windows 系统通知；对话「1 分钟后提醒我喝水」→ 到点 ⏰ 气泡 + 通知；关闭窗口只剩托盘时通知仍弹（主进程 Notification 不依赖窗口）。详见 [`jarvis/docs/plans/proactive-desktop.md`](../../jarvis/docs/plans/proactive-desktop.md)。
 - [ ] **降级路径**：故意把 `JARVIS_REPO` 指向不存在目录 → 弹窗提示「找不到 jarvis 仓库」+ 日志路径，遮罩显示诊断文案（不白屏、不悬挂）。
 
-## 6. 二期路线图（本次不做）
+## 6. 二期路线图
+
+**已完成（本迭代）**：
+
+- ✅ PyInstaller 冻结后端（`jarvis/packaging/`）+ 随包 `extraResources` 分发，脱离本机 Python 依赖。
+- ✅ NSIS 安装包配置（`electron-builder.yml`）+ 打包态 `backend.ts::resolveLaunchPlan` 内置 exe 分支。
+  （环境卡点：winCodeSign 解压需符号链接权限，见上「打包发布」的开发模式/管理员/CI 三选一的解法。）
+- ✅ CI 自动发布（`.github/workflows/release.yml`）：`windows-latest` 并列检出双仓 → `npm run dist`
+  → 产物挂 GitHub Releases，规避本机符号链接权限卡点，一条 `v*` tag 即出可下载安装包。
+
+**待做**：
 
 - 主动播报 TTS 待机语音（`proactive_notify` 事件已带全文，届时桌面侧加语音通道即可，不改协议）。
-- NSIS 安装包 + 代码签名（Windows 正式分发）。
-- `electron-updater` 自动更新。
+- 代码签名（Windows 证书，消除 SmartScreen「未知发布者」提示）。
+- `electron-updater` 自动更新（签名后接入）。
 - 故障恢复 / 安全模式（后端崩溃自动重启 + 降级 UI）。
-- PyInstaller 捆绑 Python 运行时，脱离本机环境依赖（真正免安装分发）。
+- macOS / Linux 安装包（mac 需签名 + 公证）。
 - 实时语音模式深度接入、手机 Bridge 复用。

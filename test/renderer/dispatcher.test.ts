@@ -24,7 +24,7 @@ import { useRightStore } from '@renderer/stores/rightStore'
 import { useRemoteStore } from '@renderer/stores/remoteStore'
 import type { JarvisConnection } from '@renderer/stores/backendStore'
 
-/** 假连接门面：八个刷新动作 + 提醒已读回执均为 spy。 */
+/** 假连接门面：十个刷新动作 + 提醒已读回执均为 spy。 */
 function makeConn(): JarvisConnection {
   return {
     refreshSessions: vi.fn().mockResolvedValue(undefined),
@@ -40,6 +40,9 @@ function makeConn(): JarvisConnection {
     // 跨设备协同连接态刷新（2026-10）：init 拉取一次回填 remoteStore。
     // @author aceFelix
     refreshRemote: vi.fn().mockResolvedValue(undefined),
+    // 斜杠命令补全目录刷新（2026-10 slash.commands）：init 拉取一次回填 slashStore。
+    // @author aceFelix
+    refreshSlashCommands: vi.fn().mockResolvedValue(undefined),
     ackProactive: vi.fn()
   }
 }
@@ -131,6 +134,48 @@ describe('dispatchServerEvent · 文本对话流', () => {
     expect(useChatStore.getState().busy).toBe(true)
   })
 
+  // 停止闸门（reply.abort）：点停止后到 assistant_done 之间，WS 上仍可能残留
+  // 取消前已送达/排队的增量事件；dispatcher 必须逐条丢弃，否则视觉上就是
+  // “点了停止还在输出思考”。@author aceFelix
+  it('aborted 闸门开启时丢弃在途 thinking/text/tool 增量', () => {
+    // 先正常渲染出一截思考，再模拟点击停止。
+    dispatchServerEvent({ event: 'assistant_thinking', data: '想' }, makeConn())
+    useChatStore.getState().setAborted(true)
+    // 首条事件属于停止前正常渲染（它会置 busy）；复位后断言丢弃期的事件
+    // 不会再把 busy 又置回 true。
+    useChatStore.getState().setBusy(false)
+    // 闸门开启期间的四类增量事件全部应被丢弃：气泡内容、工具卡、busy 均不变。
+    dispatchServerEvent({ event: 'assistant_thinking', data: '还在想' }, makeConn())
+    dispatchServerEvent({ event: 'assistant_text', data: '还在说' }, makeConn())
+    dispatchServerEvent(
+      { event: 'tool_use', data: { name: 'Bash', id: 'c_abort', input: {} } },
+      makeConn()
+    )
+    dispatchServerEvent(
+      { event: 'tool_result', data: { id: 'c_abort', name: 'Bash', content: 'x' } },
+      makeConn()
+    )
+    const s = useChatStore.getState()
+    expect(s.messages.find((m) => m.kind === 'ai'))
+      .toMatchObject({ thinking: '想', text: '' })
+    expect(s.messages.find((m) => m.kind === 'tool')).toBeUndefined()
+    expect(s.busy).toBe(false)
+  })
+
+  it('assistant_done 解除闸门，新一轮增量恢复正常渲染', () => {
+    useChatStore.getState().setAborted(true)
+    dispatchServerEvent({ event: 'assistant_thinking', data: '丢弃' }, makeConn())
+    expect(useChatStore.getState().messages).toHaveLength(0)
+    // 收尾事件到达：闸门解除（即使本轮是取消路径，done 之后下一条增量属于新轮次）。
+    dispatchServerEvent({ event: 'assistant_done', data: null }, makeConn())
+    expect(useChatStore.getState().aborted).toBe(false)
+    dispatchServerEvent({ event: 'assistant_thinking', data: '新思考' }, makeConn())
+    expect(useChatStore.getState().messages[0]).toMatchObject({
+      kind: 'ai',
+      thinking: '新思考'
+    })
+  })
+
   it('assistant_done 收尾未回填的工具卡（取消/报错后不留“执行中”）', () => {
     // reply.abort 取消时 Bash 被 kill、不发 tool_result；assistant_done 必须
     // 把这张挂起的卡定稿，否则永远停在“执行中”。@author aceFelix
@@ -204,11 +249,13 @@ describe('dispatchServerEvent · 会话与初始化', () => {
     expect(conn.refreshProjects).toHaveBeenCalled()
     // 2026-10 跨设备协同：init 拉 phone.status + wechat.status 回填连接态
     expect(conn.refreshRemote).toHaveBeenCalled()
+    // 2026-10 斜杠命令补全：init 拉 slash.commands 回填 slashStore
+    expect(conn.refreshSlashCommands).toHaveBeenCalled()
     // 握手完成即把状态栏从「等待后端启动...」切到「就绪」（2026-08 修复）。@author aceFelix
     expect(onStatus).toHaveBeenCalledWith({ text: '就绪', tone: 'idle' } satisfies StatusLabel)
   })
 
-  it('session_new 清空并提示', () => {
+  it('session_new 清空并提示（同步刷用量卡归零）', () => {
     const conn = makeConn()
     useChatStore.getState().addUser('旧消息')
     dispatchServerEvent({ event: 'session_new', data: null }, conn)
@@ -216,6 +263,8 @@ describe('dispatchServerEvent · 会话与初始化', () => {
     expect(msgs).toHaveLength(1)
     expect(msgs[0]).toMatchObject({ kind: 'system', text: '已开启新会话' })
     expect(conn.refreshSessions).toHaveBeenCalled()
+    // 新会话后刷 cost.get，上下文窗口/轮数/消息数随之归零。@author aceFelix
+    expect(conn.refreshCost).toHaveBeenCalled()
   })
 
   it('session_ready 只刷新会话列表不清空气泡（保护首发用户气泡）', () => {
@@ -253,18 +302,21 @@ describe('dispatchServerEvent · 会话与初始化', () => {
     expect(conn.refreshSessions).toHaveBeenCalled()
   })
 
-  it('session_loaded 回放历史并追加恢复提示', () => {
+  it('session_loaded 回放历史并追加恢复提示（同步刷用量卡）', () => {
+    const conn = makeConn()
     dispatchServerEvent(
       {
         event: 'session_loaded',
         data: { name: 's1', messages: [{ role: 'user', text: '问' }, { role: 'assistant', text: '答' }] }
       },
-      makeConn()
+      conn
     )
     const kinds = useChatStore.getState().messages.map((m) => m.kind)
     expect(kinds).toEqual(['user', 'ai', 'system'])
     const last = useChatStore.getState().messages[2]
     expect(last.kind === 'system' && last.text).toContain('s1')
+    // 恢复历史会话后刷 cost.get，右栏上下文窗口占比与轮数/消息数不再停在 0。@author aceFelix
+    expect(conn.refreshCost).toHaveBeenCalled()
   })
 })
 
@@ -731,5 +783,118 @@ describe('dispatchServerEvent · 跨设备协同（qrcode / remote_state）', ()
     const ai = msgs.find((m) => m.kind === 'ai')
     expect(ai && ai.kind === 'ai' && ai.streaming).toBe(false)
     expect(msgs[msgs.length - 1]).toMatchObject({ kind: 'user', source: 'wechat', text: '新问题' })
+  })
+})
+
+// 消息级回溯（撤回）：checkpoint.rewind 落地推 rewound 事件 → 按 removed_user
+// 裁本地用户气泡及其后全部内容 + 按 files_restored/reason 提示；失败不裁。
+// @author aceFelix
+describe('dispatchServerEvent · 消息回溯 rewound', () => {
+  /** 造两条用户轮：user1/ai1/user2/ai2（尾部数 2 = 从 user1 起撤回）。 */
+  function seedTwoTurns(): void {
+    const c = useChatStore.getState()
+    c.addUser('第一条')
+    c.appendAssistantText('回复一')
+    c.finishAssistant()
+    c.addUser('第二条')
+    c.appendAssistantText('回复二')
+    c.finishAssistant()
+  }
+
+  /** 只取对话气泡（排除撤回后追加的 system 提示），圆活计数。 */
+  function conv(): string[] {
+    return useChatStore
+      .getState()
+      .messages.filter((m) => m.kind !== 'system')
+      .map((m) => m.kind)
+  }
+
+  it('ok=true：按 removed_user 从尾部裁掉对应用户气泡及其后全部气泡', () => {
+    seedTwoTurns()
+    expect(conv()).toHaveLength(4)
+    const conn = makeConn()
+    dispatchServerEvent(
+      { event: 'rewound', data: { ok: true, removed: 4, removed_user: 2, files_restored: true, reason: '' } },
+      conn
+    )
+    expect(conv()).toHaveLength(0)
+    expect(conn.refreshSessions).toHaveBeenCalled()
+    expect(conn.refreshCost).toHaveBeenCalled()
+  })
+
+  it('ok=true 尾部数 1：只删最后一条用户轮（保留更早的轮）', () => {
+    seedTwoTurns()
+    dispatchServerEvent(
+      { event: 'rewound', data: { ok: true, removed: 2, removed_user: 1, files_restored: false, reason: '' } },
+      makeConn()
+    )
+    expect(conv()).toEqual(['user', 'ai'])
+  })
+
+  it('ok=true files_restored=false 带 reason：提示里附降级说明', () => {
+    seedTwoTurns()
+    dispatchServerEvent(
+      { event: 'rewound', data: { ok: true, removed: 2, removed_user: 1, files_restored: false, reason: '无可用检查点，仅回退对话' } },
+      makeConn()
+    )
+    expect(conv()).toEqual(['user', 'ai'])
+    const sys = useChatStore.getState().messages.filter((m) => m.kind === 'system')
+    expect(sys.some((m) => m.kind === 'system' && m.text.includes('仅回退对话'))).toBe(true)
+  })
+
+  it('ok=false：不裁任何气泡，仅弹错（与后端「失败不截断」语义对齐）', () => {
+    seedTwoTurns()
+    dispatchServerEvent(
+      { event: 'rewound', data: { ok: false, removed: 0, removed_user: 0, files_restored: false, reason: '文件回滚失败：目标提交不存在' } },
+      makeConn()
+    )
+    expect(conv()).toHaveLength(4)
+    const sys = useChatStore.getState().messages.filter((m) => m.kind === 'system')
+    expect(sys.some((m) => m.kind === 'system' && m.text.includes('撤回失败'))).toBe(true)
+  })
+
+  it('removed_user 缺失/为 0：不裁气泡但仍提示成功（防误删）', () => {
+    seedTwoTurns()
+    dispatchServerEvent(
+      { event: 'rewound', data: { ok: true, removed: 2, files_restored: true, reason: '' } },
+      makeConn()
+    )
+    expect(conv()).toHaveLength(4)
+  })
+})
+
+// ---- 斜杠命令透传（slash.exec → slash_result 事件，2026-10） ----
+// @author aceFelix
+describe('dispatchServerEvent · slash_result 命令输出卡片', () => {
+  it('ok=true：落 slash 卡片（命令原文/输出全文/非错态），收尾 busy 并刷用量', () => {
+    useChatStore.getState().setBusy(true)
+    const conn = makeConn()
+    dispatchServerEvent(
+      { event: 'slash_result', data: { command: '/cost', ok: true, text: '输入 123 输出 45' } },
+      conn
+    )
+    const m = useChatStore.getState().messages[0]
+    expect(m).toMatchObject({ kind: 'slash', command: '/cost', text: '输入 123 输出 45', isError: false })
+    expect(useChatStore.getState().busy).toBe(false)
+    expect(conn.refreshCost).toHaveBeenCalled()
+  })
+
+  it('ok=false：卡片带错态（isError=true），拒绝文案原样透出', () => {
+    dispatchServerEvent(
+      { event: 'slash_result', data: { command: '/init', ok: false, text: '/init 暂不支持在桌面执行' } },
+      makeConn()
+    )
+    const m = useChatStore.getState().messages[0]
+    expect(m).toMatchObject({ kind: 'slash', isError: true })
+    if (m.kind === 'slash') expect(m.text).toContain('暂不支持')
+  })
+
+  it('停止闸门开启中仍接收 slash_result（命令结果不是流式增量，不受闸门影响）', () => {
+    useChatStore.getState().setAborted(true)
+    dispatchServerEvent(
+      { event: 'slash_result', data: { command: '/doctor', ok: true, text: '自检通过' } },
+      makeConn()
+    )
+    expect(useChatStore.getState().messages.some((m) => m.kind === 'slash')).toBe(true)
   })
 })
