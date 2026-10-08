@@ -12,7 +12,7 @@
 
 import { EventEmitter } from 'events'
 import { tmpdir } from 'os'
-import { resolve as resolvePath } from 'path'
+import { dirname, resolve as resolvePath } from 'path'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // child_process.spawn 被 mock：killChild 在 win32 下会调用 spawn('taskkill', ...)，
@@ -24,6 +24,7 @@ vi.mock('../../src/main/logging', () => ({ log: vi.fn(), logError: vi.fn() }))
 import {
   parseHandshakeLine,
   resolvePythonEnv,
+  resolveLaunchPlan,
   BackendManager,
   type SpawnFn
 } from '../../src/main/backend'
@@ -249,5 +250,94 @@ describe('BackendManager 生命周期', () => {
     const first = await p
     const second = await mgr.start()
     expect(second).toBe(first)
+  })
+})
+
+describe('resolveLaunchPlan（dev/exe 启动计划决策）', () => {
+  it('显式 JARVIS_SERVE_EXE 优先：mode=exe、绝对路径、无参数', () => {
+    const plan = resolveLaunchPlan({
+      env: { JARVIS_SERVE_EXE: resolvePath('C:', 'fake', 'jarvis-serve.exe') },
+      appDir: '/app',
+      isPackaged: false
+    })
+    expect(plan.mode).toBe('exe')
+    expect(plan.command).toBe(resolvePath('C:', 'fake', 'jarvis-serve.exe'))
+    expect(plan.args).toEqual([])
+  })
+
+  it('打包态（isPackaged+resourcesPath）：指向 resources/jarvis-serve/jarvis-serve.exe', () => {
+    const plan = resolveLaunchPlan({
+      env: {},
+      appDir: '/app',
+      isPackaged: true,
+      resourcesPath: resolvePath('R:', 'resources')
+    })
+    expect(plan.mode).toBe('exe')
+    expect(plan.command).toBe(
+      resolvePath('R:', 'resources', 'jarvis-serve', 'jarvis-serve.exe')
+    )
+    expect(plan.args).toEqual([])
+  })
+
+  it('dev 回退：mode=python、args=[-m agent.serve]、cwd=jarvis 仓库', () => {
+    const plan = resolveLaunchPlan({
+      env: { JARVIS_REPO: tmpdir(), JARVIS_PYTHON: 'py313' },
+      appDir: '/app',
+      isPackaged: false
+    })
+    expect(plan.mode).toBe('python')
+    expect(plan.command).toBe('py313')
+    expect(plan.args).toEqual(['-m', 'agent.serve'])
+    expect(plan.cwd).toBe(tmpdir())
+  })
+
+  it('显式 exe 覆盖优先于打包态（即便 isPackaged 为真也走 JARVIS_SERVE_EXE）', () => {
+    const exe = resolvePath('E:', 'custom-serve.exe')
+    const plan = resolveLaunchPlan({
+      env: { JARVIS_SERVE_EXE: exe },
+      appDir: '/app',
+      isPackaged: true,
+      resourcesPath: resolvePath('R:', 'resources')
+    })
+    expect(plan.command).toBe(exe)
+  })
+})
+
+describe('BackendManager 打包态 spawn 冻结 exe', () => {
+  it('exe 模式：以 exe 命令、空参数、exe 所在目录为 cwd 拉起并握手', async () => {
+    // 用真实存在的 tmpdir() 充当 exe 路径，过 existsSync 校验（仅测 spawn 调用形态）。
+    const exe = tmpdir()
+    const spawnFn = vi.fn(() => {
+      const c = makeFakeChild()
+      ;(spawnFn as unknown as { _child: FakeChild })._child = c
+      return c as unknown as ReturnType<SpawnFn>
+    }) as unknown as SpawnFn
+    const onStatus = vi.fn()
+    const mgr = new BackendManager({
+      env: { JARVIS_SERVE_EXE: exe },
+      appDir: '/app',
+      spawnFn,
+      onStatus
+    })
+    const p = mgr.start()
+    const c = (spawnFn as unknown as { _child: FakeChild })._child
+    // spawn 以 exe 作 command、args 为空、cwd 为 exe 所在目录
+    expect(spawnFn).toHaveBeenCalledWith(exe, [], expect.objectContaining({ cwd: dirname(exe) }))
+    c.stdout.emit('data', `${GOOD_LINE}\n`)
+    await p
+    expect(mgr.getState()).toBe('ready')
+  })
+
+  it('exe 缺失：报“找不到内置后端可执行文件”，不 spawn', async () => {
+    const spawnFn = vi.fn() as unknown as SpawnFn
+    const onStatus = vi.fn()
+    const mgr = new BackendManager({
+      env: { JARVIS_SERVE_EXE: resolvePath(tmpdir(), '__no_such_exe__') },
+      appDir: '/app',
+      spawnFn,
+      onStatus
+    })
+    await expect(mgr.start()).rejects.toThrow('找不到内置后端可执行文件')
+    expect(spawnFn).not.toHaveBeenCalled()
   })
 })

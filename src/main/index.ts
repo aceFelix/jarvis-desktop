@@ -12,7 +12,7 @@
  * @author aceFelix
  */
 
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron'
 import { join } from 'path'
 import {
   createBackendManager,
@@ -23,7 +23,7 @@ import { initLogging, log, logError } from './logging'
 import { resolveIconPath } from './appIcon'
 import { showSystemNotification } from './notify'
 import { createTray, destroyTray } from './tray'
-import { IpcChannels, type NotifyRequest, type ScreenCapture, type WindowAction } from '../shared/contracts'
+import { IpcChannels, type NotifyRequest, type WindowAction } from '../shared/contracts'
 
 let mainWindow: BrowserWindow | null = null
 let backend: BackendManager | null = null
@@ -87,11 +87,17 @@ async function startBackend(): Promise<void> {
     await backend.start()
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
+    // 打包态后端随安装包分发（jarvis-serve.exe），不应让用户去装 Python；
+    // 仅 dev 态才提示解释器/仓库/pip 依赖。
+    const hint = app.isPackaged
+      ? `打包后端随安装包一同分发。若反复启动失败：\n` +
+        `1. 确认杀毒软件/Windows Defender 未隔离 resources\\jarvis-serve\\jarvis-serve.exe\n` +
+        `2. 重新下载安装包并重装\n`
+      : `请检查：\n1. Python 已安装且在 PATH（或设置 JARVIS_PYTHON）\n` +
+        `2. jarvis 仓库路径正确（或设置 JARVIS_REPO）\n3. 依赖已安装（pip install -e .）\n`
     dialog.showErrorBox(
       'J.A.R.V.I.S 后端启动失败',
-      `${message}\n\n请检查：\n1. Python 已安装且在 PATH（或设置 JARVIS_PYTHON）\n` +
-        `2. jarvis 仓库路径正确（或设置 JARVIS_REPO）\n3. 依赖已安装（pip install -e .）\n\n` +
-        `详细日志：${join(app.getPath('userData'), 'logs', 'desktop.log')}`
+      `${message}\n\n${hint}\n详细日志：${join(app.getPath('userData'), 'logs', 'desktop.log')}`
     )
   }
 }
@@ -138,18 +144,6 @@ function registerIpc(): void {
   ipcMain.on(IpcChannels.SystemNotify, (_event, req: NotifyRequest) => {
     showSystemNotification(req, () => mainWindow)
   })
-  // 截屏桥：右栏「截屏发给贾维斯」——desktopCapturer 取主屏缩略图
-  //（1280×720 足够 vision 识别且控制 base64 体积），无可用屏源时返回 null。
-  // @author aceFelix
-  ipcMain.handle(IpcChannels.CaptureScreen, async (): Promise<ScreenCapture | null> => {
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width: 1280, height: 720 }
-    })
-    const primary = sources[0]
-    if (!primary || primary.thumbnail.isEmpty()) return null
-    return { data: primary.thumbnail.toPNG().toString('base64'), media_type: 'image/png' }
-  })
   // 项目工作区：目录选择器。返回选中绝对路径或 null（取消）。
   // 安全边界：只弹系统对话框、不读取内容、不写入文件；后端会对 path 二次校验
   //（存在 + 绝对路径），避免渲染进程传入任何“不存在、相对路径、自动建目录”类误操作。
@@ -190,6 +184,10 @@ if (!gotLock) {
 
     backend = createBackendManager({
       appDir: app.getAppPath(),
+      // 打包态注入 isPackaged + resourcesPath，backend.ts 据此 spawn 随包的
+      // jarvis-serve.exe；dev 态二者为假/未用，回退本机 python -m agent.serve。
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
       onStatus: (state, info, error) => {
         // 状态变化推给渲染进程（启动进度 / 崩溃提示）
         if (mainWindow && !mainWindow.isDestroyed()) {

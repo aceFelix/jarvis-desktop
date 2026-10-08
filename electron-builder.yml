@@ -1,3 +1,13 @@
+# electron-builder 打包配置（二期：Windows NSIS 安装包 + 随包冻结后端）
+# 产物：dist/JARVIS Desktop-Setup-<version>.exe（用户下载双击即装，无需 Python）。
+#
+# 后端来源：extraResources 把 jarvis 仓 PyInstaller 冻结出的 onedir
+# （../jarvis/dist/jarvis-serve/）整体拷入安装包的 resources/jarvis-serve/，
+# 运行时 backend.ts 在打包态 spawn resources/jarvis-serve/jarvis-serve.exe。
+# 该目录须先由 `npm run dist` 前置脚本构建（见 package.json），否则 electron-builder
+# 会因 from 路径不存在而报错。
+#
+# @author aceFelix
 appId: com.acefelix.jarvis.desktop
 productName: JARVIS Desktop
 directories:
@@ -6,10 +16,29 @@ directories:
 files:
   - out/**
   - package.json
+# 关 asar：一是本项目无需靠 asar 防浏览源码；二是规避 Windows 上
+# electron-builder 向新建的 electron exe 回写 asar 完整性时被 Defender 写锁
+# 命中（addWinAsarIntegrity writeFile → UNKNOWN）。
+# @author aceFelix
+asar: false
 asarUnpack: []
+# 随包冻结后端：onedir 整目录 → resources/jarvis-serve/（exe 与其 _internal 依赖）。
+# 无 from 存在性回退：缺失即构建失败，强制"先冻结后打包"的正确顺序。
+extraResources:
+  - from: ../jarvis/dist/jarvis-serve
+    to: jarvis-serve
 win:
-  # 一期 dev 模式不做签名与安装包（NSIS + 代码签名是二期目标）
+  # 二期首发：Windows NSIS 安装包。无代码签名（个人开源），首次运行会有
+  # SmartScreen「未知发布者」提示，用户点「仍要运行」即可（README 有说明）。
   target:
-    - dir
+    - nsis
   icon: build/icon.ico
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: JARVIS
+  artifactName: ${productName}-Setup-${version}.${ext}
 npmRebuild: false

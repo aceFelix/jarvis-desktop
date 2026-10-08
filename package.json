@@ -15,7 +15,10 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test": "vitest run",
     "test:watch": "vitest",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "serve:build": "powershell -ExecutionPolicy Bypass -File ../jarvis/packaging/build_serve.ps1",
+    "dist": "npm run build && npm run serve:build && electron-builder --win",
+    "dist:fast": "npm run build && electron-builder --win"
   },
   "dependencies": {
     "qrcode": "^1.5.4",

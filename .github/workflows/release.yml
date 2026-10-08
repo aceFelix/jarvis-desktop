@@ -1,0 +1,145 @@
+# jarvis-desktop 发布流水线（作者：aceFelix）
+#
+# 目标：在 GitHub windows-latest 上产出可分发的 Windows NSIS 安装包，并自动挂到
+#       GitHub Releases，让别人「下载安装程序双击即装、无需本机 Python」。
+#
+# 为什么放在桌面仓库触发：安装包由桌面仓库的 electron-builder 生成，但后端 exe 由
+#   jarvis 仓库经 PyInstaller 冻结而来，二者的编译产物需在同一台机器上汇合。
+#
+# 与现有 ci.yml 的分工：
+#   - ci.yml：push/PR 只做 typecheck / 单测 / 构建验证（ubuntu，快、便宜）；
+#   - 本文件：仅打正式包 + 发布，跑在 windows-latest（NSIS/符号链接权限到位）。
+#
+# 关键约束（务必与本地打包保持一致）：
+#   1) 桌面 `npm run dist` = build && serve:build && electron-builder --win，其中
+#      serve:build 通过相对路径 ../jarvis/packaging/build_serve.ps1 引用后端仓库，
+#      故两个仓库必须并列 checkout 到 jarvis-desktop/ 与 jarvis/。
+#   2) 冻结前必须在 jarvis 仓库内 `pip install -e .`，让 PyInstaller 能解析 agent 包。
+#   3) electron-builder.yml 已设 asar:false、win target=nsis、extraResources 拷入
+#      ../jarvis/dist/jarvis-serve —— 本流水线只需按序执行，无需额外配置。
+#
+# 触发方式：
+#   - push 形如 v* 的 tag（推荐发布方式：git tag v0.1.0 && git push --follow-tags）；
+#   - 或手动 workflow_dispatch（可指定 tag 名与 jarvis 参照）。
+#
+# 若 jarvis 为私有仓库：cross-repo checkout 需要一个能读取 aceFelix/jarvis 的 PAT，
+#   存为仓库 Secret JARVIS_REPO_TOKEN，并把下方 jarvis checkout 步骤的 token 替换为该 Secret。
+
+name: Release Desktop Installer
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "发布用的 tag 名（留空则用当前 ref）"
+        required: false
+        default: ""
+      jarvis_ref:
+        description: "jarvis 后端仓库要检出的分支/tag"
+        required: false
+        default: "master"
+
+# 同一发布只允许一个构建在跑
+concurrency:
+  group: release-desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # 创建/上传 GitHub Release
+
+jobs:
+  build-windows-installer:
+    name: Build Windows NSIS Installer
+    runs-on: windows-latest
+
+    env:
+      # Electron / electron-builder 在 CI 直连 github 通常可达；如遇限速可切 npmmirror：
+      # ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+      # ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+      PYTHONUNBUFFERED: 1
+
+    steps:
+      # 桌面仓库检出到 jarvis-desktop/，与后端仓库并列，保证 ../jarvis 相对路径成立
+      - name: Checkout jarvis-desktop
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.ref }}
+          path: jarvis-desktop
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag_name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # 后端仓库并列检出到 jarvis/（公开仓库匿名即可；私有则改用 JARVIS_REPO_TOKEN）
+      - name: Checkout jarvis (backend)
+        uses: actions/checkout@v4
+        with:
+          repository: aceFelix/jarvis
+          ref: ${{ inputs.jarvis_ref || 'master' }}
+          path: jarvis
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: jarvis-desktop/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 冻结前置：安装 agent 包（可编辑）+ PyInstaller（仅构建期工具，非运行依赖）
+      - name: Install backend for freezing
+        working-directory: jarvis
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pyinstaller
+
+      - name: Install desktop dependencies
+        working-directory: jarvis-desktop
+        run: npm ci
+
+      # 一键产出安装包：build（electron-vite）→ serve:build（PyInstaller 冻结后端到
+      # jarvis/dist/jarvis-serve）→ electron-builder --win（extraResources 拷入并封装 NSIS）
+      - name: Build installer (npm run dist)
+        working-directory: jarvis-desktop
+        run: npm run dist
+
+      # 校验产物存在，缺失即让流水线红，避免发布空 Release
+      - name: Verify installer artifact
+        shell: bash
+        run: |
+          found=$(find jarvis-desktop/dist -maxdepth 1 -name "*.exe" | wc -l)
+          echo "Found $found installer exe file(s):"
+          ls -la jarvis-desktop/dist/*.exe
+          if [ "$found" -lt 1 ]; then
+            echo "::error::No NSIS installer produced under jarvis-desktop/dist"
+            exit 1
+          fi
+
+      # 上传到 GitHub Release（tag 已存在则复用；不存在则据此 tag 创建）
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag_name }}
+          name: JARVIS Desktop ${{ steps.tag.outputs.tag_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            jarvis-desktop/dist/*-Setup-*.exe
+            jarvis-desktop/dist/*-Setup-*.exe.blockmap

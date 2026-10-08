@@ -9,12 +9,16 @@
  * - JARVIS_PYTHON：Python 解释器（默认 "python"）
  * - JARVIS_REPO：jarvis 仓库路径（默认相对本仓库 "../jarvis"）
  *
+ * 二期打包态：不再依赖本机 Python，改 spawn 随安装包分发的冻结后端
+ * jarvis-serve.exe（electron-builder extraResources 放到 resources/jarvis-serve/）；
+ * 亦可用 JARVIS_SERVE_EXE 显式指定 exe（自测/特殊部署）。
+ *
  * @author aceFelix
  */
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import { existsSync } from 'fs'
-import { resolve as resolvePath } from 'path'
+import { dirname, join as joinPath, resolve as resolvePath } from 'path'
 import {
   SERVE_READY_MARKER,
   type BackendInfo,
@@ -47,6 +51,74 @@ export function resolvePythonEnv(
     ? resolvePath(env.JARVIS_REPO)
     : resolvePath(appDir, '..', 'jarvis')
   return { python, repo }
+}
+
+/**
+ * 后端启动计划：统一描述 dev（python -m agent.serve）与打包态（冻结 exe）两种拉起方式。
+ * mode 决定存在性校验与错误提示口径。@author aceFelix
+ */
+export interface LaunchPlan {
+  /** spawn 可执行文件（python 解释器或 jarvis-serve.exe）。 */
+  command: string
+  /** 传给 command 的参数（dev 为 ['-m','agent.serve']；exe 无参）。 */
+  args: string[]
+  /** 子进程工作目录（dev 为 jarvis 仓库；exe 为其所在目录）。 */
+  cwd: string
+  /** 'exe' 用随包冻结后端；'python' 用本机解释器。 */
+  mode: 'exe' | 'python'
+  /** 人类可读标签（日志用）。 */
+  label: string
+}
+
+/** resolveLaunchPlan 的输入（均可注入以便单测）。 */
+export interface LaunchPlanInput {
+  env: NodeJS.ProcessEnv
+  appDir: string
+  /** Electron app.isPackaged。 */
+  isPackaged?: boolean
+  /** Electron process.resourcesPath（打包态 resources 目录）。 */
+  resourcesPath?: string
+}
+
+/**
+ * 决策后端启动计划（纯函数，可测）。优先级：
+ * 1) JARVIS_SERVE_EXE 显式 exe（自测/特殊部署，跨 dev/打包均生效）；
+ * 2) 打包态（isPackaged + resourcesPath）用 resources/jarvis-serve/jarvis-serve.exe；
+ * 3) 否则回退 dev：python -m agent.serve（本机 jarvis 仓库）。
+ *
+ * @author aceFelix
+ */
+export function resolveLaunchPlan(input: LaunchPlanInput): LaunchPlan {
+  const { env, appDir, isPackaged, resourcesPath } = input
+  const explicitExe = env.JARVIS_SERVE_EXE
+  if (explicitExe) {
+    const exe = resolvePath(explicitExe)
+    return {
+      command: exe,
+      args: [],
+      cwd: dirname(exe),
+      mode: 'exe',
+      label: exe
+    }
+  }
+  if (isPackaged && resourcesPath) {
+    const exe = joinPath(resourcesPath, 'jarvis-serve', 'jarvis-serve.exe')
+    return {
+      command: exe,
+      args: [],
+      cwd: dirname(exe),
+      mode: 'exe',
+      label: exe
+    }
+  }
+  const { python, repo } = resolvePythonEnv(env, appDir)
+  return {
+    command: python,
+    args: ['-m', 'agent.serve'],
+    cwd: repo,
+    mode: 'python',
+    label: `${python} -m agent.serve (cwd=${repo})`
+  }
 }
 
 /**
@@ -91,6 +163,10 @@ export type SpawnFn = (
 export interface BackendManagerOptions {
   env?: NodeJS.ProcessEnv
   appDir?: string
+  /** Electron app.isPackaged（index.ts 注入）：决定 dev/exe 拉起方式。 */
+  isPackaged?: boolean
+  /** Electron process.resourcesPath（index.ts 注入）：打包态 exe 所在 resources 目录。 */
+  resourcesPath?: string
   spawnFn?: SpawnFn
   handshakeTimeoutMs?: number
   /** 状态变化回调（index.ts 里转发给渲染进程）。 */
@@ -142,14 +218,20 @@ export class BackendManager {
     if (this.state === 'spawning') {
       return Promise.reject(new Error('后端已在启动中'))
     }
-    const { python, repo } = resolvePythonEnv(
-      this.opts.env ?? process.env,
-      this.opts.appDir ?? process.cwd()
-    )
-    if (!existsSync(repo)) {
-      return this.fail(`找不到 jarvis 仓库: ${repo}（设置环境变量 JARVIS_REPO 指向它）`)
+    const plan = resolveLaunchPlan({
+      env: this.opts.env ?? process.env,
+      appDir: this.opts.appDir ?? process.cwd(),
+      isPackaged: this.opts.isPackaged,
+      resourcesPath: this.opts.resourcesPath
+    })
+    // 存在性校验按模式分开：dev 验仓库在否，exe 验内置后端在否。
+    if (plan.mode === 'python' && !existsSync(plan.cwd)) {
+      return this.fail(`找不到 jarvis 仓库: ${plan.cwd}（设置环境变量 JARVIS_REPO 指向它）`)
     }
-    log(`拉起后端: ${python} -m agent.serve (cwd=${repo})`)
+    if (plan.mode === 'exe' && !existsSync(plan.command)) {
+      return this.fail(`找不到内置后端可执行文件: ${plan.command}（安装包可能损坏，请重新安装）`)
+    }
+    log(`拉起后端: ${plan.label}`)
     this.stopping = false
     this.setState('spawning')
 
@@ -158,16 +240,19 @@ export class BackendManager {
       const spawnFn = this.opts.spawnFn ?? (spawn as unknown as SpawnFn)
       let child: ChildProcessWithoutNullStreams
       try {
-        child = spawnFn(python, ['-m', 'agent.serve'], {
-          cwd: repo,
-          // Windows 下隐藏控制台窗口（python 而非 pythonw，需要 stdout 管道）
+        child = spawnFn(plan.command, plan.args, {
+          cwd: plan.cwd,
+          // Windows 下隐藏控制台窗口（python/exe 都需保留 stdout 管道握手）
           windowsHide: true,
           env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
         })
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        this.fail(`spawn 失败: ${msg}（检查 Python 是否安装: ${python}）`)
-          .catch(reject)
+        const hint =
+          plan.mode === 'python'
+            ? `检查 Python 是否安装: ${plan.command}`
+            : `检查内置后端是否就绪: ${plan.command}`
+        this.fail(`spawn 失败: ${msg}（${hint}）`).catch(reject)
         return
       }
       this.child = child
@@ -225,8 +310,8 @@ export class BackendManager {
           settled = true
           clearTimeout(timer)
           this.fail(
-            `serve 进程提前退出 (code=${code}, signal=${signal})，` +
-              `请检查 Python 环境（${python}）与 jarvis 仓库（${repo}）`
+            `serve 进程提前退出 (code=${code}, signal=${signal})，`
+              + `请检查后端启动命令（${plan.label}）及其运行环境`
           ).catch(reject)
           return
         }
