@@ -75,7 +75,19 @@ electron-builder 从 github 下载 Electron 运行时与自身二进制会失败
 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`、
 `ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/`。
 
-## 6. 后续
+## 6. CI 首跑（windows-latest，2026-10-08）
+
+推 `v0.1.0` tag 首跑，**打包链路全绿**：`build` → PyInstaller 冻结 `jarvis-serve.exe`（双仓并列
+checkout 下 `pip install -e .` 正常）→ electron-builder 下载 `winCodeSign`/`nsis` **无权限报错**（印证了
+第 4 节：CI runner 自带符号链接权限）→ 成功产出 `dist/JARVIS Desktop-Setup-0.1.0.exe` + blockmap。
+
+**唯一致败点**：末尾 `⨯ GitHub Personal Access Token is not set ... GH_TOKEN`。根因：electron-builder
+检测到 tag 构建会自动启用**内置 GitHub 发布器**（日志 `artifacts will be published reason=tag is defined`），
+与 workflow 里 `softprops/action-gh-release` 两套发布器重叠、前者缺 `GH_TOKEN` 而失败。
+**修复**：`electron-builder.yml` 加 `publish: null` 关掉自带发布器，Release 上传统一交给 softprops 步骤
+（用内置 `GITHUB_TOKEN` + `permissions: contents: write`）。改动后重打 tag 即出可下载安装包。
+
+## 7. 后续
 
 - ✅ **CI 出包已配置**（`.github/workflows/release.yml`，2026-10）：`windows-latest` 上并列检出
   `jarvis-desktop` + `jarvis`（默认 `master`）、装 Node 20 + Python 3.12（`pip install -e .` + `pyinstaller`）、
