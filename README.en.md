@@ -2,7 +2,7 @@
 
 > The J.A.R.V.I.S desktop shell (Electron + React) — spawns the `--serve` backend of [`jarvis`](../jarvis) and provides desktop host capabilities with a brand-new React UI.
 
-[![CI](https://github.com/aceFelix/jarvis-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/aceFelix/jarvis-desktop/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-MIT-blue)]()
+[![CI](https://github.com/aceFelix/jarvis-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/aceFelix/jarvis-desktop/actions/workflows/ci.yml) [![release](https://img.shields.io/github/v/release/aceFelix/jarvis-desktop)](https://github.com/aceFelix/jarvis-desktop/releases) [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![upstream: jarvis](https://img.shields.io/badge/upstream-jarvis-4b6fdd?logo=github&logoColor=white)](https://github.com/aceFelix/jarvis) [![platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)]() [![Node](https://img.shields.io/badge/Node-%E2%89%A518-339933?logo=nodedotjs&logoColor=white)]() [![Electron](https://img.shields.io/badge/Electron-33-47848F?logo=electron&logoColor=white)]() [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)]() [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)]()
 
 [中文](README.md) | **English**
 
