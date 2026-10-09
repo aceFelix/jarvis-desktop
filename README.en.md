@@ -52,6 +52,16 @@ Voice conversation — true full-duplex `/talk` and half-duplex `/voice`:
 |---|---|---|
 | ![Full-duplex realtime voice multi-turn conversation](assets/screenshots/realtime-talk.png) | ![Half-duplex voice mode with TTS speaking](assets/screenshots/voice-talk0.png) | ![Voice mode standby waiting for the wake word](assets/screenshots/voice-talk1.png) |
 
+Multi-end collaboration — scan to connect WeChat; phone and desktop share one conversation:
+
+| Desktop: connection QR code | Desktop: connected |
+|---|---|
+| ![Desktop showing a WeChat connection QR code](assets/screenshots/connect-wechat0.png) | ![Desktop confirming WeChat is connected](assets/screenshots/connect-wechat1.png) |
+
+| Phone: chatting with ClawBot in WeChat | Desktop: the same conversation synced |
+|---|---|
+| ![Phone chatting with ClawBot in WeChat](assets/screenshots/connect-wechat3.png) | ![Desktop showing the phone-initiated conversation](assets/screenshots/connect-wechat2.png) |
+
 ## Quick Start
 
 ```powershell

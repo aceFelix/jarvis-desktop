@@ -52,6 +52,16 @@ jarvis（Python）                         jarvis-desktop（Electron）
 |---|---|---|
 | ![全双工实时语音多轮连续问答](assets/screenshots/realtime-talk.png) | ![半双工语音模式 TTS 播报中](assets/screenshots/voice-talk0.png) | ![语音模式退下后待机等待唤醒](assets/screenshots/voice-talk1.png) |
 
+跨设备协同——微信扫码接入，手机与桌面共享同一会话：
+
+| 桌面端：生成连接二维码 | 桌面端：扫码连接成功 |
+|---|---|
+| ![桌面端生成微信连接二维码](assets/screenshots/connect-wechat0.png) | ![桌面端提示微信已连接](assets/screenshots/connect-wechat1.png) |
+
+| 手机端：微信 ClawBot 对话 | 桌面端：同步展示该对话 |
+|---|---|
+| ![手机端微信与 ClawBot 对话](assets/screenshots/connect-wechat3.png) | ![桌面端同步展示手机发起的对话](assets/screenshots/connect-wechat2.png) |
+
 ## 快速开始
 
 ```powershell
