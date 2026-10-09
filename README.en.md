@@ -38,6 +38,20 @@ jarvis (Python)                          jarvis-desktop (Electron)
 | **Slash-command passthrough** | `/` commands in the composer run in the engine (allowlist + interactive ban + dynamic skill passthrough) with prefix autocompletion | [Chat experience (中文)](docs/guide/features-chat.md) |
 | **Ready to run** | Windows installer available — **no Python required**, just download and launch | — |
 
+## Screenshots
+
+Three-column workbench with three built-in theme skins:
+
+| Retro Green | Electric Blue | Metallic Silver (with settings panel) |
+|---|---|---|
+| ![Retro green theme workbench](assets/screenshots/desktop-work0.png) | ![Electric blue theme workbench](assets/screenshots/desktop-work1.png) | ![Metallic silver light theme with settings panel](assets/screenshots/desktop-work2.png) |
+
+Voice conversation — true full-duplex `/talk` and half-duplex `/voice`:
+
+| Full-duplex `/talk`: multi-turn live Q&A | `/voice` half-duplex: TTS speaking | `/voice`: standby after dismissal |
+|---|---|---|
+| ![Full-duplex realtime voice multi-turn conversation](assets/screenshots/realtime-talk.png) | ![Half-duplex voice mode with TTS speaking](assets/screenshots/voice-talk0.png) | ![Voice mode standby waiting for the wake word](assets/screenshots/voice-talk1.png) |
+
 ## Quick Start
 
 ```powershell
@@ -83,13 +97,6 @@ See [Architecture (中文)](docs/architecture.md) for the full tree; tests and i
 | [Voice & Multi-end (中文)](docs/guide/features-voice.md) | True full-duplex voice, phone/WeChat collaboration |
 | [Architecture (中文)](docs/architecture.md) | Runtime topology, startup flow, persistence, security, protocol (commands/events) |
 | [Development Guide (中文)](docs/development.md) | Local env, tests (227 cases), manual walkthrough, phase-2 roadmap |
-
-## Phase-1 Scope & Run Modes
-
-- **Dev mode**: depends on a local jarvis source repo and **does not bundle Python** (runs `python -m agent.serve`).
-- **Distribution form**: shipped as a Windows installer with **no Python required**; Windows-only and unsigned for now.
-- The existing pywebview workbench (`jarvis --gui`) stays as-is and coexists with the desktop shell: `--gui` uses the workbench, `--serve` uses the shell.
-- This repo is pushed to GitHub (`origin/main`, https://github.com/aceFelix/jarvis-desktop ); CI runs on every push/PR.
 
 ## License
 

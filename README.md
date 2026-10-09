@@ -38,6 +38,20 @@ jarvis（Python）                         jarvis-desktop（Electron）
 | **斜杠命令透传** | 输入框 `/` 命令透传引擎执行（白名单 + 交互禁令 + 技能动态放行）+ 前缀补全 | [对话体验](docs/guide/features-chat.md) |
 | **开箱即用** | 提供 Windows 安装包，**免装 Python**，下载双击即用 | — |
 
+## 界面预览
+
+三栏工作台，内置三套主题皮肤：
+
+| 复古绿 | 电光蓝 | 金属银（含设置面板） |
+|---|---|---|
+| ![复古绿主题的三栏工作台](assets/screenshots/desktop-work0.png) | ![电光蓝主题的三栏工作台](assets/screenshots/desktop-work1.png) | ![金属银浅色主题与右侧设置面板](assets/screenshots/desktop-work2.png) |
+
+语音对话——真全双工 `/talk` 与半双工 `/voice`：
+
+| 真全双工 `/talk`：多轮实时问答 | `/voice` 半双工：TTS 播报中 | `/voice`：退下后待机 |
+|---|---|---|
+| ![全双工实时语音多轮连续问答](assets/screenshots/realtime-talk.png) | ![半双工语音模式 TTS 播报中](assets/screenshots/voice-talk0.png) | ![语音模式退下后待机等待唤醒](assets/screenshots/voice-talk1.png) |
+
 ## 快速开始
 
 ```powershell
@@ -83,13 +97,6 @@ jarvis-desktop/
 | [语音与多端](docs/guide/features-voice.md) | 真全双工语音、手机/微信跨设备协同 |
 | [架构说明](docs/architecture.md) | 运行时拓扑、启动流程、持久化、安全边界、协议契约（指令/事件一览） |
 | [开发指南](docs/development.md) | 本地环境、测试（227 用例）、人工走查清单、二期路线图 |
-
-## 一期边界与运行形态
-
-- **开发模式**：依赖本机 jarvis 源码仓库，**不捆绑 Python**（跑 `python -m agent.serve`）。
-- **分发形态**：随 Windows 安装包分发，终端用户**无需安装 Python**；目前仅 Windows、未签名。
-- 现有 pywebview 工作台（`jarvis --gui`）保留不动，与桌面壳并存：`--gui` 走工作台，`--serve` 走桌面壳。
-- 本仓库已推送 GitHub（`origin/main`，https://github.com/aceFelix/jarvis-desktop ），CI 随 push/PR 自动运行。
 
 ## License
 
