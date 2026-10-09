@@ -330,7 +330,9 @@ export function dispatchServerEvent(
       getReactor()?.setAiSpeaking(!!payload)
       break
     case 'user_transcript':
-      chat.addUser(String(payload ?? ''))
+      // 实时语音：服务端输入转写常晚于 AI 回复转写到达（异步转写滞后），
+      // 走 reorder 版入列，把用户气泡插回本轮在途回复之前。@author aceFelix
+      chat.addUserTranscript(String(payload ?? ''))
       break
     case 'ai_transcript_delta':
       chat.appendAssistantText(String(payload ?? ''))

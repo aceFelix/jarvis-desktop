@@ -454,6 +454,16 @@ describe('dispatchServerEvent · 状态与实时语音', () => {
     dispatchServerEvent({ event: 'user_transcript', data: '我说的话' }, makeConn())
     expect(useChatStore.getState().messages[0]).toMatchObject({ kind: 'user', text: '我说的话' })
   })
+
+  it('user_transcript 转写滞后于 AI 回复：用户气泡插回流式回复之前', () => {
+    // DashScope 输入转写异步滞后：AI 转写增量先建气泡，用户转写后到
+    const conn = makeConn()
+    dispatchServerEvent({ event: 'ai_transcript_delta', data: '你好呀～我在呢～' }, conn)
+    dispatchServerEvent({ event: 'user_transcript', data: '你好，贾维斯在吗？' }, conn)
+    const msgs = useChatStore.getState().messages
+    expect(msgs.map((m) => m.kind)).toEqual(['user', 'ai'])
+    expect(msgs[0]).toMatchObject({ kind: 'user', text: '你好，贾维斯在吗？' })
+  })
 })
 
 describe('dispatchServerEvent · 半双工语音 voice', () => {

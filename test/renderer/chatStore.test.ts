@@ -46,6 +46,37 @@ describe('chatStore', () => {
     expect((msgs[1] as { source?: unknown }).source).toBeUndefined()
   })
 
+  it('addUserTranscript 无在途回复：追加到末尾，不扰动历史', () => {
+    useChatStore.getState().addUser('早前的问题')
+    useChatStore.getState().appendAssistantText('早前的回答')
+    useChatStore.getState().finishAssistant()
+    useChatStore.getState().addUserTranscript('新说的这句话')
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(3)
+    expect(msgs[2]).toMatchObject({ kind: 'user', text: '新说的这句话' })
+  })
+
+  it('addUserTranscript 转写滞后：插到已建的流式 AI 气泡之前（问在上答在下）', () => {
+    // 复现实时语音时序：AI 回复转写增量先到（气泡已建），用户输入转写后到
+    useChatStore.getState().appendAssistantText('你好呀～我在呢～')
+    useChatStore.getState().addUserTranscript('你好，贾维斯在吗？')
+    const msgs = useChatStore.getState().messages
+    expect(msgs).toHaveLength(2)
+    expect(msgs[0]).toMatchObject({ kind: 'user', text: '你好，贾维斯在吗？' })
+    expect(msgs[1].kind).toBe('ai')
+  })
+
+  it('addUserTranscript 只插到流式气泡前：已完结的历史 AI 气泡保持在上面', () => {
+    // 开场问候已说完（非流式）→ 本轮回复流式中 → 转写后到应插在两者之间
+    useChatStore.getState().appendAssistantText('晚上好，先生。')
+    useChatStore.getState().finishAssistant()
+    useChatStore.getState().appendAssistantText('我在呢～')
+    useChatStore.getState().addUserTranscript('在吗？')
+    const msgs = useChatStore.getState().messages
+    expect(msgs.map((m) => m.kind)).toEqual(['ai', 'user', 'ai'])
+    expect(msgs[1]).toMatchObject({ kind: 'user', text: '在吗？' })
+  })
+
   it('流式增量累加到同一 AI 气泡', () => {
     const s = useChatStore.getState()
     s.appendAssistantText('你好')

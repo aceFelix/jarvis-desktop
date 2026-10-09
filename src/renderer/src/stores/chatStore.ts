@@ -69,6 +69,16 @@ export interface ChatState {
   /** 用户气泡：images 为缩略图 data URL（仅展示，模型侧走 WS 的 base64 字段）；
    * source 为远端通道（手机 / 微信）入站消息的来源标记。 */
   addUser: (text: string, images?: string[], source?: RemoteChannel) => void
+  /**
+   * 实时语音用户转写入列（带顺序修复）：DashScope 输入转写
+   * （input_audio_transcription.completed）异步滞后，常晚于本轮 AI 回复转写
+   * （response.audio_transcript.delta）到达，直接追加会让用户气泡落在 AI
+   * 回复气泡之后。此动作把用户气泡插到「尾部在途 AI/工具卡之前」——从尾部
+   * 向前越过 ai/tool 项，遇到流式中的 AI 气泡（本轮回复起点）即停；沿途无
+   * 流式气泡（无在途回复，如开场问候已说完）则保持追加语义，不扰动历史。
+   * @author aceFelix
+   */
+  addUserTranscript: (text: string) => void
   appendAssistantText: (delta: string) => void
   appendThinking: (delta: string) => void
   finishAssistant: () => void
@@ -147,6 +157,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       ]
     })),
+
+  addUserTranscript: (text) =>
+    set((s) => {
+      const msg: MessageItem = { kind: 'user', id: genId(), text }
+      const list = [...s.messages]
+      // 从尾部向前确定插入点：越过本轮已到的 ai/tool 项，停在流式中的
+      // AI 气泡（本轮回复起点）之前；遇非 ai/tool 项（历史用户消息 /
+      // 系统 / 二维码等）或整段无流式气泡则不重排，保持追加语义。
+      let insertAt = list.length
+      let sawStreaming = false
+      for (let i = list.length - 1; i >= 0; i--) {
+        const m = list[i]
+        if (m.kind === 'ai' || m.kind === 'tool') {
+          insertAt = i
+          if (m.kind === 'ai' && m.streaming) {
+            sawStreaming = true
+            break
+          }
+          continue
+        }
+        break
+      }
+      if (!sawStreaming) return { messages: [...s.messages, msg] }
+      list.splice(insertAt, 0, msg)
+      return { messages: list }
+    }),
 
   appendAssistantText: (delta) =>
     set((s) => {
