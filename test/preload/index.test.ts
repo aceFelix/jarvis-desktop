@@ -97,4 +97,39 @@ describe('preload 暴露面', () => {
   it('SelectDirectory 通道名是稳定契约（改名会断链）', () => {
     expect(IpcChannels.SelectDirectory).toBe('jarvis:select-directory')
   })
+
+  /**
+   * 自动更新暴露面（2026-10）：渲染层标题栏「更新」按钮经 preload 走
+   * downloadUpdate/installUpdate（invoke）+ onUpdateStatus（主进程推送）。
+   * 本测试锁定该三通道不缺失、通道名稳定（改名会断更新链）。
+   * @author aceFelix
+   */
+  it('downloadUpdate / installUpdate 走对应 invoke 通道', async () => {
+    const api = exposedApi()
+    await (api.downloadUpdate as () => Promise<void>)()
+    expect(h.invoke).toHaveBeenCalledWith(IpcChannels.UpdateDownload)
+    await (api.installUpdate as () => Promise<void>)()
+    expect(h.invoke).toHaveBeenCalledWith(IpcChannels.UpdateInstall)
+  })
+
+  it('onUpdateStatus 订阅 UpdateStatus 通道并返回可用的取消订阅函数', () => {
+    const cb = vi.fn()
+    const off = (exposedApi().onUpdateStatus as (cb: (s: unknown) => void) => () => void)(cb)
+    expect(h.on).toHaveBeenCalledWith(IpcChannels.UpdateStatus, expect.any(Function))
+    // 触发 listener → 回调收到状态（第二个参数为 payload）
+    const listener = h.on.mock.calls.find((c) => c[0] === IpcChannels.UpdateStatus)?.[1] as (
+      e: unknown,
+      s: unknown
+    ) => void
+    listener({}, { state: 'available', version: '1.2.3' })
+    expect(cb).toHaveBeenCalledWith({ state: 'available', version: '1.2.3' })
+    off()
+    expect(h.removeListener).toHaveBeenCalledWith(IpcChannels.UpdateStatus, listener)
+  })
+
+  it('自动更新通道名是稳定契约（改名会断链）', () => {
+    expect(IpcChannels.UpdateStatus).toBe('jarvis:update-status')
+    expect(IpcChannels.UpdateDownload).toBe('jarvis:update-download')
+    expect(IpcChannels.UpdateInstall).toBe('jarvis:update-install')
+  })
 })
