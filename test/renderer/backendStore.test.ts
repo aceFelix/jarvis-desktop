@@ -1071,3 +1071,41 @@ describe('backendStore · refreshSlashCommands', () => {
     expect(useSlashStore.getState().commands).toEqual(items)
   })
 })
+
+// 管家服务·邮件发送（email.send，2026-10）：表单提交直连后端，错误交表单内联
+// 显示——刻意不走 runCommand，故断言不写聊天流。@author aceFelix
+describe('backendStore · sendEmail', () => {
+  const payload = { to: 'a@b.com', cc: 'c@b.com', subject: '标题', body: '正文' }
+
+  it('成功：发 email.send 并回 {ok:true}，不写聊天流', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: true, result: { ok: true, message: '已发送' } })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    const res = await useBackendStore.getState().sendEmail(payload)
+
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.EmailSend, payload)
+    expect(res).toEqual({ ok: true })
+    expect(useChatStore.getState().messages).toHaveLength(0)
+  })
+
+  it('后端失败（ok=false）：回 {ok:false, error}，不写聊天流', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: false, error: '邮件功能未启用' })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    const res = await useBackendStore.getState().sendEmail(payload)
+
+    expect(res).toEqual({ ok: false, error: '邮件功能未启用' })
+    expect(useChatStore.getState().messages).toHaveLength(0)
+  })
+
+  it('未连接（client null）：回 {ok:false} 且不抛异常', async () => {
+    useBackendStore.setState({ client: null })
+
+    const res = await useBackendStore.getState().sendEmail(payload)
+
+    expect(res.ok).toBe(false)
+    expect(res.error).toBeTruthy()
+  })
+})

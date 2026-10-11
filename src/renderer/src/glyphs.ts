@@ -36,6 +36,7 @@ export type GlyphName =
   | 'taskReminder'
   | 'taskDeadline'
   | 'link'
+  | 'butler'
 
 export type GlyphTable = Record<GlyphName, string>
 
@@ -59,7 +60,8 @@ export const SILVER: GlyphTable = {
   settings: '{SET}',
   taskReminder: '{REM}',
   taskDeadline: '{DUE}',
-  link: '{LNK}'
+  link: '{LNK}',
+  butler: '{BUT}'
 }
 
 /** 电光蓝（深色 Y2K 像素皮肤）主题：尖括号牌（纯 ASCII），与荧光绿方括号牌同体系呼应。 */
@@ -82,7 +84,8 @@ export const Y2K: GlyphTable = {
   settings: '<SET>',
   taskReminder: '<REM>',
   taskDeadline: '<DUE>',
-  link: '<LNK>'
+  link: '<LNK>',
+  butler: '<BUT>'
 }
 
 /** 荧光绿（复古 CRT）主题：终端风三字符方括号牌（纯 ASCII）。 */
@@ -105,7 +108,8 @@ export const RETRO: GlyphTable = {
   settings: '[SET]',
   taskReminder: '[REM]',
   taskDeadline: '[DUE]',
-  link: '[LNK]'
+  link: '[LNK]',
+  butler: '[BUT]'
 }
 
 /** 按主题取符号表（retro → 方括号牌，dark → 尖括号牌，light → 花括号牌）。 */

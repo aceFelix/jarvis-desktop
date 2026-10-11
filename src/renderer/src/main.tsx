@@ -26,6 +26,10 @@ import './styles/project-section.css'
 // 跨设备协同（2026-10 输入栏下拉 + 内联二维码卡片）：按职责拆分的模块样式，
 // 同样需早于皮肤引入以允许主题层基于 --edge-* 联动。@author aceFelix
 import './styles/remote.css'
+// 管家服务层（2026-10 标题栏「管家服务」入口 + 邮件发送弹窗）：按职责拆分的模块
+// 样式，同样需早于皮肤引入以允许主题层基于 --edge-* / --qr-panel-* 变量联动。
+// @author aceFelix
+import './styles/butler.css'
 import './styles/theme-dark-y2k.css'
 import './styles/theme-light-y2k.css'
 import './styles/theme-retro.css'

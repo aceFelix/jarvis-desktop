@@ -143,6 +143,20 @@ body {
     text-shadow: 0 0 8px rgba(91, 200, 255, 0.6);
 }
 
+/* 管家服务按钮（标题栏窗口控制区，设置齿轮旁）：文案较长（glyph + 「管家服务」），
+   宽度自适应且不换行，避免被 .win-btn 的固定 40px 挤成两行并压到设置按钮上。
+   @author aceFelix */
+.butler-btn {
+    width: auto;
+    padding: 0 10px;
+    white-space: nowrap;
+}
+
+.butler-btn:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+
 /* ---- 三栏布局 ---- */
 #workbench {
     position: fixed;

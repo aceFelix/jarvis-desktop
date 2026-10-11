@@ -150,6 +150,7 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `project.get` | — | `{workdir, name, persisted}`（`persisted=false`：serve 启动默认值尚未写入 projects.toml） |
 | `projects.list` | — | `[{path, name, last_opened, exists}]`（按 `last_opened` 倒序；`exists=false` 前端置灰仍可移除） |
 | `projects.forget` | `path` | bool（是否确有移除；只清 `~/.jarvis/projects.toml` 记录，**不删磁盘目录**） |
+| `email.send` | `subject`, `body`［, `to`, `cc`, `bcc`］ | `{ok: true, message}`（管家服务「邮件发送」表单直连后端 `SendEmailTool`，**不经模型**——表单点「发送」即用户确认，后端刻意绕过工具默认 ASK 权限；`to` 留空回退 `[email].default_recipient`；收发件配置取自 `~/.jarvis/settings.toml` 的 `[email]` 表；主题/正文空、邮件未启用/缺配置/认证失败等回 ok=false + 原文错误；SMTP 阻塞 IO 由服务端 `asyncio.to_thread` 承载，不冻事件循环；首期不支持附件，2026-10） |
 
 ### 斜杠命令透传与补全（slash.exec / slash.commands，2026-10）
 
@@ -445,7 +446,8 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
 ### 设置面板（独立组件，2026-09）
 
 设置从右栏信息面板中独立出来：`SettingsPanel.tsx` 整体替换右栏（`App.tsx` 按
-`stores/uiStore.ts` 的 `rightView: 'dashboard' | 'settings'` 条件渲染，瞬态不持久化，
+`stores/uiStore.ts` 的 `rightView: 'dashboard' | 'settings' | 'butler'` 条件渲染
+（`butler` 为 2026-10 新增的管家服务面板视图，见下节），瞬态不持久化，
 重启回信息面板），入口为标题栏齿轮按钮（`TitleBar.tsx`，兼 toggle，激活态高亮），
 面板内 ← 返回。四节（外观 + 语音播报 + 每日简报 + 截止日期追踪）：
 
@@ -504,6 +506,23 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
   - **截止日期追踪**：启用开关 + 每日检查时间。
   简报/截止日期是调度键：serve 侧改完运行时后额外经 `ProactiveHub.hot_update_schedule`
   撤旧任务重注册（调度任务是启动快照，不重注册新时间/新开关要重启才生效）。
+
+### 管家服务面板（独立组件，2026-10）
+
+右栏第三个视图：`ButlerPanel.tsx` 整体替换右栏（与 `SettingsPanel` 同一替换机制，
+`uiStore.rightView === 'butler'`），入口为标题栏右上角「设置」齿轮旁的 **管家服务**
+按钮（`TitleBar.tsx`，兼 toggle、激活态高亮，随后端连接态置灰）。面板两级视图，
+状态在单一职责的 `butlerStore`（`activeService`：''=服务清单，'email'=邮件表单；
+面板每次挂载重置回清单）：
+
+- **服务清单**（面板首页）：服务入口行（名称 + 一句话说明），后续扩展只需往
+  `SERVICES` 清单加条目 + i18n 加文案；
+- **邮件发送**：面板内嵌 `EmailForm.tsx`（非弹窗），经 `email.send` 指令直连后端
+  `SendEmailTool`（协议细节见上「指令一览」表 `email.send` 行）；成功/失败均在
+  面板内提示（错误内联、表单不关闭可重试），取消/完成回服务清单。
+
+样式在 `styles/butler.css`（面板只补服务清单与表单专属类，容器复用
+`.settings-head` / `.settings-back` / `.settings-panel` 既有样式，随三皮肤联动）。
 
 ### 事件一览
 

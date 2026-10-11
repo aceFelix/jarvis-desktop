@@ -21,6 +21,7 @@ import {
   type BackendState,
   type CheckpointPreviewResult,
   type CurrentProject,
+  type EmailSendPayload,
   type ModelAddPayload,
   type ModelEditPayload,
   type PermissionMode,
@@ -147,6 +148,14 @@ export interface BackendStoreState {
    * @author aceFelix
    */
   refreshSlashCommands: () => Promise<void>
+  /**
+   * 管家服务·邮件发送（email.send，2026-10）：标题栏「管家服务」表单提交。
+   * 用 `client.sendCommand` 直接取回执（**不走 runCommand**）——runCommand 把
+   * 失败写进聊天流，而弹窗表单的错误应在表单内联显示、不污染对话；本方法把
+   * `ok/error` 原样返回给表单。未连后端时返回 ok=false + 错误文案。
+   * @author aceFelix
+   */
+  sendEmail: (payload: EmailSendPayload) => Promise<{ ok: boolean; error?: string }>
   /** 停止当前回复（reply.abort）：busy 由服务端 assistant_done 事件收尾。 */
   abortReply: () => Promise<void>
   newSession: () => Promise<void>
@@ -672,6 +681,20 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
 
     // ---- 跨设备协同（手机 / 微信）：动作成块拆出 remoteActions.ts（800 行上限）。----
     ...buildRemoteActions(runCommand),
+
+    sendEmail: async (payload) => {
+      // 管家服务·邮件发送（email.send）：直接取回执，错误交表单内联显示，
+      // 不走 runCommand（不写聊天流）。未连后端直接回失败，不弹窗到聊天区。
+      const client = get().client
+      if (!client) return { ok: false, error: '未连接到后端' }
+      try {
+        const reply = await client.sendCommand(Cmd.EmailSend, { ...payload })
+        if (!reply.ok) return { ok: false, error: reply.error ?? '发送失败' }
+        return { ok: true }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    },
 
     refreshSlashCommands: async () => {
       // 斜杠命令补全目录（slash.commands）只读刷新：不走 runCommand（那是

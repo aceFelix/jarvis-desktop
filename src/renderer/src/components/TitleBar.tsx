@@ -2,8 +2,9 @@
  * 自绘标题栏（无边框窗口）：整条可拖动（-webkit-app-region: drag），
  * 窗口控制按钮经 preload IPC 转给主进程。
  *
- * 齿轮按钮：进入/退出设置面板（右栏整体替换为 SettingsPanel，
- * uiStore.rightView 驱动）；与窗口控制按钮同在 no-drag 区。
+ * 齿轮按钮：进入/退出设置面板（右栏整体替换为 SettingsPanel，uiStore.rightView
+ * 驱动）；管家服务按钮：进入/退出管家服务面板（右栏整体替换为 ButlerPanel，
+ * 同一机制）。三者与窗口控制按钮同在 no-drag 区。
  *
  * 无全屏按钮：窗口即普通可缩放窗口，全屏诉求走系统快捷键（与 workbench
  * "不提供全屏"的口径一致）。
@@ -14,6 +15,7 @@
 import { useT } from '../i18n'
 import { useGlyphs } from '../glyphs'
 import { useUiStore } from '../stores/uiStore'
+import { useBackendStore } from '../stores/backendStore'
 import { useUpdateStore } from '../stores/updateStore'
 
 export default function TitleBar(): JSX.Element {
@@ -22,6 +24,10 @@ export default function TitleBar(): JSX.Element {
   const rightView = useUiStore((s) => s.rightView)
   const openSettings = useUiStore((s) => s.openSettings)
   const closeSettings = useUiStore((s) => s.closeSettings)
+  const openButler = useUiStore((s) => s.openButler)
+  const closeButler = useUiStore((s) => s.closeButler)
+  // 未连上后端时管家服务不可用（指令链路依赖 WS），置灰（口径同左栏模式切换）
+  const wsConnected = useBackendStore((s) => s.wsConnected)
   // 自动更新状态（主进程推送经 App 写入 updateStore）
   const updateState = useUpdateStore((s) => s.state)
   const updateVersion = useUpdateStore((s) => s.version)
@@ -36,6 +42,11 @@ export default function TitleBar(): JSX.Element {
   const toggleSettings = (): void => {
     if (rightView === 'settings') closeSettings()
     else openSettings()
+  }
+  // 管家服务按钮同口径 toggle：进入面板/从面板回信息面板
+  const toggleButler = (): void => {
+    if (rightView === 'butler') closeButler()
+    else openButler()
   }
 
   // 「有新版才显示按钮」：available/downloading/downloaded 三态可见；
@@ -83,6 +94,17 @@ export default function TitleBar(): JSX.Element {
             {updateState === 'downloaded' ? '⟳' : '⇩'} {updateLabel}
           </button>
         ) : null}
+        {/* 管家服务按钮（设置齿轮旁）：右栏切换为 ButlerPanel，未连后端置灰。
+            文案较长故用 .butler-btn 自适应宽度，避免被 .win-btn 固定 40px 挤换行 */}
+        <button
+          className={`win-btn butler-btn${rightView === 'butler' ? ' active' : ''}`}
+          title={t('butler.tip')}
+          data-testid="btn-open-butler"
+          disabled={!wsConnected}
+          onClick={toggleButler}
+        >
+          {g.butler} {t('butler.title')}
+        </button>
         <button
           className={`win-btn${rightView === 'settings' ? ' active' : ''}`}
           title={t('app.settingsTip')}

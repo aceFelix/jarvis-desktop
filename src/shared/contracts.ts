@@ -383,7 +383,15 @@ export const Cmd = {
    * 口径与后端 slash_bridge 执行护栏一致（白名单透传/原生控件/已安装技能）。
    * @author aceFelix
    */
-  SlashCommands: 'slash.commands'
+  SlashCommands: 'slash.commands',
+  /**
+   * 管家服务·邮件发送（email.send，2026-10）：标题栏「管家服务」入口的下拉表单
+   * 直连后端邮件工具（`SendEmailTool`），不经模型——表单点「发送」即用户确认，
+   * 后端刻意绕过工具默认的 ASK 权限。收发件配置来自 ~/.jarvis/settings.toml 的
+   * `[email]` 表；to 留空时回退到配置的 default_recipient。首期不支持附件。
+   * @author aceFelix
+   */
+  EmailSend: 'email.send'
 } as const
 
 /** 跨设备协同通道（qrcode / remote_state 事件的 channel 字段）。 */
@@ -439,6 +447,26 @@ export interface SlashCommandItem {
   name: string
   description: string
   source: 'passthrough' | 'native' | 'skill'
+}
+
+/**
+ * email.send 请求 payload（管家服务·邮件发送，2026-10）：镜像后端
+ * WorkbenchAPI.send_email 的入参。subject/body 必填（壳侧与后端双重校验），
+ * to 留空时由后端工具回退到 `[email].default_recipient`；cc/bcc 可为空。
+ * 首期不支持附件。@author aceFelix
+ */
+export interface EmailSendPayload {
+  to?: string
+  cc?: string
+  bcc?: string
+  subject: string
+  body: string
+}
+
+/** email.send 回执 result（ok=true 时的成功信息）。@author aceFelix */
+export interface EmailSendResult {
+  ok: boolean
+  message?: string
 }
 
 /**

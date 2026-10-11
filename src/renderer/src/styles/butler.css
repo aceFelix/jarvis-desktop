@@ -1,0 +1,58 @@
+/* 管家服务面板（2026-10）：右栏视图之一（与设置面板同机制，标题栏设置齿轮旁
+   按钮进入）。容器复用 #right-col / .settings-head / .settings-back /
+   .settings-panel 既有样式；本文件只补面板内「服务清单」与邮件表单的专属样式，
+   配色复用 --edge-* / --qr-* 变量以随主题联动。@author aceFelix */
+
+/* ---- 服务清单（面板首页）---- */
+/* 服务入口行：名称 + 一句话说明，整行可点（进入对应服务表单）。 */
+.butler-service-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px;
+    text-align: left;
+    color: var(--qr-panel-fg, inherit);
+    background: transparent;
+    border: 1px solid var(--edge-mid);
+    border-radius: 0;
+    cursor: pointer;
+    transition: background 0.15s ease-out, border-color 0.15s ease-out;
+}
+
+.butler-service-item:hover {
+    background: rgba(91, 200, 255, 0.12);
+    border-color: var(--edge-strong);
+}
+
+/* 服务名：强调色 + 加宽字距（与面板标题同族） */
+.butler-service-name {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: var(--qr-accent);
+}
+
+/* 服务说明：弱化色小字，说明该服务做什么 */
+.butler-service-desc {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--qr-dim);
+}
+
+/* ---- 邮件发送表单（面板内嵌，非弹窗）---- */
+/* 正文多行输入：在 .model-input 基础上允许纵向拉伸并继承等宽字体 */
+.butler-textarea {
+    resize: vertical;
+    min-height: 96px;
+    font-family: inherit;
+    line-height: 1.5;
+}
+
+/* 发送成功态文案（居中强调色大字） */
+.butler-email-sent {
+    padding: 20px 0;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--qr-ok);
+}

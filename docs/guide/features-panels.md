@@ -89,6 +89,26 @@
 
 > 项目工作区本身（切项目、最近项目、`project.set`）见 [架构说明](../architecture.md#左栏项目工作区切项目2026-08)。
 
+## 管家服务（右栏面板）
+
+标题栏右上角（设置齿轮旁）有一个 **管家服务** 按钮，点击后右栏整体切换为管家服务
+面板（与设置面板同一替换机制），在面板里用表单**直接使用** Jarvis 的管家能力
+（不走对话、不经模型）。入口为后续扩展预留：新增服务只需往服务清单加一项。
+
+- **位置与形态**：标题栏按钮 → 右栏面板两级视图（服务清单 → 服务表单，面板内 ←
+  返回信息面板）；按钮随后端连接态置灰（未连后端不可点）。实现在
+  [src/renderer/src/components/ButlerPanel.tsx](../../src/renderer/src/components/ButlerPanel.tsx)
+  与 [EmailForm.tsx](../../src/renderer/src/components/EmailForm.tsx)，右栏视图切换在
+  `uiStore`（dashboard / settings / butler 三态），面板内服务视图在单一职责的 `butlerStore`。
+- **首期服务·邮件发送**：服务清单点「邮件发送」→ 面板内表单填写 **收件人 / 抄送 / 密送 /
+  主题 / 正文** → 点「发送」→ 经 `email.send` 指令直连后端 `SendEmailTool` 发送（确定性执行）。
+  **表单点「发送」即用户确认**，后端刻意绕过工具默认的 ASK 权限询问；主题/正文为本地必填
+  拦截（与后端二次校验同口径）；成功/失败均在面板内提示（错误内联显示、表单不关闭可重试）。
+- **收件人与配置**：收件人留空时发往 `~/.jarvis/settings.toml` 的 `[email].default_recipient`；
+  发信账号（SMTP 服务器/端口/授权码）同样取自该 `[email]` 表——**与终端 jarvis 共用同一份配置**。
+  未配置或认证失败时后端把原文错误透传到面板内联显示。
+- **首期不做附件**：渲染进程受沙箱限制，选本地文件需新增主进程 IPC + preload 能力，留待后续迭代。
+
 ## 右栏面板（四区块）
 
 右栏信息面板自上而下四个区块，任务/用量/健康数据经 `schedule.list` / `cost.get` / `state.get`
