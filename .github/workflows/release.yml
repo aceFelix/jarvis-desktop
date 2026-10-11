@@ -120,6 +120,8 @@ jobs:
         run: npm run dist
 
       # 校验产物存在，缺失即让流水线红，避免发布空 Release
+      # latest.yml 是 electron-updater 客户端启动检查用的更新清单，缺它则用户端
+      # 永远拉不到更新，必须与安装包一同产出并上传。
       - name: Verify installer artifact
         shell: bash
         run: |
@@ -130,6 +132,12 @@ jobs:
             echo "::error::No NSIS installer produced under jarvis-desktop/dist"
             exit 1
           fi
+          if [ ! -f jarvis-desktop/dist/latest.yml ]; then
+            echo "::error::latest.yml not found — auto-update clients cannot detect this release"
+            exit 1
+          fi
+          echo "latest.yml found:"
+          cat jarvis-desktop/dist/latest.yml
 
       # 上传到 GitHub Release（tag 已存在则复用；不存在则据此 tag 创建）
       - name: Publish GitHub Release
@@ -143,3 +151,4 @@ jobs:
           files: |
             jarvis-desktop/dist/*-Setup-*.exe
             jarvis-desktop/dist/*-Setup-*.exe.blockmap
+            jarvis-desktop/dist/latest.yml

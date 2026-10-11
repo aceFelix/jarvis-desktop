@@ -42,7 +42,12 @@ nsis:
   shortcutName: JARVIS
   artifactName: ${productName}-Setup-${version}.${ext}
 npmRebuild: false
-# 关闭 electron-builder 自带的 GitHub 发布器：CI 检测到 tag 时它会尝试自动传 Release
-# 并索要 GH_TOKEN（与 workflow 里 softprops/action-gh-release 重复且失败）。
-# 本项目的 Release 上传统一由 release.yml 的 softprops 步骤用内置 GITHUB_TOKEN 完成。
-publish: null
+# 自动更新清单来源：显式配 GitHub provider，electron-builder 才会生成
+# dist/latest.yml（客户端 electron-updater 启动检查用的更新描述文件）。
+# 本地/CI 构建脚本统一加 --publish never：只生成清单与安装包、不上传；
+# 上传仍由 release.yml 的 softprops/action-gh-release 用 GITHUB_TOKEN 完成。
+# @author aceFelix
+publish:
+  - provider: github
+    owner: aceFelix
+    repo: jarvis-desktop
