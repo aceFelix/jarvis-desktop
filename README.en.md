@@ -37,6 +37,7 @@ jarvis (Python)                          jarvis-desktop (Electron)
 | **Message rewind** | Hover a user bubble → "rewind": truncate the conversation + optionally roll back workspace files (shadow-git checkpoint) | [Chat experience (中文)](docs/guide/features-chat.md) |
 | **Slash-command passthrough** | `/` commands in the composer run in the engine (allowlist + interactive ban + dynamic skill passthrough) with prefix autocompletion | [Chat experience (中文)](docs/guide/features-chat.md) |
 | **Ready to run** | Windows installer available — **no Python required**, just download and launch | — |
+| **Auto update** | Silent check on startup; when a new version exists an "Update" button appears in the title bar → one-click download (with progress) → "Restart to install" (not code-signed, so a SmartScreen prompt is expected) | — |
 
 ## Screenshots
 
@@ -86,7 +87,7 @@ Dev-mode requirements:
 jarvis-desktop/
 ├── src/
 │   ├── main/          # Electron main: index (lifecycle/single-instance/IPC), backend (BackendManager)
-│   │                  #   appIcon (single icon source), notify (system notifications), tray, logging
+│   │                  #   appIcon (single icon source), notify (system notifications), tray, update (auto update), logging
 │   ├── preload/       # minimal contextBridge surface (token never hits disk)
 │   ├── renderer/src/  # React: api (ws/dispatcher), stores (Zustand), components, i18n, glyphs, reactor, styles
 │   └── shared/        # contracts.ts: shared contracts mirroring protocol.py
@@ -106,7 +107,7 @@ See [Architecture (中文)](docs/architecture.md) for the full tree; tests and i
 | [Panels & Settings (中文)](docs/guide/features-panels.md) | Composer, left models/voices, project↔session, right column, settings |
 | [Voice & Multi-end (中文)](docs/guide/features-voice.md) | True full-duplex voice, phone/WeChat collaboration |
 | [Architecture (中文)](docs/architecture.md) | Runtime topology, startup flow, persistence, security, protocol (commands/events) |
-| [Development Guide (中文)](docs/development.md) | Local env, tests (227 cases), manual walkthrough, phase-2 roadmap |
+| [Development Guide (中文)](docs/development.md) | Local env, tests (397 cases), manual walkthrough, phase-2 roadmap |
 
 ## License
 

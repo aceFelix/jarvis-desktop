@@ -90,14 +90,15 @@ python scripts/gen_icon.py   # 任一装了 Pillow 的环境（如 jarvis 的 ve
 
 ## 4. 测试
 
-vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **227 用例**：
+vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **397 用例**：
 
 | 测试文件 | 覆盖 |
 |---|---|
 | `test/main/backend.test.ts` | `parseHandshakeLine`（正常/残缺/超时行）、`resolvePythonEnv`、`BackendManager` 状态机（spawn→ready、stderr 噪声、仓库缺失、spawn 抛错、提前退出、握手超时、stop 杀进程树、意外退出、重复 start 复用） |
 | `test/main/appIcon.test.ts` | 图标候选优先级（仓库复古像素版 → 用户目录深蓝旧版兜底）、全缺失降级 null、build/icon.ico 入库守卫、加载失败降级 |
 | `test/main/notify.test.ts` | `showSystemNotification`（主动播报系统通知）：isSupported 弹窗、title 空回退 J.A.R.V.I.S、title+body 全空不弹、构造异常吞掉、窗口未聚焦 flashFrame / 已聚焦不闪 / 无窗口降级 |
-| `test/preload/index.test.ts` | preload 暴露面契约：`jarvisDesktop` 键、notify 通道存在、notify 走 SystemNotify 通道原样 send、通道名稳定契约、既有能力（log/windowControl/onBackendStatus）未被挤掉 |
+| `test/main/update.test.ts` | 自动更新 `update.ts`（vi.mock electron-updater + electron）：initUpdater 关闭自动下载/自动安装 + 五类事件映射（update-available→available+version、download-progress→downloading+取整百分比、update-downloaded→downloaded、update-not-available→idle、error→error+message）、`checkOnStartup` 的 app.isPackaged 守卫（dev 跳过 / packaged 触发 / 拒绝被吞）、`download`/`install` 转发（quitAndInstall(false,true)） |
+| `test/preload/index.test.ts` | preload 暴露面契约：`jarvisDesktop` 键、notify 通道存在、notify 走 SystemNotify 通道原样 send、通道名稳定契约、既有能力（log/windowControl/onBackendStatus）未被挤掉、自动更新三通道（downloadUpdate/installUpdate 走 invoke、onUpdateStatus 订阅 + 取消订阅） |
 | `test/renderer/ws.test.ts` | `JarvisWsClient`：URL 构造与 token 编码、handleRaw 事件分发、sendCommand 回执兑现、同类型 FIFO 匹配、send 只发不等、断线拒绝 pending + 退避重连、close 不重连 |
 | `test/renderer/chatStore.test.ts` | 消息流 store 全部 action：流式增量、thinking/text 分累、finishAssistant、工具卡建卡与按 id 回填、乱序补卡、ask_user、replayHistory、clear、addUser 缩略图 images 字段 |
 | `test/renderer/dispatcher.test.ts` | `dispatchServerEvent` 全事件路由 → chat/left/metrics/right store 与状态栏回调（含 `assistant_done` 撤销 busy + 刷 `cost.get`，init 七路刷新（右栏三指令 + 设置回填）、会话管理事件（`session_new` 清屏+提示、`session_ready`/`session_renamed`/`session_deleted` 只刷列表不清屏））；列表类型守卫；`proactive_notify` 主动播报（briefing/reminder/deadline 上屏、reminder 带 task_id 回 ack、系统通知调用、window 缺失降级、briefing 进右栏最近简报 + 刷 `schedule.list`）；半双工语音 `voice_*` 事件（started/stopped/state 迁移/user_transcript/ai_text_delta→ai_text 全量替换、talk_started 权威复位 talk 模式） |
@@ -162,12 +163,19 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
   （环境卡点：winCodeSign 解压需符号链接权限，见上「打包发布」的开发模式/管理员/CI 三选一的解法。）
 - ✅ CI 自动发布（`.github/workflows/release.yml`）：`windows-latest` 并列检出双仓 → `npm run dist`
   → 产物挂 GitHub Releases，规避本机符号链接权限卡点，一条 `v*` tag 即出可下载安装包。
+- ✅ `electron-updater` 自动更新（2026-10）：启动静默检查 → 有新版本时标题栏出现「更新」按钮
+  → 点击下载（带百分比进度）→「重启安装」→ 退出 → NSIS 覆盖安装 → 自动重启。
+  仅打包态生效（dev 模式下 `app.isPackaged=false` 直接跳过）；发布侧 `electron-builder.yml`
+  配 GitHub provider 以生成 `dist/latest.yml`，`release.yml` 校验并随安装包一同上传（客户端靠它
+  发现新版本）。**本期未做代码签名**，更新包运行时 Windows SmartScreen 仍会提示「未知发布者」，属预期。
+- ✅ `electron-updater` 已打进主进程 bundle（`electron.vite.config.ts` 的
+  `externalizeDepsPlugin({ exclude: ['electron-updater'] })`）——因 `files` 不含 `node_modules`，
+  外置会导致运行时报 `Cannot find module 'electron-updater'`。
 
 **待做**：
 
 - 主动播报 TTS 待机语音（`proactive_notify` 事件已带全文，届时桌面侧加语音通道即可，不改协议）。
-- 代码签名（Windows 证书，消除 SmartScreen「未知发布者」提示）。
-- `electron-updater` 自动更新（签名后接入）。
+- 代码签名（Windows 证书，消除 SmartScreen「未知发布者」提示；也是自动更新体验的最后一环）。
 - 故障恢复 / 安全模式（后端崩溃自动重启 + 降级 UI）。
 - macOS / Linux 安装包（mac 需签名 + 公证）。
 - 实时语音模式深度接入、手机 Bridge 复用。

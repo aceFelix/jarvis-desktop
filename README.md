@@ -37,6 +37,7 @@ jarvis（Python）                         jarvis-desktop（Electron）
 | **消息回溯** | 悬停用户气泡「撤回」：对话截断 + 可选工作区文件回滚（shadow git 检查点） | [对话体验](docs/guide/features-chat.md) |
 | **斜杠命令透传** | 输入框 `/` 命令透传引擎执行（白名单 + 交互禁令 + 技能动态放行）+ 前缀补全 | [对话体验](docs/guide/features-chat.md) |
 | **开箱即用** | 提供 Windows 安装包，**免装 Python**，下载双击即用 | — |
+| **自动更新** | 启动静默检查新版本，有新版本时标题栏出现「更新」按钮 → 一键下载（带进度）→「重启安装」覆盖升级（未做代码签名，SmartScreen 提示属预期） | — |
 
 ## 界面预览
 
@@ -86,7 +87,7 @@ dev 模式依赖：
 jarvis-desktop/
 ├── src/
 │   ├── main/          # Electron 主进程：index（生命周期/单实例/IPC）、backend（BackendManager）
-│   │                  #   appIcon（图标单一来源）、notify（系统通知）、tray（托盘）、logging
+│   │                  #   appIcon（图标单一来源）、notify（系统通知）、tray（托盘）、update（自动更新）、logging
 │   ├── preload/       # contextBridge 最小暴露面（token 不落盘）
 │   ├── renderer/src/  # React：api（ws/dispatcher）、stores（Zustand）、components、i18n、glyphs、reactor、styles
 │   └── shared/        # contracts.ts：主/preload/渲染共享契约（镜像 protocol.py）
@@ -106,7 +107,7 @@ jarvis-desktop/
 | [三栏面板与设置](docs/guide/features-panels.md) | 输入栏、左栏模型/音色、项目↔会话、右栏四区块、设置面板 |
 | [语音与多端](docs/guide/features-voice.md) | 真全双工语音、手机/微信跨设备协同 |
 | [架构说明](docs/architecture.md) | 运行时拓扑、启动流程、持久化、安全边界、协议契约（指令/事件一览） |
-| [开发指南](docs/development.md) | 本地环境、测试（227 用例）、人工走查清单、二期路线图 |
+| [开发指南](docs/development.md) | 本地环境、测试（397 用例）、人工走查清单、二期路线图 |
 
 ## License
 

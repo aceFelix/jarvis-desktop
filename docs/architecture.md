@@ -12,6 +12,7 @@ jarvis-desktop 是 `jarvis` 的**桌面宿主壳**，本身不含 Agent 运行�
 │  index.ts   应用生命周期 / 单实例锁 / 主窗口 / IPC / 退出回收                        │
 │  backend.ts BackendManager：spawn → 握手 → ready → kill（状态机）                   │
 │  tray.ts    系统托盘（显隐窗口 / 退出）   logging.ts  userData/logs/desktop.log      │
+│  update.ts  electron-updater 自动更新（仅打包态；检查/下载/重启安装）                │
 └───────────────┬───────────────────────────────────────────────┬──────────────────┘
        spawn 子进程 │ stdout 握手 JSON                    IPC(contextBridge) │
                 ▼                                                 ▼
@@ -85,7 +86,7 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 
 ## 4. 安全边界
 
-- **进程隔离**：`contextIsolation: true`、`nodeIntegration: false`、`sandbox: true`；渲染进程无 Node 能力，唯一入口是 preload 的 `window.jarvisDesktop`（7 个方法，白名单 IPC 通道；其中 `log` / `notify` 为单向 `send` 不等回执，`selectDirectory` 为项目区目录选择器——只弹系统对话框取绝对路径，不读内容、不写文件，是否接受由后端 `project.set` 二次校验）。
+- **进程隔离**：`contextIsolation: true`、`nodeIntegration: false`、`sandbox: true`；渲染进程无 Node 能力，唯一入口是 preload 的 `window.jarvisDesktop`（10 个方法，白名单 IPC 通道；其中 `log` / `notify` 为单向 `send` 不等回执，`selectDirectory` 为项目区目录选择器——只弹系统对话框取绝对路径，不读内容、不写文件，是否接受由后端 `project.set` 二次校验；`onUpdateStatus` 订阅主进程更新状态推送，`downloadUpdate` / `installUpdate` 触发 electron-updater 下载与退出安装——后者由主进程先回收后端子进程再覆盖安装）。
 - **网络收敛**：Python 的 `DesktopBridgeServer` 仅绑 `127.0.0.1` + 系统分配的随机端口，**不对局域网暴露**（这是与手机协同模式 `0.0.0.0` + 固定端口的关键差异）。WS 连接需 token 认证，token 错误服务端以 `4401` 关闭。
 - **外链隔离**：`setWindowOpenHandler` 把 http(s) 外链交给系统浏览器，窗口内一律 `deny`。
 - **token 保密**：见上节，全链路只在内存传递。
