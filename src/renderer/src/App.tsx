@@ -17,6 +17,7 @@ import RightSidebar from './components/RightSidebar'
 import SettingsPanel from './components/SettingsPanel'
 import { useBackendStore } from './stores/backendStore'
 import { useUiStore } from './stores/uiStore'
+import { useUpdateStore } from './stores/updateStore'
 import { useT } from './i18n'
 
 /** 后端未就绪时的全屏遮罩（启动进度 / 错误诊断）。 */
@@ -63,7 +64,14 @@ export default function App(): JSX.Element {
     const unsubscribe = desktop.onBackendStatus((status) => {
       applyBackendStatus(status.state, status.info, status.error)
     })
-    return unsubscribe
+    // 自动更新状态推送（available/downloading/downloaded/error）→ updateStore
+    const unsubscribeUpdate = desktop.onUpdateStatus((status) => {
+      useUpdateStore.getState().setStatus(status)
+    })
+    return () => {
+      unsubscribe()
+      unsubscribeUpdate()
+    }
   }, [applyBackendStatus])
 
   return (

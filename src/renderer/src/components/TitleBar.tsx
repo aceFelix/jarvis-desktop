@@ -14,6 +14,7 @@
 import { useT } from '../i18n'
 import { useGlyphs } from '../glyphs'
 import { useUiStore } from '../stores/uiStore'
+import { useUpdateStore } from '../stores/updateStore'
 
 export default function TitleBar(): JSX.Element {
   const t = useT()
@@ -21,6 +22,10 @@ export default function TitleBar(): JSX.Element {
   const rightView = useUiStore((s) => s.rightView)
   const openSettings = useUiStore((s) => s.openSettings)
   const closeSettings = useUiStore((s) => s.closeSettings)
+  // 自动更新状态（主进程推送经 App 写入 updateStore）
+  const updateState = useUpdateStore((s) => s.state)
+  const updateVersion = useUpdateStore((s) => s.version)
+  const updatePercent = useUpdateStore((s) => s.percent)
   const minimize = (): void => {
     void window.jarvisDesktop?.windowControl('minimize')
   }
@@ -33,6 +38,33 @@ export default function TitleBar(): JSX.Element {
     else openSettings()
   }
 
+  // 「有新版才显示按钮」：available/downloading/downloaded 三态可见；
+  // error 若仍持有版本号则回退为可重试的「更新」（下载中断可再点，不必重启应用）。
+  // 无版本号（如启动检查失败）则不渲染。
+  const retryable = updateState === 'error' && !!updateVersion
+  const showUpdate =
+    updateState === 'available' ||
+    updateState === 'downloading' ||
+    updateState === 'downloaded' ||
+    retryable
+  const updateLabel =
+    updateState === 'downloading'
+      ? t('update.downloading', { percent: updatePercent })
+      : updateState === 'downloaded'
+        ? t('update.restart')
+        : t('update.available')
+  const updateTip =
+    updateState === 'downloading'
+      ? t('update.downloadingTip', { version: updateVersion, percent: updatePercent })
+      : updateState === 'downloaded'
+        ? t('update.restartTip', { version: updateVersion })
+        : t('update.availableTip', { version: updateVersion })
+  // 点击：available/error → 下载；downloaded → 退出安装；downloading 禁用不可点
+  const onUpdateClick = (): void => {
+    if (updateState === 'downloaded') void window.jarvisDesktop?.installUpdate()
+    else if (updateState !== 'downloading') void window.jarvisDesktop?.downloadUpdate()
+  }
+
   return (
     <header id="title-bar">
       <span id="title-drag">
@@ -40,6 +72,17 @@ export default function TitleBar(): JSX.Element {
         <span id="title-sub">{t('app.subtitle')}</span>
       </span>
       <div id="win-controls">
+        {showUpdate ? (
+          <button
+            className={`win-btn update-btn${updateState === 'downloaded' ? ' ready' : ''}`}
+            title={updateTip}
+            disabled={updateState === 'downloading'}
+            data-testid="btn-update"
+            onClick={onUpdateClick}
+          >
+            {updateState === 'downloaded' ? '⟳' : '⇩'} {updateLabel}
+          </button>
+        ) : null}
         <button
           className={`win-btn${rightView === 'settings' ? ' active' : ''}`}
           title={t('app.settingsTip')}

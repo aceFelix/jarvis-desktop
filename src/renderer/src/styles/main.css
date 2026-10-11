@@ -125,6 +125,24 @@ body {
     color: #ffd7d7;
 }
 
+/* 自动更新按钮（标题栏窗口控制区，仅打包态有新版本时出现）：
+   宽度自适应以容纳文案；下载中禁用置灰，已就绪高亮提示可重启。@author aceFelix */
+.update-btn {
+    width: auto;
+    padding: 0 10px;
+    white-space: nowrap;
+}
+
+.update-btn:disabled {
+    cursor: default;
+    opacity: 0.85;
+}
+
+.update-btn.ready {
+    color: #5bc8ff;
+    text-shadow: 0 0 8px rgba(91, 200, 255, 0.6);
+}
+
 /* ---- 三栏布局 ---- */
 #workbench {
     position: fixed;

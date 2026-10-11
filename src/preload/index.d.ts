@@ -8,6 +8,7 @@ import type {
   BackendInfo,
   BackendStatusEvent,
   NotifyRequest,
+  UpdateStatusEvent,
   WindowAction
 } from '../shared/contracts'
 
@@ -25,6 +26,16 @@ export interface JarvisDesktopApi {
    * @author aceFelix
    */
   selectDirectory(): Promise<string | null>
+  /**
+   * 自动更新：订阅更新状态推送（available/downloading/downloaded/error），
+   * 返回取消订阅函数（React useEffect cleanup 用）。
+   * @author aceFelix
+   */
+  onUpdateStatus(callback: (status: UpdateStatusEvent) => void): () => void
+  /** 自动更新：触发下载新安装包。 */
+  downloadUpdate(): Promise<void>
+  /** 自动更新：退出并安装（主进程先回收后端再覆盖安装重启）。 */
+  installUpdate(): Promise<void>
 }
 
 declare global {

@@ -15,6 +15,7 @@ import {
   type BackendInfo,
   type BackendStatusEvent,
   type NotifyRequest,
+  type UpdateStatusEvent,
   type WindowAction
 } from '../shared/contracts'
 
@@ -74,7 +75,30 @@ const api = {
     return () => {
       ipcRenderer.removeListener(IpcChannels.BackendStatus, listener)
     }
-  }
+  },
+
+  /**
+   * 自动更新：订阅更新状态推送（available/downloading/downloaded/error）。
+   * 返回取消订阅函数（React useEffect cleanup 用）。
+   * @author aceFelix
+   */
+  onUpdateStatus: (
+    callback: (status: UpdateStatusEvent) => void
+  ): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: UpdateStatusEvent): void => {
+      callback(status)
+    }
+    ipcRenderer.on(IpcChannels.UpdateStatus, listener)
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.UpdateStatus, listener)
+    }
+  },
+
+  /** 自动更新：触发下载新安装包。 */
+  downloadUpdate: (): Promise<void> => ipcRenderer.invoke(IpcChannels.UpdateDownload),
+
+  /** 自动更新：退出并安装（主进程先回收后端再覆盖安装重启）。 */
+  installUpdate: (): Promise<void> => ipcRenderer.invoke(IpcChannels.UpdateInstall)
 }
 
 export type JarvisDesktopApi = typeof api
