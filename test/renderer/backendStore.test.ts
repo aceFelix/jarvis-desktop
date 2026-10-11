@@ -1109,3 +1109,73 @@ describe('backendStore · sendEmail', () => {
     expect(res.error).toBeTruthy()
   })
 })
+
+// 管家服务·邮箱服务配置（email.config.get/set，2026-10）：只读拉取 / 保存均直取
+// 回执，不写聊天流。@author aceFelix
+describe('backendStore · 邮箱配置', () => {
+  const snapshot = {
+    enabled: true,
+    smtp_host: 'smtp.163.com',
+    smtp_port: 465,
+    smtp_user: 'me@163.com',
+    sender: '',
+    default_recipient: '',
+    has_password: true
+  }
+
+  it('fetchEmailConfig 成功：发 email.config.get 并回解析后的配置快照', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: true, result: snapshot })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    const config = await useBackendStore.getState().fetchEmailConfig()
+
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.EmailConfigGet, {})
+    expect(config).toEqual(snapshot)
+    expect(useChatStore.getState().messages).toHaveLength(0)
+  })
+
+  it('fetchEmailConfig 失败/离线：静默回 null，不写聊天流', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: false, error: 'boom' })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+    await expect(useBackendStore.getState().fetchEmailConfig()).resolves.toBeNull()
+
+    useBackendStore.setState({ client: null })
+    await expect(useBackendStore.getState().fetchEmailConfig()).resolves.toBeNull()
+    expect(useChatStore.getState().messages).toHaveLength(0)
+  })
+
+  it('saveEmailConfig 成功：发 email.config.set 并回 {ok:true, config}', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: true, result: snapshot })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    const patch = { smtp_user: 'me@163.com', smtp_password: 'abcd1234' }
+    const res = await useBackendStore.getState().saveEmailConfig(patch)
+
+    expect(client.sendCommand).toHaveBeenCalledWith(Cmd.EmailConfigSet, patch)
+    expect(res.ok).toBe(true)
+    expect(res.config).toEqual(snapshot)
+    expect(useChatStore.getState().messages).toHaveLength(0)
+  })
+
+  it('saveEmailConfig 后端失败：回 {ok:false, error}', async () => {
+    const client = fakeClient()
+    client.sendCommand.mockResolvedValue({ ok: false, error: '落盘失败' })
+    useBackendStore.setState({ client: client as unknown as JarvisWsClient })
+
+    const res = await useBackendStore.getState().saveEmailConfig({ smtp_host: 'x' })
+
+    expect(res).toEqual({ ok: false, error: '落盘失败' })
+  })
+
+  it('saveEmailConfig 未连接：回 {ok:false} 且不抛异常', async () => {
+    useBackendStore.setState({ client: null })
+
+    const res = await useBackendStore.getState().saveEmailConfig({ smtp_host: 'x' })
+
+    expect(res.ok).toBe(false)
+    expect(res.error).toBeTruthy()
+  })
+})

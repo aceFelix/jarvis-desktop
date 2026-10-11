@@ -40,7 +40,7 @@ jarvis (Python)                          jarvis-desktop (Electron)
 | **Chat de-noising** | Thinking blocks / consecutive tool calls / multi-line system notices collapse into one row when done | [Chat experience (中文)](docs/guide/features-chat.md) |
 | **Message rewind** | Hover a user bubble → "rewind": truncate the conversation + optionally roll back workspace files (shadow-git checkpoint) | [Chat experience (中文)](docs/guide/features-chat.md) |
 | **Slash-command passthrough** | `/` commands in the composer run in the engine (allowlist + interactive ban + dynamic skill passthrough) with prefix autocompletion | [Chat experience (中文)](docs/guide/features-chat.md) |
-| **Butler services** | Title-bar button next to settings opens a right-column butler panel to use butler capabilities via a form (first service: send email, more to come) | [Panels & settings (中文)](docs/guide/features-panels.md) |
+| **Butler services** | Title-bar button next to settings opens a right-column butler panel to use butler capabilities via a form (first service: email service — view/edit the current mailbox, configure SMTP, send mail; more to come) | [Panels & settings (中文)](docs/guide/features-panels.md) |
 | **Ready to run** | Windows installer available — **no Python required**, just download and launch | — |
 | **Auto update** | Silent check on startup; when a new version exists an "Update" button appears in the title bar → one-click download (with progress) → "Restart to install" (not code-signed, so a SmartScreen prompt is expected) | — |
 

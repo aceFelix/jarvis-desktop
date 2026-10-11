@@ -14,6 +14,7 @@ import { create } from 'zustand'
 import {
   Cmd,
   parseBackendSettings,
+  parseEmailConfig,
   parseRuntimeState,
   type BackendInfo,
   type BackendSettingKey,
@@ -21,6 +22,8 @@ import {
   type BackendState,
   type CheckpointPreviewResult,
   type CurrentProject,
+  type EmailConfig,
+  type EmailConfigPatch,
   type EmailSendPayload,
   type ModelAddPayload,
   type ModelEditPayload,
@@ -156,6 +159,20 @@ export interface BackendStoreState {
    * @author aceFelix
    */
   sendEmail: (payload: EmailSendPayload) => Promise<{ ok: boolean; error?: string }>
+  /**
+   * 邮箱服务配置读取（email.config.get，2026-10）：面板打开时拉取当前发件邮箱与
+   * SMTP 配置。用 `client.sendCommand` 直取回执（不走 runCommand，不污染聊天流）；
+   * 未连后端/回执失败返回 null，面板据此显离线态。@author aceFelix
+   */
+  fetchEmailConfig: () => Promise<EmailConfig | null>
+  /**
+   * 邮箱服务配置保存（email.config.set，2026-10）：提交改动补丁（授权码留空=
+   * 保持原值），成功回读后半配置快照、失败回 `{ok:false,error}` 供表单内联显示。
+   * @author aceFelix
+   */
+  saveEmailConfig: (
+    patch: EmailConfigPatch
+  ) => Promise<{ ok: boolean; error?: string; config?: EmailConfig }>
   /** 停止当前回复（reply.abort）：busy 由服务端 assistant_done 事件收尾。 */
   abortReply: () => Promise<void>
   newSession: () => Promise<void>
@@ -691,6 +708,34 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
         const reply = await client.sendCommand(Cmd.EmailSend, { ...payload })
         if (!reply.ok) return { ok: false, error: reply.error ?? '发送失败' }
         return { ok: true }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    },
+
+    fetchEmailConfig: async () => {
+      // 邮箱服务配置（email.config.get）：只读直取回执，离线/失败静默回 null，
+      // 面板显离线态，不写聊天流。@author aceFelix
+      const client = get().client
+      if (!client) return null
+      try {
+        const reply = await client.sendCommand(Cmd.EmailConfigGet, {})
+        if (!reply.ok) return null
+        return parseEmailConfig(reply.result)
+      } catch {
+        return null
+      }
+    },
+
+    saveEmailConfig: async (patch) => {
+      // 邮箱服务配置（email.config.set）：直取回执，错误交表单内联显示（不走
+      // runCommand）。成功后回读后端快照（含 has_password），供表单刷新。@author aceFelix
+      const client = get().client
+      if (!client) return { ok: false, error: '未连接到后端' }
+      try {
+        const reply = await client.sendCommand(Cmd.EmailConfigSet, { ...patch })
+        if (!reply.ok) return { ok: false, error: reply.error ?? '保存失败' }
+        return { ok: true, config: parseEmailConfig(reply.result) }
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
       }

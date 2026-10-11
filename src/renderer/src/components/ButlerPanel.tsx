@@ -5,7 +5,8 @@
  * 结构：返回头（← 回信息面板，复用 .settings-head/.settings-back）+ 两级视图：
  * - 服务清单（butlerStore.activeService === ''）：后续扩展只需往 SERVICES 加条目
  *   + i18n 加文案；
- * - 服务表单（activeService === 'email'）：渲染 EmailForm（面板内嵌，非弹窗）。
+ * - 服务视图（activeService === 'email'）：渲染 EmailServicePanel（邮箱服务：
+ *   当前邮箱概览 + 邮箱配置 / 发送邮件子标签，面板内嵌，非弹窗）。
  *
  * 每次面板挂载（重新进入）都重置回服务清单——面板离开视图即卸载，挂载即新入口。
  *
@@ -17,7 +18,7 @@ import { useUiStore } from '../stores/uiStore'
 import { useButlerStore, type ButlerService } from '../stores/butlerStore'
 import { useT } from '../i18n'
 import { useGlyphs } from '../glyphs'
-import EmailForm from './EmailForm'
+import EmailServicePanel from './EmailServicePanel'
 
 /** 服务清单（后续扩展：往这里加一项 + i18n 加文案即可）。 */
 const SERVICES: Array<{ id: Exclude<ButlerService, ''>; labelKey: string; descKey: string }> = [
@@ -71,7 +72,7 @@ export default function ButlerPanel(): JSX.Element {
           ))}
         </div>
       ) : (
-        <EmailForm />
+        <EmailServicePanel />
       )}
     </aside>
   )

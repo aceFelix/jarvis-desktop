@@ -150,7 +150,9 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `project.get` | — | `{workdir, name, persisted}`（`persisted=false`：serve 启动默认值尚未写入 projects.toml） |
 | `projects.list` | — | `[{path, name, last_opened, exists}]`（按 `last_opened` 倒序；`exists=false` 前端置灰仍可移除） |
 | `projects.forget` | `path` | bool（是否确有移除；只清 `~/.jarvis/projects.toml` 记录，**不删磁盘目录**） |
-| `email.send` | `subject`, `body`［, `to`, `cc`, `bcc`］ | `{ok: true, message}`（管家服务「邮件发送」表单直连后端 `SendEmailTool`，**不经模型**——表单点「发送」即用户确认，后端刻意绕过工具默认 ASK 权限；`to` 留空回退 `[email].default_recipient`；收发件配置取自 `~/.jarvis/settings.toml` 的 `[email]` 表；主题/正文空、邮件未启用/缺配置/认证失败等回 ok=false + 原文错误；SMTP 阻塞 IO 由服务端 `asyncio.to_thread` 承载，不冻事件循环；首期不支持附件，2026-10） |
+| `email.send` | `subject`, `body`［, `to`, `cc`, `bcc`］ | `{ok: true, message}`（管家服务「邮箱服务」→「发送邮件」表单直连后端 `SendEmailTool`，**不经模型**——表单点「发送」即用户确认，后端刻意绕过工具默认 ASK 权限；`to` 留空回退 `[email].default_recipient`；收发件配置取自 `~/.jarvis/settings.toml` 的 `[email]` 表；主题/正文空、邮件未启用/缺配置/认证失败等回 ok=false + 原文错误；SMTP 阻塞 IO 由服务端 `asyncio.to_thread` 承载，不冻事件循环；首期不支持附件，2026-10） |
+| `email.config.get` | — | `{enabled, smtp_host, smtp_port, smtp_user, sender, default_recipient, has_password}`（读取 `[email]` 配置；**不回传授权码明文**，只回 `has_password` 布尔；管家服务「邮箱服务」→「邮箱配置」标签挂载时拉取，2026-10） |
+| `email.config.set` | `enabled`/`smtp_host`/`smtp_port`/`smtp_user`/`smtp_password`/`sender`/`default_recipient`（均可选，至少一项） | 回写后的同 `email.config.get` 字段（serve 侧白名单字段 + 端口 1..65535 校验 → 转义 upsert `settings.toml` 的 `[email]` 表 → 同步运行时 `Settings`；**`smtp_password` 留空 = 保持原授权码不变**；落盘失败 ok=false 且不动运行时；同步处理器，本地快速 IO，2026-10） |
 
 ### 斜杠命令透传与补全（slash.exec / slash.commands，2026-10）
 
@@ -512,17 +514,26 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
 右栏第三个视图：`ButlerPanel.tsx` 整体替换右栏（与 `SettingsPanel` 同一替换机制，
 `uiStore.rightView === 'butler'`），入口为标题栏右上角「设置」齿轮旁的 **管家服务**
 按钮（`TitleBar.tsx`，兼 toggle、激活态高亮，随后端连接态置灰）。面板两级视图，
-状态在单一职责的 `butlerStore`（`activeService`：''=服务清单，'email'=邮件表单；
+状态在单一职责的 `butlerStore`（`activeService`：''=服务清单，'email'=邮箱服务视图；
 面板每次挂载重置回清单）：
 
 - **服务清单**（面板首页）：服务入口行（名称 + 一句话说明），后续扩展只需往
   `SERVICES` 清单加条目 + i18n 加文案；
-- **邮件发送**：面板内嵌 `EmailForm.tsx`（非弹窗），经 `email.send` 指令直连后端
-  `SendEmailTool`（协议细节见上「指令一览」表 `email.send` 行）；成功/失败均在
-  面板内提示（错误内联、表单不关闭可重试），取消/完成回服务清单。
+- **邮箱服务**（原「邮件发送」，2026-10 改名并扩展）：面板内嵌 `EmailServicePanel.tsx`，
+  顶部常显**当前邮箱概览卡**（当前发件邮箱 = `sender || smtp_user`、SMTP `host:port`、
+  启用状态、授权码是否已配置），子标签「邮箱配置」/「发送邮件」二选一：
+  - **邮箱配置**（`EmailConfigForm.tsx`）：查看/修改 SMTP 服务器、端口、账号、
+    授权码、发件人、默认收件人、启用开关，经 `email.config.get` / `email.config.set`
+    读写后端 `~/.jarvis/settings.toml` 的 `[email]` 表；**授权码不回显明文**（后端只回
+    `has_password`），留空即保持原值；端口 1..65535 本地拦截。
+  - **发送邮件**（复用 `EmailForm.tsx`）：经 `email.send` 指令直连后端 `SendEmailTool`
+    （协议细节见上「指令一览」表 `email.send` 行）；成功/失败均在面板内提示
+    （错误内联、表单不关闭可重试），取消/完成回服务清单。
 
-样式在 `styles/butler.css`（面板只补服务清单与表单专属类，容器复用
-`.settings-head` / `.settings-back` / `.settings-panel` 既有样式，随三皮肤联动）。
+配置数据由 `EmailServicePanel` 持 `useState`（挂载 `fetchEmailConfig` 拉取，离线/失败
+显离线态），**不新增全局 store**。样式在 `styles/butler.css`（面板只补服务清单、
+概览卡与表单专属类，容器复用 `.settings-head` / `.settings-back` / `.settings-panel`
+既有样式，随三皮肤联动）。
 
 ### 事件一览
 

@@ -391,7 +391,16 @@ export const Cmd = {
    * `[email]` 表；to 留空时回退到配置的 default_recipient。首期不支持附件。
    * @author aceFelix
    */
-  EmailSend: 'email.send'
+  EmailSend: 'email.send',
+  /**
+   * 管家服务·邮箱服务（email.config.get/set，2026-10）：查看/修改当前发件邮箱与
+   * SMTP 服务配置。读写 ~/.jarvis/settings.toml 的 `[email]` 表，单一真源在后端
+   * agent/config/email_settings.py。安全范式与模型编辑一致：get 不回传授权码明文
+   * （只回 has_password），set 中授权码留空 = 保持原值不变。
+   * @author aceFelix
+   */
+  EmailConfigGet: 'email.config.get',
+  EmailConfigSet: 'email.config.set'
 } as const
 
 /** 跨设备协同通道（qrcode / remote_state 事件的 channel 字段）。 */
@@ -467,6 +476,56 @@ export interface EmailSendPayload {
 export interface EmailSendResult {
   ok: boolean
   message?: string
+}
+
+/**
+ * 邮箱服务配置快照（email.config.get 回执 result，2026-10）：镜像后端
+ * agent/config/email_settings.py 的 read_email_config。
+ *
+ * **不含授权码明文**，只以 `has_password` 表示是否已配置（密码框据此提示
+ * 「已配置，留空即不修改」）。发件邮箱 = sender（留空时后端回退 smtp_user）。
+ * @author aceFelix
+ */
+export interface EmailConfig {
+  enabled: boolean
+  smtp_host: string
+  smtp_port: number
+  smtp_user: string
+  sender: string
+  default_recipient: string
+  has_password: boolean
+}
+
+/**
+ * email.config.set 请求 payload（邮箱配置补丁）：只提交用户实际改动的字段。
+ * 授权码（smtp_password）**留空 = 保持原值不变**（与模型编辑 api_key 同口径）；
+ * 其余字段缺省即不修改。@author aceFelix
+ */
+export interface EmailConfigPatch {
+  enabled?: boolean
+  smtp_host?: string
+  smtp_port?: number
+  smtp_user?: string
+  smtp_password?: string
+  sender?: string
+  default_recipient?: string
+}
+
+/** email.config.get 回执 result 的宽容解析：类型不符/缺字段回落到安全默认值。 */
+export function parseEmailConfig(payload: unknown): EmailConfig {
+  const p = (payload ?? {}) as Record<string, unknown>
+  const str = (v: unknown): string => (typeof v === 'string' ? v : '')
+  const num = (v: unknown): number =>
+    typeof v === 'number' && Number.isFinite(v) ? Math.trunc(v) : 465
+  return {
+    enabled: p.enabled === true,
+    smtp_host: str(p.smtp_host),
+    smtp_port: num(p.smtp_port),
+    smtp_user: str(p.smtp_user),
+    sender: str(p.sender),
+    default_recipient: str(p.default_recipient),
+    has_password: p.has_password === true
+  }
 }
 
 /**

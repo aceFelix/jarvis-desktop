@@ -56,3 +56,50 @@
     font-weight: 600;
     color: var(--qr-ok);
 }
+
+/* ---- 邮箱服务视图（2026-10）：子返回头 + 当前邮箱概览卡 + 子标签 ---- */
+/* 子返回头：回服务清单（不退出管家面板），复用 .settings-back 按钮样式 */
+.butler-subhead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 当前邮箱概览卡：发件邮箱 / SMTP / 状态 / 授权码 四行键值对 */
+.butler-overview {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--edge-mid);
+    background: rgba(91, 200, 255, 0.06);
+}
+
+/* 概览行：左侧键（弱化）、右侧值（强调）两端对齐 */
+.butler-overview-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.butler-overview-key {
+    font-size: 12px;
+    color: var(--qr-dim);
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+
+/* 概览值：发件邮箱等关键信息用强调色，长邮箱可换行 */
+.butler-overview-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--qr-accent);
+    text-align: right;
+    word-break: break-all;
+}
+
+/* 子标签（邮箱配置 / 发送邮件）：复用 .segmented/.seg-btn，仅补上间距 */
+.butler-tabs {
+    margin-top: 2px;
+}
