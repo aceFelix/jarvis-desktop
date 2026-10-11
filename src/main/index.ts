@@ -23,6 +23,7 @@ import { initLogging, log, logError } from './logging'
 import { resolveIconPath } from './appIcon'
 import { showSystemNotification } from './notify'
 import { createTray, destroyTray } from './tray'
+import { checkOnStartup, download, initUpdater, install } from './update'
 import { IpcChannels, type NotifyRequest, type WindowAction } from '../shared/contracts'
 
 let mainWindow: BrowserWindow | null = null
@@ -158,6 +159,21 @@ function registerIpc(): void {
     if (result.canceled) return null
     return result.filePaths[0] ?? null
   })
+  // 自动更新：手动兜底检查 / 下载 / 退出并安装。
+  // 安装前必须先回收后端子进程（jarvis-serve.exe），否则文件被占用导致覆盖失败；
+  // quitting=true 让窗口 close 不再被拦截（真正退出而非隐藏到托盘）。
+  // @author aceFelix
+  ipcMain.handle(IpcChannels.UpdateCheck, () => {
+    checkOnStartup()
+  })
+  ipcMain.handle(IpcChannels.UpdateDownload, async () => {
+    await download()
+  })
+  ipcMain.handle(IpcChannels.UpdateInstall, async () => {
+    quitting = true
+    await backend?.stop()
+    await install()
+  })
 }
 
 /** 单实例锁：拿不到锁直接退出（首实例收到 second-instance 聚焦窗口）。 */
@@ -206,6 +222,16 @@ if (!gotLock) {
       app.quit()
     })
     void startBackend()
+
+    // 自动更新：初始化事件→状态推送，仅打包态启动检查一次（dev 静默跳过）。
+    // 安装时 quitting 已在 UpdateInstall handler 置真，退出不再被 close 拦成隐藏。
+    // @author aceFelix
+    initUpdater((e) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(IpcChannels.UpdateStatus, e)
+      }
+    })
+    checkOnStartup()
   })
 
   app.on('window-all-closed', () => {

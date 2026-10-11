@@ -58,8 +58,39 @@ export const IpcChannels = {
    * 返回选中绝对路径或 null（取消）。后端对路径做二次校验，不自动建目录。
    * @author aceFelix
    */
-  SelectDirectory: 'jarvis:select-directory'
+  SelectDirectory: 'jarvis:select-directory',
+  /**
+   * 自动更新（electron-updater，仅打包态生效）。
+   * 启动静默检查 → 有新版本才显示按钮 → 点击下载（带进度）→ 重启安装。
+   * @author aceFelix
+   */
+  /** invoke：手动兜底检查更新（当前仅启动时自动调一次）。 */
+  UpdateCheck: 'jarvis:update-check',
+  /** invoke：点按钮触发下载新安装包。 */
+  UpdateDownload: 'jarvis:update-download',
+  /** invoke：退出并安装（主进程先回收后端子进程再 quitAndInstall）。 */
+  UpdateInstall: 'jarvis:update-install',
+  /** 主进程 → 渲染进程：更新状态推送。 */
+  UpdateStatus: 'jarvis:update-status'
 } as const
+
+/**
+ * 自动更新状态机（主进程 → 渲染进程推送 payload）。
+ *
+ * state：idle=无更新/未检查 / available=有新版本（显示「更新」按钮）/
+ * downloading=下载中（percent 为进度）/ downloaded=已下载（显示「重启安装」）/
+ * error=出错（可回退重试）。渲染层据 state 决定按钮是否渲染与文案。
+ * @author aceFelix
+ */
+export interface UpdateStatusEvent {
+  state: 'idle' | 'available' | 'downloading' | 'downloaded' | 'error'
+  /** 新版本号（available/downloading/downloaded 时携带）。 */
+  version?: string
+  /** 下载进度百分比 0-100（downloading 时携带）。 */
+  percent?: number
+  /** 错误信息（error 时携带，仅日志/诊断用）。 */
+  error?: string
+}
 
 /** 系统通知请求体（渲染进程 → 主进程，主进程 Electron Notification 弹窗）。 */
 export interface NotifyRequest {
