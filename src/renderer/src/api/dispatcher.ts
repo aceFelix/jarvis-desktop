@@ -365,6 +365,12 @@ export function dispatchServerEvent(
       left.setVoiceActive(false)
       left.setVoiceState('')
       left.setMode('text')
+      // 语音会话结束兜底收尾：正常收尾信号（voice_ai_text / assistant_done）可能
+      // 因异常退出而缺席，此处统一定稿气泡 + 解停止闸门 + 清忙碌态，避免残留
+      // “思考中/流式”气泡或 aborted 闸门把下一条消息的增量丢弃。@author aceFelix
+      chat.setAborted(false)
+      chat.finishAssistant()
+      chat.setBusy(false)
       onStatus?.({ text: '就绪', tone: 'idle' })
       break
     case 'voice_state': {
@@ -382,7 +388,10 @@ export function dispatchServerEvent(
       chat.appendAssistantText(String(payload ?? ''))
       break
     case 'voice_ai_text': {
-      // 全量文本：替换流式气泡并收尾（与 ai_transcript 同构）
+      // 全量文本：替换流式气泡并收尾（与 ai_transcript 同构）。
+      // 语音轮的后端收尾信号（assistant_done）要等 TTS 播完才到，此处先就地
+      // 定稿气泡 + 清忙碌态——用户反馈“语音已回复我办妥了，气泡却仍在疯狂
+      // 输出思考、停不下来”，根因即缺这一步收尾。@author aceFelix
       const text = String(payload ?? '')
       const messages = useChatStore.getState().messages
       const lastAi = [...messages].reverse().find((m) => m.kind === 'ai' && m.streaming)
@@ -395,8 +404,9 @@ export function dispatchServerEvent(
         }))
       } else {
         chat.appendAssistantText(text)
-        chat.finishAssistant()
       }
+      chat.finishAssistant()
+      chat.setBusy(false)
       break
     }
 

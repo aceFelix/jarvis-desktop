@@ -517,6 +517,47 @@ describe('dispatchServerEvent · 半双工语音 voice', () => {
     expect(ai[0]).toMatchObject({ text: '好的，已提醒你', streaming: false })
   })
 
+  // 语音轮收尾（voice-turn-done fix）：语音轮不走 query_loop 的 assistant_done，
+  // 若 voice_ai_text 只替换文本不收尾，气泡会一直停在「思考中/流式」、忙碌态
+  // （发送键变停止）撤不回来 —— 用户反馈「语音已回复我办妥了，气泡却仍在疯狂
+  // 输出思考、停不下来」。@author aceFelix
+  it('voice_ai_text 定稿气泡并清忙碌态（语音轮就地收尾）', () => {
+    useChatStore.getState().setBusy(true)
+    dispatchServerEvent({ event: 'voice_ai_text_delta', data: '好的' }, makeConn())
+    // 增量期：气泡流式中 + busy 为真
+    expect(useChatStore.getState().messages[0]).toMatchObject({ streaming: true })
+    expect(useChatStore.getState().busy).toBe(true)
+    dispatchServerEvent({ event: 'voice_ai_text', data: '好的，已办妥' }, makeConn())
+    expect(useChatStore.getState().messages[0]).toMatchObject({
+      text: '好的，已办妥',
+      streaming: false
+    })
+    expect(useChatStore.getState().busy).toBe(false)
+  })
+
+  it('voice_ai_text 无流式气泡时新建一条并定稿（不残留 streaming）', () => {
+    dispatchServerEvent({ event: 'voice_ai_text', data: '直接回复' }, makeConn())
+    expect(useChatStore.getState().messages[0]).toMatchObject({
+      kind: 'ai',
+      text: '直接回复',
+      streaming: false
+    })
+  })
+
+  it('voice_stopped 兜底收尾：解 aborted 闸门 + 定稿气泡 + 清忙碌态', () => {
+    // 异常退出（收尾信号缺席）时，仍要点停止后能停下：voice_stopped 兜底。
+    useChatStore.getState().setBusy(true)
+    useChatStore.getState().setAborted(true)
+    useChatStore.getState().appendAssistantText('半截回复')
+    const onStatus = vi.fn()
+    dispatchServerEvent({ event: 'voice_stopped', data: null }, makeConn(), onStatus)
+    const s = useChatStore.getState()
+    expect(s.aborted).toBe(false)
+    expect(s.busy).toBe(false)
+    expect(s.messages.find((m) => m.kind === 'ai')).toMatchObject({ streaming: false })
+    expect(onStatus).toHaveBeenCalledWith({ text: '就绪', tone: 'idle' } satisfies StatusLabel)
+  })
+
   it('talk_started 权威置 talk 模式（voice→talk 互斥复位）', () => {
     // voice 运行中被 talk 抢占：引擎先发的 voice_stopped 把 mode 重置 text，
     // 随后 talk_started 必须把 mode 复位为 talk（与 voice_started 对称）。

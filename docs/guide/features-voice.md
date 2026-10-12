@@ -30,6 +30,20 @@
   **需要调用工具时走半双工语音（`/voice`）**，它走标准 LLM API 天然支持全量工具。
 - 未授权/无麦克风时采集启动失败，模式自动回退文本态并上屏报错。
 
+## 半双工语音收尾（/voice，2026-10-12）
+
+半双工 `/voice` 的「听→想→说」循环不经文本轮的 `assistant_done` 收尾路径，此前会造成
+**语音已播报「办妥了」，气泡框却仍在疯狂输出思考、发送键停在「■ 停止」撤不回来**：
+
+- **后端补收尾信号**：voice_loop 每轮结束（无论成功回复 / 被打断 / 待机退下 / 中途出错）
+  发 `on_turn_done()`（协议见 jarvis `agent/voice/voice_events.py`），serve 适配器
+  `ServeVoiceAdapter` 映射为文本轮同一 `assistant_done` WS 事件。
+- **前端就地 + 兜底收尾**：Dispatcher 收 `voice_ai_text`（全量文本）即 `finishAssistant()`
+  + 清 `busy`；`voice_stopped` 再兜底一次（解 `aborted` 闸门 + 定稿气泡 + 清忙碌态），
+  确保异常退出也不残留「思考中/流式」气泡。终端 REPL 适配器未覆盖 `on_turn_done`
+  （继承空实现），行为不变。
+- 复盘见 jarvis `docs/fixlogs/voice-turn-done-fix.md`。
+
 ## 跨设备协同（手机 / 微信，2026-10）
 
 把终端 jarvis 的 `/connect-phone`（手机 PWA）与 `/connect-wechat`（微信 ClawBot）接入桌面：
