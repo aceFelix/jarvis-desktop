@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 320" width="1000" height="320" preserveAspectRatio="xMidYMid meet">
+  <!-- J.A.R.V.I.S. Desktop README 头部 logo 动画：复古 CRT 荧光绿方舟反应炉
+       取色对齐 src/renderer/src/reactor.ts 的 PALETTE_GREEN / SPRITE_GREEN、
+       scripts/gen_icon.py 的应用图标色板与 styles/theme-retro.css 主题变量。
+       作者：aceFelix -->
+  <defs>
+    <!-- 背景径向渐变：复古 CRT 深绿（对齐 theme-retro.css body 底色 #020602） -->
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#04160b"/>
+      <stop offset="60%" stop-color="#020a04"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+
+    <!-- 核心辉光：荧光绿高光内核 -->
+    <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#eafff1" stop-opacity="0.95"/>
+      <stop offset="40%" stop-color="#66ff99" stop-opacity="0.6"/>
+      <stop offset="80%" stop-color="#33ff66" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#33ff66" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- 环形辉光滤镜 -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="strongGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- CRT 扫描线：1px 暗线 / 4px 周期（对齐 theme-retro.css 扫描线） -->
+    <pattern id="scanlines" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="1" fill="#000000" fill-opacity="0.32"/>
+    </pattern>
+  </defs>
+
+  <!-- 深绿 CRT 背景 -->
+  <rect width="100%" height="100%" fill="url(#bgGrad)"/>
+
+  <!-- 反应堆中心坐标：500, 160 -->
+  <g transform="translate(500, 160)">
+    <!-- 外圈粒子轨道 1：荧光绿环 + 亮弧 -->
+    <g>
+      <circle r="120" fill="none" stroke="#0a4d22" stroke-width="1" stroke-opacity="0.5"/>
+      <circle r="120" fill="none" stroke="#33ff66" stroke-width="2" stroke-dasharray="40 715" stroke-linecap="round" filter="url(#glow)">
+        <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="12s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+
+    <!-- 外圈粒子轨道 2：中绿反向旋转 -->
+    <g>
+      <circle r="95" fill="none" stroke="#0d6630" stroke-width="1" stroke-opacity="0.5"/>
+      <circle r="95" fill="none" stroke="#66ff99" stroke-width="2" stroke-dasharray="25 571" stroke-linecap="round" filter="url(#glow)">
+        <animateTransform attributeName="transform" type="rotate" from="360" to="0" dur="8s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+
+    <!-- 反应堆核心外环：荧光绿呼吸 -->
+    <circle r="70" fill="none" stroke="#33ff66" stroke-width="3" stroke-opacity="0.65" filter="url(#glow)">
+      <animate attributeName="stroke-opacity" values="0.55;0.95;0.55" dur="3s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="60" fill="none" stroke="#66ff99" stroke-width="5" stroke-opacity="0.85" filter="url(#glow)">
+      <animate attributeName="r" values="60;62;60" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="50" fill="none" stroke="#8fffb0" stroke-width="3" stroke-opacity="0.9" filter="url(#glow)"/>
+
+    <!-- 线圈刻度：八扇区短弧，强化像素反应炉的线圈质感 -->
+    <g stroke="#66ff99" stroke-width="4" stroke-linecap="butt" stroke-opacity="0.85" filter="url(#glow)">
+      <line x1="0" y1="-42" x2="0" y2="-53">
+        <animate attributeName="stroke-opacity" values="0.9;0.3;0.9" dur="1.6s" repeatCount="indefinite"/>
+      </line>
+      <line x1="30" y1="-30" x2="37" y2="-37">
+        <animate attributeName="stroke-opacity" values="0.9;0.3;0.9" dur="1.6s" begin="0.2s" repeatCount="indefinite"/>
+      </line>
+      <line x1="42" y1="0" x2="53" y2="0">
+        <animate attributeName="stroke-opacity" values="0.9;0.3;0.9" dur="1.6s" begin="0.4s" repeatCount="indefinite"/>
+      </line>
+      <line x1="30" y1="30" x2="37" y2="37">
+        <animate attributeName="stroke-opacity" values="0.9;0.3;0.9" dur="1.6s" begin="0.6s" repeatCount="indefinite"/>
+      </line>
+      <line x1="0" y1="42" x2="0" y2="53">
+        <animate attributeName="stroke-opacity" values="0.9;0.3;0.9" dur="1.6s" begin="0.8s" repeatCount="indefinite"/>
+      </line>
+      <line x1="-30" y1="30" x2="-37" y2="37">
+        <animate attributeName="stroke-opacity" values="0.9;0.3;0.9" dur="1.6s" begin="1s" repeatCount="indefinite"/>
+      </line>
+      <line x1="-42" y1="0" x2="-53" y2="0">
+        <animate attributeName="stroke-opacity" values="0.9;0.3;0.9" dur="1.6s" begin="1.2s" repeatCount="indefinite"/>
+      </line>
+      <line x1="-30" y1="-30" x2="-37" y2="-37">
+        <animate attributeName="stroke-opacity" values="0.9;0.3;0.9" dur="1.6s" begin="1.4s" repeatCount="indefinite"/>
+      </line>
+    </g>
+
+    <!-- 粒子点：沿轨道运动 -->
+    <g>
+      <circle r="3" fill="#eafff1" filter="url(#glow)">
+        <animateMotion path="M 0 -120 A 120 120 0 1 1 0 120 A 120 120 0 1 1 0 -120" dur="6s" repeatCount="indefinite" rotate="auto"/>
+      </circle>
+      <circle r="2.5" fill="#8fffb0" filter="url(#glow)">
+        <animateMotion path="M 0 95 A 95 95 0 1 0 0 -95 A 95 95 0 1 0 0 95" dur="4s" repeatCount="indefinite" rotate="auto"/>
+      </circle>
+      <circle r="2" fill="#eafff1" filter="url(#glow)">
+        <animateMotion path="M -70 0 A 70 70 0 1 1 70 0 A 70 70 0 1 1 -70 0" dur="3s" repeatCount="indefinite" rotate="auto"/>
+      </circle>
+    </g>
+
+    <!-- 核心发光：高光内核脉动，呼应应用图标 #c8ffd6 内核 -->
+    <circle r="45" fill="url(#coreGlow)" filter="url(#strongGlow)">
+      <animate attributeName="r" values="45;48;45" dur="2s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="35" fill="#66ff99" fill-opacity="0.85" filter="url(#strongGlow)">
+      <animate attributeName="fill-opacity" values="0.72;0.98;0.72" dur="1.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="20" fill="#c8ffd6" fill-opacity="0.95" filter="url(#strongGlow)">
+      <animate attributeName="fill-opacity" values="0.85;1;0.85" dur="1s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- 标题文字 -->
+  <text x="50%" y="260" text-anchor="middle" font-family="Consolas, 'Courier New', monospace" font-size="72" font-weight="bold" fill="#c8ffd6" letter-spacing="8" filter="url(#strongGlow)">
+    J.A.R.V.I.S
+    <animate attributeName="fill-opacity" values="0.85;1;0.85" dur="3s" repeatCount="indefinite"/>
+  </text>
+  <text x="50%" y="290" text-anchor="middle" font-family="Consolas, 'Courier New', monospace" font-size="16" fill="#66ff99" letter-spacing="6" opacity="0.85">
+    DESKTOP SHELL
+  </text>
+
+  <!-- 装饰性像素粒子：四角浮动，强化复古 CRT 像素感 -->
+  <g>
+    <rect x="150" y="78" width="3" height="3" fill="#33ff66" opacity="0.8">
+      <animate attributeName="y" values="78;58;78" dur="4s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.8;0.2;0.8" dur="4s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="848" y="118" width="3" height="3" fill="#33ff66" opacity="0.8">
+      <animate attributeName="y" values="118;98;118" dur="5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.8;0.2;0.8" dur="5s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="198" y="238" width="3" height="3" fill="#66ff99" opacity="0.8">
+      <animate attributeName="x" values="198;218;198" dur="6s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.8;0.2;0.8" dur="6s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="800" y="228" width="3" height="3" fill="#66ff99" opacity="0.8">
+      <animate attributeName="x" values="800;780;800" dur="5.5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.8;0.2;0.8" dur="5.5s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <!-- CRT 扫描线叠加层 -->
+  <rect width="100%" height="100%" fill="url(#scanlines)" pointer-events="none"/>
+</svg>

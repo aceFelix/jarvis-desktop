@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="assets/jarvis-desktop-reactor-header.svg" alt="J.A.R.V.I.S. Desktop" width="100%"/>
+</div>
+
 # jarvis-desktop
 
 > The J.A.R.V.I.S desktop shell (Electron + React) — spawns the `--serve` backend of [`jarvis`](../jarvis) and provides desktop host capabilities with a brand-new React UI.

@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="assets/jarvis-desktop-reactor-header.svg" alt="J.A.R.V.I.S. Desktop" width="100%"/>
+</div>
+
 # jarvis-desktop
 
 > J.A.R.V.I.S 桌面壳（Electron + React）—— 拉起 [`jarvis`](../jarvis) 的 `--serve` 后端，提供桌面宿主能力与全新 React UI。
