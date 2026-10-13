@@ -118,6 +118,31 @@ jarvis-desktop/
 | [架构说明](docs/architecture.md) | 运行时拓扑、启动流程、持久化、安全边界、协议契约（指令/事件一览） |
 | [开发指南](docs/development.md) | 本地环境、测试（397 用例）、人工走查清单、二期路线图 |
 
+## 交流与赞赏
+
+<div align="center">
+
+**贾维斯 Agent 应用开发知识交流群** —— 扫码加入，和其他Agent应用伙伴一起交流 Agent 应用开发经验、插件及各种AI玩法。
+
+<table>
+<tr>
+  <td align="center">微信群「Hello Jarvis.」</td>
+  <td align="center">QQ 群「Hello Jarvis.」（群号 1109055256）</td>
+</tr>
+<tr>
+  <td><img src="assets/communication/discussion-group.png" alt="微信群 Hello Jarvis." width="150"/></td>
+  <td><img src="assets/communication/discussion-group2.jpg" alt="QQ 群 Hello Jarvis." width="150"/></td>
+</tr>
+</table>
+
+> 微信群二维码 7 天内有效，过期后可从 QQ 群获取最新入群方式。
+
+**赞赏支持** —— 如果 J.A.R.V.I.S. Desktop 对你有帮助，欢迎请我喝杯咖啡——你的支持是项目持续迭代的动力，🦀🦀。
+
+<img src="assets/communication/thanks-for-the-tip.png" alt="微信赞赏码" width="200"/>
+
+</div>
+
 ## License
 
 Apache License 2.0 © aceFelix

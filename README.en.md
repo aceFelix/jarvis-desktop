@@ -118,6 +118,31 @@ See [Architecture (中文)](docs/architecture.md) for the full tree; tests and i
 | [Architecture (中文)](docs/architecture.md) | Runtime topology, startup flow, persistence, security, protocol (commands/events) |
 | [Development Guide (中文)](docs/development.md) | Local env, tests (397 cases), manual walkthrough, phase-2 roadmap |
 
+## Community & Support
+
+<div align="center">
+
+**Jarvis Agent App Development Community** — scan to join and exchange Agent app development experience, plugins and various AI use cases with other Agent app peers.
+
+<table>
+<tr>
+  <td align="center">WeChat group "Hello Jarvis."</td>
+  <td align="center">QQ group "Hello Jarvis." (1109055256)</td>
+</tr>
+<tr>
+  <td><img src="assets/communication/discussion-group.png" alt="WeChat group Hello Jarvis." width="150"/></td>
+  <td><img src="assets/communication/discussion-group2.jpg" alt="QQ group Hello Jarvis." width="150"/></td>
+</tr>
+</table>
+
+> The WeChat QR code is valid for 7 days; once it expires, get the latest invite from the QQ group.
+
+**Buy me a coffee** — if J.A.R.V.I.S. Desktop has been helpful to you, feel free to buy me a coffee — your support keeps this project moving forward. 🦀🦀
+
+<img src="assets/communication/thanks-for-the-tip.png" alt="WeChat tip QR code" width="200"/>
+
+</div>
+
 ## License
 
 Apache License 2.0 © aceFelix
