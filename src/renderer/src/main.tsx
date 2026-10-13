@@ -30,6 +30,10 @@ import './styles/remote.css'
 // 样式，同样需早于皮肤引入以允许主题层基于 --edge-* / --qr-panel-* 变量联动。
 // @author aceFelix
 import './styles/butler.css'
+// 扩展服务层（2026-10 标题栏「扩展服务」入口 → MCP/工具/技能/插件/harness 清单）：
+// 按职责拆分的模块样式，同样需早于皮肤引入以允许主题层基于 --edge-* 变量联动。
+// @author aceFelix
+import './styles/extension.css'
 import './styles/theme-dark-y2k.css'
 import './styles/theme-light-y2k.css'
 import './styles/theme-retro.css'

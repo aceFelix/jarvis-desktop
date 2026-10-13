@@ -153,6 +153,7 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `email.send` | `subject`, `body`［, `to`, `cc`, `bcc`］ | `{ok: true, message}`（管家服务「邮箱服务」→「发送邮件」表单直连后端 `SendEmailTool`，**不经模型**——表单点「发送」即用户确认，后端刻意绕过工具默认 ASK 权限；`to` 留空回退 `[email].default_recipient`；收发件配置取自 `~/.jarvis/settings.toml` 的 `[email]` 表；主题/正文空、邮件未启用/缺配置/认证失败等回 ok=false + 原文错误；SMTP 阻塞 IO 由服务端 `asyncio.to_thread` 承载，不冻事件循环；首期不支持附件，2026-10） |
 | `email.config.get` | — | `{enabled, smtp_host, smtp_port, smtp_user, sender, default_recipient, has_password}`（读取 `[email]` 配置；**不回传授权码明文**，只回 `has_password` 布尔；管家服务「邮箱服务」→「邮箱配置」标签挂载时拉取，2026-10） |
 | `email.config.set` | `enabled`/`smtp_host`/`smtp_port`/`smtp_user`/`smtp_password`/`sender`/`default_recipient`（均可选，至少一项） | 回写后的同 `email.config.get` 字段（serve 侧白名单字段 + 端口 1..65535 校验 → 转义 upsert `settings.toml` 的 `[email]` 表 → 同步运行时 `Settings`；**`smtp_password` 留空 = 保持原授权码不变**；落盘失败 ok=false 且不动运行时；同步处理器，本地快速 IO，2026-10） |
+| `extensions.exec` | `category`（`mcp`/`tools`/`skills`/`plugins`/`harness`）+ `action` + 动作相关参数 | `{ok, data, message}`（扩展服务面板**一条通用指令承载五类扩展**的清单与增删改启停；serve 侧 `WorkbenchAPI.run_extension` → `agent/ui/workbench/extensions_api.py` 按 category 分发；插件/harness 的克隆安装等阻塞 IO 经 `asyncio.to_thread` 承载；2026-10） |
 
 ### 斜杠命令透传与补全（slash.exec / slash.commands，2026-10）
 
@@ -448,8 +449,8 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
 ### 设置面板（独立组件，2026-09）
 
 设置从右栏信息面板中独立出来：`SettingsPanel.tsx` 整体替换右栏（`App.tsx` 按
-`stores/uiStore.ts` 的 `rightView: 'dashboard' | 'settings' | 'butler'` 条件渲染
-（`butler` 为 2026-10 新增的管家服务面板视图，见下节），瞬态不持久化，
+`stores/uiStore.ts` 的 `rightView: 'dashboard' | 'settings' | 'butler' | 'extension'` 条件渲染
+（`butler` / `extension` 为 2026-10 新增的管家服务 / 扩展服务面板视图，分别见下两节），瞬态不持久化，
 重启回信息面板），入口为标题栏齿轮按钮（`TitleBar.tsx`，兼 toggle，激活态高亮），
 面板内 ← 返回。四节（外观 + 语音播报 + 每日简报 + 截止日期追踪）：
 
@@ -534,6 +535,39 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
 显离线态），**不新增全局 store**。样式在 `styles/butler.css`（面板只补服务清单、
 概览卡与表单专属类，容器复用 `.settings-head` / `.settings-back` / `.settings-panel`
 既有样式，随三皮肤联动）。
+
+### 扩展服务面板（独立组件，2026-10）
+
+右栏第四个视图：`ExtensionPanel.tsx` 整体替换右栏（`uiStore.rightView === 'extension'`），
+入口为标题栏右上角「管家服务」按钮旁的 **扩展服务** 按钮（`TitleBar.tsx`，兼 toggle、
+激活态高亮，随后端连接态置灰）。面板**两级视图**，分类状态在单一职责的
+`extensionStore`（`activeCategory`：''=分类入口页，其余为 mcp/tools/skills/plugins/harness；
+面板每次挂载重置回入口页）：
+
+- **分类入口页**：五个分类行（名称 + 一句话说明），点入对应详情页；
+- **五类详情**：
+  - **MCP 服务**（`ExtensionMcpPanel.tsx`）：增 / 删 / 改 / 启停。列表展示名称、
+    命令+参数、传输方式、连接态与已暴露工具数；新增/编辑复用同一 `McpForm`（编辑时名称
+    `readOnly`）；删除走两步确认（`pendingDelete`）。**启停不写 `mcp.json`**（可能含明文
+    token，属高风险改动），禁用名单落到独立文件 `~/.jarvis/mcp_disabled.json`，
+    后端 `connect_mcp` 连接时据此过滤。
+  - **内置工具**（`ExtensionListPanels.tsx::ExtensionToolsPanel`）：清单（名称 + 首行描述）
+    + 本地关键字过滤；数据取自引擎活动 registry。
+  - **技能**（`ExtensionListPanels.tsx::ExtensionSkillsPanel`）：技能目录区（`.extension-dirs`）
+    + 已加载技能清单 + 本地关键字过滤。
+  - **插件**（`ExtensionMarketPanels.tsx::ExtensionPluginsPanel`）：已装清单（启停 / 卸载
+    两步确认）+ 市场搜索（`plugins.search`）→ 安装（`plugins.install`）。
+  - **harness**（`ExtensionMarketPanels.tsx::ExtensionHarnessPanel`）：已装清单（启停 / 卸载）
+    + 市场浏览（展开收起，`harness.market`）→ 安装（`harness.install`）。
+- **单指令口径**：五类动作统一走通用指令 `extensions.exec`（`category` + `action`），
+  统一返回体 `{ok, data, message}`；serve 侧 `WorkbenchAPI.run_extension` 委托
+  `agent/ui/workbench/extensions_api.py` 按 `category` 分发（见 jarvis 侧
+  [07-UI层](file:///e:/2.MyProjects/MyAgentChat/J.A.R.V.I.S/jarvis/docs/architecture/07-UI层.md)）。
+- **状态与动作拆分**：共享取数/返回头抽到 `components/extensionShared.tsx`
+  （`useExtensionData` 挂载即拉取 + `reload()`；`ExtensionSubhead` 统一子面板返回头）；
+  指令动作经 `stores/extensionActions.ts` 工厂注入 `backendStore`（对齐 `remoteActions` /
+  `resourceActions` 的拆分范式，避免 `backendStore` 超 800 行）。样式在
+  `styles/extension.css`（容器复用 `.settings-head` / `.settings-panel`，随三皮肤联动）。
 
 ### 事件一览
 

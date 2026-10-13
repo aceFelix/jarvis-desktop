@@ -18,7 +18,7 @@
 
 ## 定位
 
-`jarvis-desktop` 与 `jarvis` 是**上下游分离**的两个仓库（对齐 `dsh-desktop` / `deepseek-harness` 的关系）：
+`jarvis-desktop` 与 `jarvis` 是**上下游分离**的两个仓库：
 
 - **jarvis（上游，Python）**：Agent 运行时。`--serve` 模式启动一个 headless API 服务，复用与 pywebview 工作台完全相同的引擎零件（`ChatEngine` + `WorkbenchAPI` + `MetricsCollector`），经 WebSocket 对外提供指令/事件流。
 - **jarvis-desktop（下游，Electron）**：桌面宿主。**不重写 Agent 运行时**，只负责：拉起并守护 `python -m agent.serve` 子进程、解析 stdout 握手 JSON、单实例、托盘、日志、系统通知（主动播报）、退出时回收 Python 进程树；UI 用 React 全新实现，但沿用 J.A.R.V.I.S 视觉语言。
@@ -45,6 +45,7 @@ jarvis（Python）                         jarvis-desktop（Electron）
 | **消息回溯** | 悬停用户气泡「撤回」：对话截断 + 可选工作区文件回滚（shadow git 检查点） | [对话体验](docs/guide/features-chat.md) |
 | **斜杠命令透传** | 输入框 `/` 命令透传引擎执行（白名单 + 交互禁令 + 技能动态放行）+ 前缀补全 | [对话体验](docs/guide/features-chat.md) |
 | **管家服务** | 标题栏「设置」旁按钮进入右栏管家服务面板，用表单直接使用管家能力（首期：邮箱服务——查看/修改当前邮箱、配置 SMTP、发送邮件，后续可扩展更多服务） | [三栏面板与设置](docs/guide/features-panels.md) |
+| **扩展服务** | 标题栏「管家服务」旁按钮进入右栏扩展服务面板，集中管理五类扩展能力：**MCP 服务**（增删改 + 启停）、**内置工具**（清单与搜索）、**技能**（目录与已加载清单）、**插件**（市场搜索 + 安装/卸载/启停）、**harness 工具**（市场浏览 + 安装/卸载/启停） | [三栏面板与设置](docs/guide/features-panels.md) |
 | **开箱即用** | 提供 Windows 安装包，**免装 Python**，下载双击即用 | — |
 | **自动更新** | 启动静默检查新版本，有新版本时标题栏出现「更新」按钮 → 一键下载（带进度）→「重启安装」覆盖升级（未做代码签名，SmartScreen 提示属预期） | — |
 

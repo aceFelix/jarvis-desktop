@@ -4,7 +4,8 @@
  *
  * 齿轮按钮：进入/退出设置面板（右栏整体替换为 SettingsPanel，uiStore.rightView
  * 驱动）；管家服务按钮：进入/退出管家服务面板（右栏整体替换为 ButlerPanel，
- * 同一机制）。三者与窗口控制按钮同在 no-drag 区。
+ * 同一机制）；扩展服务按钮：进入/退出扩展服务面板（ExtensionPanel：MCP / 内置
+ * 工具 / 技能 / 插件 / harness 五类集中管理）。三者与窗口控制按钮同在 no-drag 区。
  *
  * 无全屏按钮：窗口即普通可缩放窗口，全屏诉求走系统快捷键（与 workbench
  * "不提供全屏"的口径一致）。
@@ -26,6 +27,8 @@ export default function TitleBar(): JSX.Element {
   const closeSettings = useUiStore((s) => s.closeSettings)
   const openButler = useUiStore((s) => s.openButler)
   const closeButler = useUiStore((s) => s.closeButler)
+  const openExtension = useUiStore((s) => s.openExtension)
+  const closeExtension = useUiStore((s) => s.closeExtension)
   // 未连上后端时管家服务不可用（指令链路依赖 WS），置灰（口径同左栏模式切换）
   const wsConnected = useBackendStore((s) => s.wsConnected)
   // 自动更新状态（主进程推送经 App 写入 updateStore）
@@ -47,6 +50,11 @@ export default function TitleBar(): JSX.Element {
   const toggleButler = (): void => {
     if (rightView === 'butler') closeButler()
     else openButler()
+  }
+  // 扩展服务按钮同口径 toggle：进入面板/从面板回信息面板
+  const toggleExtension = (): void => {
+    if (rightView === 'extension') closeExtension()
+    else openExtension()
   }
 
   // 「有新版才显示按钮」：available/downloading/downloaded 三态可见；
@@ -104,6 +112,17 @@ export default function TitleBar(): JSX.Element {
           onClick={toggleButler}
         >
           {g.butler} {t('butler.title')}
+        </button>
+        {/* 扩展服务按钮（管家服务旁）：右栏切换为 ExtensionPanel（MCP / 内置工具 /
+            技能 / 插件 / harness 五类集中管理），未连后端置灰（指令链路依赖 WS） */}
+        <button
+          className={`win-btn butler-btn${rightView === 'extension' ? ' active' : ''}`}
+          title={t('extension.tip')}
+          data-testid="btn-open-extension"
+          disabled={!wsConnected}
+          onClick={toggleExtension}
+        >
+          {g.extension} {t('extension.title')}
         </button>
         <button
           className={`win-btn${rightView === 'settings' ? ' active' : ''}`}

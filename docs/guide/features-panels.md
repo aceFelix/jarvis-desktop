@@ -2,7 +2,7 @@
 
 > [← 返回 README](../../README.md) · [对话体验](features-chat.md) · [语音与多端](features-voice.md) · [架构说明](../architecture.md)
 
-三栏工作台：**左栏**（模式切换 + 历史/模型/音色面板 + 底部「项目」区）、**中栏**（对话区 + 输入栏）、**右栏**（信息面板 / 设置面板）。以下为各面板的能力口径，实现细节见 [架构说明](../architecture.md)。
+三栏工作台：**左栏**（模式切换 + 历史/模型/音色面板 + 底部「项目」区）、**中栏**（对话区 + 输入栏）、**右栏**（信息面板 / 设置面板 / 管家服务面板 / 扩展服务面板，四视图互斥替换）。以下为各面板的能力口径，实现细节见 [架构说明](../architecture.md)。
 
 ---
 
@@ -116,6 +116,34 @@
   发信账号（SMTP 服务器/端口/授权码）同样取自该 `[email]` 表——**与终端 jarvis 共用同一份配置**。
   未配置或认证失败时后端把原文错误透传到面板内联显示。
 - **首期不做附件**：渲染进程受沙箱限制，选本地文件需新增主进程 IPC + preload 能力，留待后续迭代。
+
+## 扩展服务（右栏面板）
+
+标题栏右上角（「管家服务」按钮旁）有一个 **扩展服务** 按钮，点击后右栏整体切换为
+扩展服务面板（与前三个视图同一替换机制），在面板里**统一管理五类扩展能力**：
+**MCP 服务 / 内置工具 / 技能 / 插件 / harness 工具**。入口同样随后端连接态置灰。
+
+- **两级形态**：面板先展示**五个分类入口页**（名称 + 一句话说明），点某一类进入该类
+  详情页（面板内 ← 返回分类列表）；实现在
+  [ExtensionPanel.tsx](../../src/renderer/src/components/ExtensionPanel.tsx)（外壳与分类分发）
+  与 [ExtensionMcpPanel.tsx](../../src/renderer/src/components/ExtensionMcpPanel.tsx)、
+  [ExtensionListPanels.tsx](../../src/renderer/src/components/ExtensionListPanels.tsx)、
+  [ExtensionMarketPanels.tsx](../../src/renderer/src/components/ExtensionMarketPanels.tsx)
+  三个子面板；分类视图在单一职责的 `extensionStore`，右栏视图切换在 `uiStore`
+  （dashboard / settings / butler / extension 四态）。
+- **五类能力**（首期完整管理口径）：
+  - **MCP 服务**：增 / 删 / 改 / 启停。列表展示名称、命令/参数、传输方式、连接态与
+    已暴露工具数；新增/编辑共用同一张表单（编辑时名称锁定）；删除走两步确认。
+    **启停不改 `mcp.json`**（其中可能含明文 token），而是把禁用名单写入独立的
+    `~/.jarvis/mcp_disabled.json`，`connect_mcp` 连接时据此过滤。
+  - **内置工具**：清单查看（名称 + 一句话描述）+ 本地关键字过滤；取自引擎活动 registry。
+  - **技能**：技能目录区（`~/.jarvis/skills/` 等）+ 已加载技能清单 + 本地关键字过滤。
+  - **插件**：已装清单（启停 / 卸载两步确认）+ 市场搜索 → 安装。
+  - **harness 工具**：已装清单（启停 / 卸载）+ 市场浏览（可展开收起）→ 安装。
+- **单指令口径**：五类动作统一走一条通用指令 `extensions.exec`，以 `category`
+  （mcp / tools / skills / plugins / harness）+ `action` 承载具体操作，避免为 20 个动作
+  各开指令导致协议膨胀；统一返回体 `{ok, data, message}`。表单**直连后端 RPC、不走模型层**
+  （与管家服务邮箱表单同口径，不污染聊天流）；写操作后自动 `reload()` 并在面板内联提示成功/失败。
 
 ## 右栏面板（四区块）
 

@@ -1,0 +1,109 @@
+/* 扩展服务面板（2026-10）：右栏视图之一（与管家服务面板同机制，标题栏入口按钮
+   在「管家服务」旁）。容器复用 #right-col / .settings-head / .settings-back /
+   .settings-panel / .butler-service-item / .setting-* / .model-input 既有样式；
+   本文件只补扩展清单的行式布局与搜索行，配色复用 --edge-* / --qr-* 变量以随主题
+   联动。@author aceFelix */
+
+/* ---- 清单容器：纵向排列的扩展条目 ---- */
+.extension-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* 清单行：左侧信息（名称/描述/元信息）+ 右侧操作按钮组 */
+.extension-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--edge-mid);
+    background: rgba(91, 200, 255, 0.04);
+}
+
+/* 行内信息列：名称 / 描述 / 元信息纵向堆叠 */
+.extension-row-main {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
+}
+
+/* 扩展名：强调色 + 轻微字距（与面板标题同族） */
+.extension-row-name {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--qr-accent);
+    word-break: break-all;
+}
+
+/* 一句话描述：常规前景色，长文本换行 */
+.extension-row-desc {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--qr-panel-fg, inherit);
+    word-break: break-all;
+}
+
+/* 元信息（连接态/来源/版本等）：弱化色小字 */
+.extension-row-meta {
+    font-size: 11px;
+    color: var(--qr-dim);
+    word-break: break-all;
+}
+
+/* 行内操作按钮组：右侧竖排，窄宽度下自动换行 */
+.extension-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+/* 危险操作（删除/卸载）：确认前用警示描边区分于普通按钮 */
+.extension-row-actions .action-btn.danger {
+    border-color: var(--qr-danger, #e5534b);
+    color: var(--qr-danger, #e5534b);
+}
+
+/* 搜索行（只读清单面板）：单输入框，占满可用宽度 */
+.extension-search .model-input {
+    width: 100%;
+}
+
+/* 搜索行（市场面板）：输入框 + 搜索按钮并排 */
+.extension-search-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.extension-search-row .model-input {
+    flex: 1;
+    min-width: 0;
+}
+
+/* 计数副标题（共 N 个工具/技能）：弱化小字，紧贴清单 */
+.extension-count {
+    margin-bottom: 4px;
+}
+
+/* 分区标题（市场面板的「已安装」小标题） */
+.extension-section-title {
+    display: block;
+    margin-top: 4px;
+}
+
+/* 技能搜索目录区块：底部分隔线 + 弱化小字列表 */
+.extension-dirs {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--edge-mid);
+}

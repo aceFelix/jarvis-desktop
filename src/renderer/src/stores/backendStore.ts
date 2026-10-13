@@ -52,6 +52,7 @@ import { useSlashStore } from './slashStore'
 // 资源/协同两组动作拆出动作工厂（遵守单文件 800 行上限，行为不变）。@author aceFelix
 import { buildResourceActions } from './resourceActions'
 import { buildRemoteActions } from './remoteActions'
+import { buildExtensionActions, type ExtensionActions } from './extensionActions'
 import {
   useRightStore,
   type CostInfo,
@@ -121,7 +122,7 @@ function rlog(msg: string): void {
   }
 }
 
-export interface BackendStoreState {
+export interface BackendStoreState extends ExtensionActions {
   state: BackendState
   info: BackendInfo | null
   error: string
@@ -698,6 +699,9 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
 
     // ---- 跨设备协同（手机 / 微信）：动作成块拆出 remoteActions.ts（800 行上限）。----
     ...buildRemoteActions(runCommand),
+
+    // ---- 扩展服务（MCP / 工具 / 技能 / 插件 / harness）：拆出 extensionActions.ts ----
+    ...buildExtensionActions(() => get().client),
 
     sendEmail: async (payload) => {
       // 管家服务·邮件发送（email.send）：直接取回执，错误交表单内联显示，

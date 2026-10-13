@@ -16,6 +16,7 @@ import ChatArea from './components/ChatArea'
 import RightSidebar from './components/RightSidebar'
 import SettingsPanel from './components/SettingsPanel'
 import ButlerPanel from './components/ButlerPanel'
+import ExtensionPanel from './components/ExtensionPanel'
 import { useBackendStore } from './stores/backendStore'
 import { useUiStore } from './stores/uiStore'
 import { useUpdateStore } from './stores/updateStore'
@@ -51,7 +52,7 @@ export default function App(): JSX.Element {
   const applyBackendStatus = useBackendStore((s) => s.applyBackendStatus)
   const ready = useBackendStore((s) => s.state === 'ready')
   const wsConnected = useBackendStore((s) => s.wsConnected)
-  // 右栏视图：设置面板/管家服务面板以组件形式整体替换信息面板（标题栏按钮进入）
+  // 右栏视图：设置面板/管家服务面板/扩展服务面板以组件形式整体替换信息面板（标题栏按钮进入）
   const rightView = useUiStore((s) => s.rightView)
 
   useEffect(() => {
@@ -82,8 +83,16 @@ export default function App(): JSX.Element {
       <div id="workbench">
         <LeftSidebar />
         <ChatArea />
-        {/* 右栏三视图：设置面板 / 管家服务面板 / 信息面板 */}
-        {rightView === 'settings' ? <SettingsPanel /> : rightView === 'butler' ? <ButlerPanel /> : <RightSidebar />}
+        {/* 右栏四视图：设置面板 / 管家服务面板 / 扩展服务面板 / 信息面板 */}
+        {rightView === 'settings' ? (
+          <SettingsPanel />
+        ) : rightView === 'butler' ? (
+          <ButlerPanel />
+        ) : rightView === 'extension' ? (
+          <ExtensionPanel />
+        ) : (
+          <RightSidebar />
+        )}
       </div>
       {!ready || !wsConnected ? <BootOverlay /> : null}
     </>

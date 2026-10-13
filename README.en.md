@@ -18,7 +18,7 @@
 
 ## Positioning
 
-`jarvis-desktop` and `jarvis` are two **upstream/downstream separated** repositories (mirroring the `dsh-desktop` / `deepseek-harness` relationship):
+`jarvis-desktop` and `jarvis` are two **upstream/downstream separated** repositories:
 
 - **jarvis (upstream, Python)**: the Agent runtime. Its `--serve` mode starts a headless API service that reuses exactly the same engine parts as the pywebview workbench (`ChatEngine` + `WorkbenchAPI` + `MetricsCollector`), exposing commands/events over WebSocket.
 - **jarvis-desktop (downstream, Electron)**: the desktop host. It **does not rewrite the Agent runtime** — it only spawns and supervises the `python -m agent.serve` subprocess, parses the stdout handshake JSON, and handles single-instance, tray, logging, system notifications (proactive announcements), and process-tree reaping on exit. The UI is reimplemented in React but keeps the J.A.R.V.I.S visual language.
@@ -45,6 +45,7 @@ jarvis (Python)                          jarvis-desktop (Electron)
 | **Message rewind** | Hover a user bubble → "rewind": truncate the conversation + optionally roll back workspace files (shadow-git checkpoint) | [Chat experience (中文)](docs/guide/features-chat.md) |
 | **Slash-command passthrough** | `/` commands in the composer run in the engine (allowlist + interactive ban + dynamic skill passthrough) with prefix autocompletion | [Chat experience (中文)](docs/guide/features-chat.md) |
 | **Butler services** | Title-bar button next to settings opens a right-column butler panel to use butler capabilities via a form (first service: email service — view/edit the current mailbox, configure SMTP, send mail; more to come) | [Panels & settings (中文)](docs/guide/features-panels.md) |
+| **Extension services** | Title-bar button next to butler opens a right-column extensions panel managing five kinds of extensions in one place: **MCP servers** (add/edit/remove + enable/disable), **built-in tools** (list + search), **skills** (search dirs + loaded list), **plugins** (marketplace search + install/uninstall/enable/disable), **harness tools** (browse marketplace + install/uninstall/enable/disable) | [Panels & settings (中文)](docs/guide/features-panels.md) |
 | **Ready to run** | Windows installer available — **no Python required**, just download and launch | — |
 | **Auto update** | Silent check on startup; when a new version exists an "Update" button appears in the title bar → one-click download (with progress) → "Restart to install" (not code-signed, so a SmartScreen prompt is expected) | — |
 
