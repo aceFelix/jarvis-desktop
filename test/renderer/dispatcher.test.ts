@@ -1,5 +1,5 @@
 /**
- * dispatchServerEvent 单测 —— WS 事件到各 store 的路由（对齐 workbench app.js dispatchEvent）。
+ * dispatchServerEvent 单测 —— WS 事件到各 store 的路由（历史对照：pywebview 工作台的 app.js dispatchEvent 已退役）。
  *
  * 用假 JarvisConnection（三个 refresh 为 spy）驱动，断言聊天 / 左栏 / 指标 store 切片
  * 与状态栏回调。reactor 未注册（getReactor()=null），语音类事件走可选链不报错。

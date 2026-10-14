@@ -22,7 +22,7 @@
 2. **anthropic SDK 流关闭确认**：`messages.stream()` 的 `__aexit__` 走
    `stream.close()` → httpx `response.aclose()`，非阻塞，不会拖住事件循环。
 3. **复现测试实测**：新增
-   [`jarvis/tests/ui/test_abort_latency.py`](../../jarvis/tests/ui/test_abort_latency.py)，
+   [`jarvis/tests/ui/test_abort_latency.py`](../../../jarvis/tests/ui/test_abort_latency.py)，
    用真实引擎 + 真实 `AnthropicProvider` + 本地 fake SSE（每 30ms 一条
    thinking_delta 共 300 条）测得：从调用 `abort_current_reply()` 到
    `assistant_done` 到达事件队列，**取消延迟约 0.001s**（纯 asyncio 对照组

@@ -114,7 +114,7 @@ export interface ChatState {
    * @author aceFelix
    */
   rewindTailFromUser: (userTailCount: number) => boolean
-  /** 恢复历史会话：清空后回放（与 workbench session_loaded 口径一致）。 */
+  /** 恢复历史会话：清空后回放（与 jarvis 工作台引擎层 session_loaded 口径一致）。 */
   replayHistory: (messages: Array<{ role: string; text?: string; tool_count?: number }>) => void
 }
 
@@ -348,7 +348,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const list: MessageItem[] = []
       for (const m of messages) {
         if (m.role === 'assistant') {
-          // 无文本的纯工具轮次不生成空气泡（与 workbench 口径一致）
+          // 无文本的纯工具轮次不生成空气泡（与工作台引擎层口径一致）
           if (m.text) {
             list.push({ kind: 'ai', id: genId(), text: m.text, thinking: '', streaming: false })
           }

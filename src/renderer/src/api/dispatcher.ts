@@ -1,5 +1,8 @@
 /**
- * 服务端事件分发器 —— WS 事件 → Zustand store actions（对齐 workbench app.js dispatchEvent）。
+ * 服务端事件分发器 —— WS 事件 → Zustand store actions。
+ *
+ * 历史口径：jarvis 仓 pywebview 工作台曾有一份等价的 app.js dispatchEvent，
+ * 已随窗口壳于 2026-10 退役删除，本模块为唯一现役事件分发实现。
  *
  * 纯函数模块：不持有状态，dispatcher 依赖全部 store 与 reactorRef，
  * 单测可直接以事件对象驱动并断言 store 切片。
@@ -28,7 +31,7 @@ import type { ReactorStatus } from '../reactor'
 import type { JarvisConnection } from '../stores/backendStore'
 import { flushTalkAudio, pushTalkAudio, startTalkPlayback, stopTalkPlayback } from '../audio/talkPlayback'
 
-/** 实时模式状态标签（状态栏文案，与 workbench 一致）。 */
+/** 实时模式状态标签（状态栏文案；原 pywebview 工作台同款文案，已随窗口壳退役）。 */
 export const talkStatusLabels: Record<string, string> = {
   connecting: '实时连接中...',
   standby: '实时待命',

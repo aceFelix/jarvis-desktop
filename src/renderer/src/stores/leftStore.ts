@@ -2,7 +2,7 @@
  * 左栏数据 store —— 会话历史 / 模型 / 音色三面板 + UI 状态（活动面板、模式）。
  *
  * 数据经 WS request/response 指令拉取（sessions.list 等），
- * 切换动作发指令后本地刷新列表（与 workbench 交互口径一致）。
+ * 切换动作发指令后本地刷新列表（与 jarvis 工作台引擎层交互口径一致）。
  *
  * @author aceFelix
  */

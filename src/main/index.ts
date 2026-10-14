@@ -56,7 +56,8 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
-  // 关闭 = 隐藏到托盘（退出走托盘菜单），与 workbench 常驻口径一致
+  // 关闭 = 隐藏到托盘（退出走托盘菜单）；托盘常驻为桌面壳自有行为，
+  // 原 jarvis pywebview 窗口壳的常驻方式已于 2026-10 退役
   mainWindow.on('close', (e) => {
     if (!quitting) {
       e.preventDefault()

@@ -20,7 +20,7 @@
 
 `jarvis-desktop` and `jarvis` are two **upstream/downstream separated** repositories:
 
-- **jarvis (upstream, Python)**: the Agent runtime. Its `--serve` mode starts a headless API service that reuses exactly the same engine parts as the pywebview workbench (`ChatEngine` + `WorkbenchAPI` + `MetricsCollector`), exposing commands/events over WebSocket.
+- **jarvis (upstream, Python)**: the Agent runtime. Its `--serve` mode starts a headless API service that reuses the `agent/ui/workbench/` engine layer (`ChatEngine` + `WorkbenchAPI` + `MetricsCollector`), exposing commands/events over WebSocket. jarvis no longer ships any built-in GUI — the old pywebview three-column workbench window shell (`jarvis --gui` / `--talk`) was retired and deleted in 2026-10, making this repository the only graphical desktop entry point.
 - **jarvis-desktop (downstream, Electron)**: the desktop host. It **does not rewrite the Agent runtime** — it only spawns and supervises the `python -m agent.serve` subprocess, parses the stdout handshake JSON, and handles single-instance, tray, logging, system notifications (proactive announcements), and process-tree reaping on exit. The UI is reimplemented in React but keeps the J.A.R.V.I.S visual language.
 
 ```

@@ -5,9 +5,11 @@
 再 NEAREST 放大出各尺寸帧，保持像素颗粒感；配色与 theme-retro.css 同源；
 圆外区域全透明（2026-09-26：此前黑绿实底铺满画布，Windows 任务栏图标外
 出现黑色正方形边框，改透明轮廓后消除）。
-本脚本自包含（仅依赖 Pillow），不再复用 jarvis 仓库 autostart.py 的深蓝反应炉
-绘制——两者身份有意分叉：jarvis --gui 窗口仍用深蓝版（~/.jarvis/
-jarvis_window.ico，仅兜底），桌面壳用本仓库复古版且候选优先（src/main/appIcon.ts）。
+本脚本自包含（仅依赖 Pillow），不复用 jarvis 仓库的图标绘制逻辑——两者身份
+有意分叉：jarvis 侧深蓝版窗口图标原由开机自启脚本生成，已随 pywebview 三栏
+工作台窗口壳于 2026-10 一并退役（老用户机上的 ~/.jarvis/jarvis_window.ico
+仅作兜底候选，新安装不再产生）；桌面壳用本仓库复古版且候选优先
+（src/main/appIcon.ts）。
 
 用法（任一装了 Pillow 的 Python 环境，如 jarvis 的 venv）：
 

@@ -1,6 +1,7 @@
-/* jarvis-desktop 全局样式 —— 深蓝玻璃拟态三栏（视觉语言移植自 workbench style.css）
-   差异口径：Electron 窗口不透明，body 铺深蓝渐变实底（workbench 是透明透出桌面）；
-   拖动区用 -webkit-app-region: drag（workbench 用 pywebview-drag-region class）。
+/* jarvis-desktop 全局样式 —— 深蓝玻璃拟态三栏（视觉语言移植自历史 pywebview 工作台 style.css，
+   该前端已随窗口壳于 2026-10 退役删除，本仓库样式为唯一现役实现）
+   差异口径：Electron 窗口不透明，body 铺深蓝渐变实底（原工作台为透明透出桌面）；
+   拖动区用 -webkit-app-region: drag（原工作台用 pywebview-drag-region class）。
    已验证实机经验直接沿用：grid 项 min-height:0 滚动约束链、列表项 flex-shrink:0、
    气泡不开 backdrop-filter、8px 加亮滚动条、悬停/选中字体变蓝。
    @author aceFelix

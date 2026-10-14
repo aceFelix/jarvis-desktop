@@ -27,7 +27,7 @@ jarvis-desktop 是 `jarvis` 的**桌面宿主壳**，本身不含 Agent 运行�
 - **主进程**只做宿主能力：拉起并守护后端子进程、创建窗口、转发 IPC、退出时回收进程树。
   后端来源分两态：dev 态 spawn 本机 `python -m agent.serve`（依赖 jarvis 源码仓库）；
   打包态 spawn 随包冻结的 `resources/jarvis-serve/jarvis-serve.exe`（PyInstaller，用户无需装 Python）。
-- **Python 子进程**是唯一的 Agent 运行时，与 pywebview 工作台（`jarvis --gui`）共用同一套引擎零件，仅把宿主从 pywebview 换成 WebSocket 服务。
+- **Python 子进程**是唯一的 Agent 运行时，复用 jarvis 仓 `agent/ui/workbench/` 引擎层零件。历史口径：该引擎层曾同时服务两个宿主——jarvis 自带的 pywebview 三栏工作台（本进程渲染）与 serve（WebSocket 服务）；前者已于 2026-10 退役删除，现仅存 serve 一种宿主，故本仓库是唯一的图形化前端。
 - **渲染进程**是纯 React UI，经 preload 暴露的最小 API 拿到连接信息后，直连 Python 的 WS 端口；不接触 Node/文件系统。
 
 ## 2. 启动流程
@@ -583,17 +583,20 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
 - **半双工语音**：`voice_started` / `voice_stopped` / `voice_state`（payload 为 `listening｜thinking｜speaking｜standby｜exited`）/ `voice_user_transcript` / `voice_ai_text_delta`（流式增量）/ `voice_ai_text`（全量）——音频 I/O 留 serve 本机 pyaudio，壳只做遥控 + 状态/文字显示
 - **主动播报**：`proactive_notify`（payload `{kind: briefing｜reminder｜deadline, title, text, task_id}`；由 serve 侧 `ProactiveHub` 装配的每日简报 / 对话提醒 / 截止日期触发，仅 `--serve` / 桌面壳运行期间生效）
 
-渲染侧 `api/dispatcher.ts` 把上述事件映射进 Zustand store（`chatStore` / `leftStore` / `metricsStore` / `rightStore`）与反应炉动画实例，组件只订阅 store 切片——与 workbench 前端 `app.js::dispatchEvent` 口径一致。其中 `proactive_notify` 除上屏聊天气泡外，还调 `window.jarvisDesktop.notify` 经主进程弹 Windows 原生通知（`src/main/notify.ts`），reminder 带 `task_id` 时回发 `proactive.ack`。
+渲染侧 `api/dispatcher.ts` 把上述事件映射进 Zustand store（`chatStore` / `leftStore` / `metricsStore` / `rightStore`）与反应炉动画实例，组件只订阅 store 切片——事件→UI 的映射口径与引擎事件表同源（历史对照：jarvis 仓 pywebview 工作台的 `app.js::dispatchEvent` 曾同口径，已随窗口壳于 2026-10 删除，本 dispatcher 为唯一现役实现）。其中 `proactive_notify` 除上屏聊天气泡外，还调 `window.jarvisDesktop.notify` 经主进程弹 Windows 原生通知（`src/main/notify.ts`），reminder 带 `task_id` 时回发 `proactive.ack`。
 
 `session_ready` 仅为引擎装配完成通知（只刷新会话列表，不清屏）：该事件由 `_ensure_session`
 在首轮回合中途发出，带清屏语义会吞掉乐观上屏的首发用户气泡（实测启动后首条消息只剩
 AI 回复）。「清屏初始化」语义由 `backendStore.applyBackendStatus` 接管：检测到后端进程
-pid 换代（崩溃重启）时清旧气泡；workbench `app.js` 同口径，清屏初始化由页面加载空屏与
-`session_new` 兜底（fixlog: `session-ready-first-bubble-swallow`）。
+pid 换代（崩溃重启）时清旧气泡；常规清屏初始化由页面加载空屏与
+`session_new` 兜底（fixlog: `session-ready-first-bubble-swallow`；历史 pywebview 工作台
+`app.js` 曾同口径，已随窗口壳删除）。
 
 ### 左栏会话项交互（删除 / 改名）
 
-`LeftSidebar.tsx::SessionItem` 与 workbench `app.js::refreshSessionList` 同口径：
+`LeftSidebar.tsx::SessionItem` 交互口径（引擎侧改动见 jarvis 仓
+`agent/ui/workbench/engine.py`；历史 pywebview 工作台 `app.js::refreshSessionList` 曾同口径，
+已随窗口壳删除）：
 
 - **单击**：220ms 延时后发 `sessions.open` 加载会话（当前会话不发）；延时用于让位双击，
   双击会先清掉该定时器，避免「想改名却先加载一次」。

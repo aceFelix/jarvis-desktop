@@ -80,13 +80,13 @@ npm run dist:fast  # 同上但复用已冻结的 jarvis-serve/（只改壳时快
 
 ### 图标资源（build/icon.ico）
 
-`electron-builder.yml` 的 `win.icon` 与 `tray.ts` 的兜底图标路径都指向 `build/icon.ico`（多尺寸 16~256，**复古荧光绿像素反应炉**：32×32 像素网格程序化绘制——同心环带 + 八扇区线圈 + 高光内核，NEAREST 放大保持像素颗粒；配色与 theme-retro.css 同源；**圆外区域全透明**——此前黑绿实底 `#020602` 铺满方形画布，导致 Windows 任务栏图标外出现黑色正方形边框，2026-09-26 改为圆形透明轮廓）。该文件由脚本自包含生成并入库（仅依赖 Pillow，不再复用 jarvis 仓库绘制逻辑——jarvis --gui 窗口仍用深蓝版，两者身份有意分叉），重生成方式：
+`electron-builder.yml` 的 `win.icon` 与 `tray.ts` 的兜底图标路径都指向 `build/icon.ico`（多尺寸 16~256，**复古荧光绿像素反应炉**：32×32 像素网格程序化绘制——同心环带 + 八扇区线圈 + 高光内核，NEAREST 放大保持像素颗粒；配色与 theme-retro.css 同源；**圆外区域全透明**——此前黑绿实底 `#020602` 铺满方形画布，导致 Windows 任务栏图标外出现黑色正方形边框，2026-09-26 改为圆形透明轮廓）。该文件由脚本自包含生成并入库（仅依赖 Pillow，不复用 jarvis 仓库绘制逻辑——jarvis 侧深蓝版窗口图标已随 pywebview 三栏工作台窗口壳于 2026-10 退役，两者身份有意分叉），重生成方式：
 
 ```powershell
 python scripts/gen_icon.py   # 任一装了 Pillow 的环境（如 jarvis 的 venv）
 ```
 
-**窗口与托盘同源**：任务栏/Alt-Tab 图标（`BrowserWindow.icon`）与托盘图标都经 `src/main/appIcon.ts` 解析（候选顺序：`build/icon.ico` 仓库复古版 → `~/.jarvis/jarvis_window.ico` 深蓝旧版兜底；2026-09-25 起仓库版优先，与默认复古主题同一视觉身份），杜绝「任务栏 Electron 原子 logo、托盘反应炉」的分叉（2026-09-10 实机反馈修复）。
+**窗口与托盘同源**：任务栏/Alt-Tab 图标（`BrowserWindow.icon`）与托盘图标都经 `src/main/appIcon.ts` 解析（候选顺序：`build/icon.ico` 仓库复古版 → `~/.jarvis/jarvis_window.ico` 深蓝旧版兜底（该旧版原由 jarvis 开机自启脚本生成，已随窗口壳退役，仅存量安装残留）；2026-09-25 起仓库版优先，与默认复古主题同一视觉身份），杜绝「任务栏 Electron 原子 logo、托盘反应炉」的分叉（2026-09-10 实机反馈修复）。
 
 ## 4. 测试
 
