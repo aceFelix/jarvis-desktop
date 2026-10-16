@@ -94,14 +94,15 @@
 标题栏右上角（设置齿轮旁）有一个 **管家服务** 按钮，点击后右栏整体切换为管家服务
 面板（与设置面板同一替换机制），在面板里用表单**直接使用** Jarvis 的管家能力
 （不走对话、不经模型）。入口为后续扩展预留：新增服务只需往服务清单加一项、往服务视图
-映射表加一个组件、再加两份文案。
+映射表加一个组件、再加两份文案。按钮右上角平时没有标记，只在后端投递「感知能力
+首次引导」时亮一个脉动提示点（点进面板即消，详见下文感知源一节）。
 
 - **位置与形态**：标题栏按钮 → 右栏面板两级视图（服务清单 → 服务视图，面板内 ←
   返回信息面板）；按钮随后端连接态置灰（未连后端不可点）。实现在
   [src/renderer/src/components/ButlerPanel.tsx](../../src/renderer/src/components/ButlerPanel.tsx)
   与 [EmailServicePanel.tsx](../../src/renderer/src/components/EmailServicePanel.tsx)、
   [PerceptSourcePanel.tsx](../../src/renderer/src/components/PerceptSourcePanel.tsx)，右栏视图切换在
-  `uiStore`（dashboard / settings / butler 三态），面板内服务视图在单一职责的 `butlerStore`。
+  `uiStore`（dashboard / settings / butler / extension 四态），面板内服务视图在单一职责的 `butlerStore`。
 - **服务一·邮箱服务**（原「邮件发送」，2026-10 改名并扩展）：服务清单点「邮箱服务」→
   进入后顶部常显**当前邮箱概览卡**（当前发件邮箱 = `sender || smtp_user`、SMTP `host:port`、
   启用状态、授权码是否已配置），下方两个子标签：
@@ -140,6 +141,13 @@
   保存后若后端本轮没能重装配总线，面板会如实提示“已保存，但需重启后端后生效”，而不是
   假装已生效；关掉开关同时会释放 IMAP 连接与摄像头。协议细节见
   [架构说明](../architecture.md) 的 `percept.status.get` / `percept.config.set` 两行。
+- **服务二·首次引导（阶段 9 W2 第 7 步）**：若你**从未对感知层做过选择**（没开过总开关、
+  也没手改过 `[percept]` 配置），桌面壳连上后端后会主动告知一次：聊天区上屏一条
+  **🔍 开头**的引导气泡（同时弹一次 Windows 系统通知，但**不朗读**），标题栏
+  「管家服务」按钮亮脉动提示点并换上引导文案。三条保证：**只出现一次**（问过与否记在
+  后端 `~/.jarvis/percept/consent.json`，重连/重启不会重复），**点进面板即清**（不是未读
+  计数，壳侧不另存状态），**不代替你打开任何采集**（引导到达时仍全关，也没有“一键开启”）；
+  在面板上拨一次总开关就等于表过态（记 `choice=on/off`）。
 
 ## 扩展服务（右栏面板）
 

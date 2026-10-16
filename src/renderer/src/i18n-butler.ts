@@ -18,6 +18,8 @@ export const zhButler: Dict = {
   // ---- 管家服务（标题栏「设置」旁按钮入口 → 右栏面板，首期：邮箱服务）----
   'butler.title': '管家服务',
   'butler.tip': '管家服务（邮箱服务等）',
+  // 感知源首次引导到达时的按钮提示（W2 第 7 步：提示点亮期间替代 butler.tip）
+  'butler.hintTip': '管家服务里新增了「感知源」设置，点这里看看',
   'butler.service.email': '邮箱服务',
   'butler.service.emailDesc': '查看当前邮箱、配置 SMTP 服务并发送邮件（直连后端，不走对话）',
   'butler.email.title': '邮件发送',
@@ -147,6 +149,8 @@ export const enButler: Dict = {
   // ---- Butler services (title-bar button next to settings → right-column panel; first: email) ----
   'butler.title': 'Butler',
   'butler.tip': 'Butler services (email, more to come)',
+  // Button tooltip once the first-run percept guidance arrives (W2 step 7)
+  'butler.hintTip': 'New "Perception sources" settings in Butler — take a look',
   'butler.service.email': 'Email service',
   'butler.service.emailDesc': 'View the current mailbox, configure SMTP and send email (direct to backend, no chat)',
   'butler.email.title': 'Send email',

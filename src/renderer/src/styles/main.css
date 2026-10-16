@@ -146,8 +146,10 @@ body {
 
 /* 管家服务按钮（标题栏窗口控制区，设置齿轮旁）：文案较长（glyph + 「管家服务」），
    宽度自适应且不换行，避免被 .win-btn 的固定 40px 挤成两行并压到设置按钮上。
+   position:relative 是为提示点（.notice-dot）提供定位参照。
    @author aceFelix */
 .butler-btn {
+    position: relative;
     width: auto;
     padding: 0 10px;
     white-space: nowrap;
@@ -156,6 +158,22 @@ body {
 .butler-btn:disabled {
     cursor: default;
     opacity: 0.5;
+}
+
+/* 提示点（阶段 9 W2 第 7 步）：按钮右上角的一次性小圆点，语义是“这里有你还没看过的
+   东西”，当前只有感知源首次引导会点亮「管家服务」按钮。类名不带业务前缀以便其他
+   按钮复用；配色取 --qr-warn 随皮肤联动，脉动复用已有的 pulse 关键帧。@author aceFelix */
+.notice-dot {
+    position: absolute;
+    top: 3px;
+    right: 4px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--qr-warn, #ffcc4d);
+    box-shadow: 0 0 6px var(--qr-warn, #ffcc4d);
+    animation: pulse 1.6s infinite;
+    pointer-events: none;
 }
 
 /* ---- 三栏布局 ---- */

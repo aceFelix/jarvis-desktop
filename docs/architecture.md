@@ -533,7 +533,7 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
   - **发送邮件**（复用 `EmailForm.tsx`）：经 `email.send` 指令直连后端 `SendEmailTool`
     （协议细节见上「指令一览」表 `email.send` 行）；成功/失败均在面板内提示
     （错误内联、表单不关闭可重试），取消/完成回服务清单。
-- **感知源**（2026-10 阶段 9 W2 第 5 步）：面板内嵌 `PerceptSourcePanel.tsx`，回答三个
+- **感知源**（2026-10 阶段 9 W2 第 6 步，后端 `percept.*` RPC 为第 5 步）：面板内嵌 `PerceptSourcePanel.tsx`，回答三个
   问题对应三个子标签——「它在看我什么」（`PerceptSourceList.tsx`：逐源开关 + 运行账本
   徽标 + 可展开的源自报观察范围）、「能不能少看一点」（`PerceptScopeForm.tsx`：四个
   名单文本域每行一项 + 两个分钟阈值，**只提交实际改动的键**）、「到底采到了什么」
@@ -544,6 +544,16 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
   - 未装配的收编位（calendar / system / schedule）灰显 + 理由，**没有开关**；
   - 源名与说明均取自后端（`status.py` 的 `SOURCE_LABELS` / `SOURCE_HINTS`），前端不
     再硬编码；英文界面下源名仍显中文，是这套口径的已知取舍。
+
+**感知首次引导（W2 第 7 步）**：面板只能由用户主动打开，所以“知道有这项能力”需要一个
+可见的着陆点。后端在从未表过态时投递一条 `proactive_notify`（`kind=percept_ask`），
+`api/dispatcher.ts` 收到后做两件事：上屏一条带 🔍 前缀的系统气泡，并调
+`uiStore.showButlerHint()`；`components/TitleBar.tsx` 据此在「管家服务」按钮内渲染
+`.notice-dot`（样式在 `styles/main.css`，与 `.status-dot` 共用 `pulse` 关键帧）并把
+`title` 换成 `butler.hintTip`。三条约束：**进面板即清**（`openButler()` 同时置
+`butlerHint: false`，它是“这里有你没看过的东西”而不是未读计数）、**不持久化也不入库**
+（后端 `~/.jarvis/percept/consent.json` 才是“问过没”的唯一真源，壳里再存一份只会两处
+对不上）、**普通感知事件（`kind=percept`）不点亮提示点**。
 
 配置与事件数据由各服务面板持 `useState`（挂载拉取，离线/失败显离线态），
 **不新增全局 store**；感知指令的动作拆到 `stores/perceptActions.ts`（与
@@ -600,7 +610,7 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
 - **指标**：`metrics`（每 2 秒推送）
 - **实时语音（真全双工）**：`talk_started` / `talk_stopped` / `volume` / `user_speaking` / `ai_speaking` / `user_transcript` / `ai_transcript` / `ai_transcript_delta` / `talk_audio`（下行 24kHz PCM 帧，base64；空串 payload = 打断 flush，由 `audio/talkPlayback.ts` 排播/清空）——duplex 会话下麦克风采集与播放均在渲染进程（浏览器 `getUserMedia({echoCancellation:true})` 系统级 AEC），服务端引擎只收发 WS 帧（`BridgeMic`/`BridgeSpk`，镜像 jarvis `agent/voice/realtime_bridge_audio.py`）
 - **半双工语音**：`voice_started` / `voice_stopped` / `voice_state`（payload 为 `listening｜thinking｜speaking｜standby｜exited`）/ `voice_user_transcript` / `voice_ai_text_delta`（流式增量）/ `voice_ai_text`（全量）——音频 I/O 留 serve 本机 pyaudio，壳只做遥控 + 状态/文字显示
-- **主动播报**：`proactive_notify`（payload `{kind: briefing｜reminder｜deadline, title, text, task_id}`；由 serve 侧 `ProactiveHub` 装配的每日简报 / 对话提醒 / 截止日期触发，仅 `--serve` / 桌面壳运行期间生效）
+- **主动播报**：`proactive_notify`（payload `{kind, title, text, task_id}`，kind 为**开放联合**：`briefing｜reminder｜deadline｜percept｜percept_ask`；由 serve 侧 `ProactiveHub` 装配的每日简报 / 对话提醒 / 截止日期 / 感知层事件触发，`percept_ask` 为感知能力首次引导（W2 第 7 步，只投递一次），仅 `--serve` / 桌面壳运行期间生效）
 
 渲染侧 `api/dispatcher.ts` 把上述事件映射进 Zustand store（`chatStore` / `leftStore` / `metricsStore` / `rightStore`）与反应炉动画实例，组件只订阅 store 切片——事件→UI 的映射口径与引擎事件表同源（历史对照：jarvis 仓 pywebview 工作台的 `app.js::dispatchEvent` 曾同口径，已随窗口壳于 2026-10 删除，本 dispatcher 为唯一现役实现）。其中 `proactive_notify` 除上屏聊天气泡外，还调 `window.jarvisDesktop.notify` 经主进程弹 Windows 原生通知（`src/main/notify.ts`），reminder 带 `task_id` 时回发 `proactive.ack`。
 

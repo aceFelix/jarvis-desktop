@@ -101,7 +101,10 @@ export interface NotifyRequest {
 /**
  * 主动播报事件 payload（镜像 protocol.EVT_PROACTIVE_NOTIFY，源自 ProactiveHub）。
  *
- * kind：briefing=每日简报 / reminder=用户提醒 / deadline=截止日期提醒。
+ * kind：briefing=每日简报 / reminder=用户提醒 / deadline=截止日期提醒 /
+ * percept=感知层事件（阶段 9 W2，标题带来源徽标）/ percept_ask=感知能力首次引导
+ * （W2 第 7 步：只在后端从未问过用户时投递一次，壳侧据此点亮「管家服务」提示点）。
+ * 取值是开放联合（见下 `| string`），后端新增 kind 不需要改本契约。
  * task_id 仅 reminder 携带（窗口可见时回 proactive.ack 停止升级重发）。
  */
 export interface ProactiveNotifyPayload {

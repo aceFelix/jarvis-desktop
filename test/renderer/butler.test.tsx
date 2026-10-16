@@ -4,9 +4,11 @@
  * 服务项「邮箱服务」内嵌 当前邮箱概览 + 邮箱配置 / 发送邮件 两个子标签）。
  *
  * 覆盖：
- * - uiStore：openButler / closeButler 切换 rightView；
+ * - uiStore：openButler / closeButler 切换 rightView；提示点的置位与进面板即清；
  * - butlerStore：openService / closeService（面板内服务视图）；
  * - TitleBar 管家服务按钮：未连后端置灰；点击进面板、再点退出（toggle）；
+ * - 感知源首次引导（W2 第 7 步）：proactive_notify(kind=percept_ask) 上屏带 🔍
+ *   并点亮按钮提示点；提示点亮时 title 换成引导文案；点进面板红点消失；
  * - ButlerPanel：默认渲染服务清单；点「邮箱服务」进服务视图；挂载重置回清单；
  *   ← 返回回信息面板；
  * - EmailServicePanel：当前邮箱概览（发件邮箱回退 smtp_user / SMTP / 状态 /
@@ -27,6 +29,8 @@ import ButlerPanel from '@renderer/components/ButlerPanel'
 import EmailServicePanel from '@renderer/components/EmailServicePanel'
 import EmailConfigForm from '@renderer/components/EmailConfigForm'
 import EmailForm from '@renderer/components/EmailForm'
+import { dispatchServerEvent } from '@renderer/api/dispatcher'
+import { useChatStore } from '@renderer/stores/chatStore'
 import { useBackendStore } from '@renderer/stores/backendStore'
 import { useButlerStore } from '@renderer/stores/butlerStore'
 import { useUiStore } from '@renderer/stores/uiStore'
@@ -56,7 +60,9 @@ function injectFetchEmailConfig(config: unknown = makeConfig()): ReturnType<type
 beforeEach(() => {
   useSettingsStore.getState().setLanguage('zh')
   useButlerStore.setState({ activeService: '' })
-  useUiStore.setState({ rightView: 'dashboard' })
+  // butlerHint 与 rightView 一起复位：setState 是浅合并，不显式置回会把
+  // 上一个用例点亮的提示带进下一个用例。
+  useUiStore.setState({ rightView: 'dashboard', butlerHint: false })
   // 默认已连上后端，避免触发按钮被置灰挡掉交互
   useBackendStore.setState({ client: null, wsConnected: true })
 })
@@ -71,6 +77,17 @@ describe('uiStore · 右栏视图', () => {
     expect(useUiStore.getState().rightView).toBe('butler')
     useUiStore.getState().closeButler()
     expect(useUiStore.getState().rightView).toBe('dashboard')
+  })
+
+  it('showButlerHint 点亮提示，openButler / clearButlerHint 都清掉', () => {
+    useUiStore.getState().showButlerHint()
+    expect(useUiStore.getState().butlerHint).toBe(true)
+    // 进面板即清：一次性告知，不是未读计数
+    useUiStore.getState().openButler()
+    expect(useUiStore.getState().butlerHint).toBe(false)
+    useUiStore.getState().showButlerHint()
+    useUiStore.getState().clearButlerHint()
+    expect(useUiStore.getState().butlerHint).toBe(false)
   })
 })
 
@@ -98,6 +115,54 @@ describe('TitleBar 管家服务按钮', () => {
     expect(btn.className).toContain('active')
     fireEvent.click(btn)
     expect(useUiStore.getState().rightView).toBe('dashboard')
+  })
+})
+
+/** 事件分发器的连接形参类型（这里只驱动播报分支，不全量假实现十个刷新）。 */
+type NotifyConn = Parameters<typeof dispatchServerEvent>[1]
+
+describe('感知源首次引导（W2 第 7 步）', () => {
+  /** 驱动一条 proactive_notify 事件（只填本用例关心的字段）。 */
+  const ask = (kind: string, text = '贾维斯可以观察你的桌面'): void => {
+    const conn = { refreshSchedule: vi.fn(), ackProactive: vi.fn() } as unknown as NotifyConn
+    dispatchServerEvent(
+      { event: 'proactive_notify', data: { kind, title: '贾维斯的观察能力', text } },
+      conn
+    )
+  }
+
+  it('收到 percept_ask：气泡带 🔍 前缀且点亮管家服务提示点', () => {
+    useChatStore.getState().clear()
+    ask('percept_ask')
+    const sys = useChatStore.getState().messages.filter((m) => m.kind === 'system')
+    expect(sys).toHaveLength(1)
+    expect(sys[0].kind === 'system' && sys[0].text.startsWith('🔍 ')).toBe(true)
+    expect(useUiStore.getState().butlerHint).toBe(true)
+  })
+
+  it('普通感知事件（kind=percept）不点亮提示点：只有首次引导才挂红点', () => {
+    useChatStore.getState().clear()
+    ask('percept', '前台切到了订单表.xlsx')
+    expect(useUiStore.getState().butlerHint).toBe(false)
+  })
+
+  it('提示点亮时：按钮渲染 .notice-dot 且 title 换成引导文案；点进面板红点消失', () => {
+    useUiStore.getState().showButlerHint()
+    render(<TitleBar />)
+    expect(screen.getByTestId('butler-notice-dot')).toBeInTheDocument()
+    expect(screen.getByTestId('btn-open-butler')).toHaveAttribute(
+      'title',
+      '管家服务里新增了「感知源」设置，点这里看看'
+    )
+    fireEvent.click(screen.getByTestId('btn-open-butler'))
+    expect(screen.queryByTestId('butler-notice-dot')).not.toBeInTheDocument()
+    expect(useUiStore.getState().butlerHint).toBe(false)
+  })
+
+  it('未点亮时不渲染提示点，title 用默认文案', () => {
+    render(<TitleBar />)
+    expect(screen.queryByTestId('butler-notice-dot')).not.toBeInTheDocument()
+    expect(screen.getByTestId('btn-open-butler')).toHaveAttribute('title', '管家服务（邮箱服务等）')
   })
 })
 
