@@ -48,7 +48,7 @@
 
 | 验证项 | 命令 | 结果 |
 |---|---|---|
-| 死链门禁扫本仓 | `uv run python scripts/check_md_links.py ..\jarvis-desktop`（在 jarvis 仓内执行） | 13 md / 判定 66 / 跳过 28 / 死链 0 / 未入库链接 0 |
+| 死链门禁扫本仓 | `uv run python scripts/check_md_links.py ..\jarvis-desktop`（在 jarvis 仓内执行） | 14 md（含本篇）/ 判定 66 / 跳过 28 / 死链 0 / 未入库链接 0 |
 | 门禁工具自身用例 | `uv run pytest tests/test_md_link_checker.py -q`（jarvis 仓） | 17 passed |
 | 本仓构建回归 | 纯文档改动，不涉及 ts/tsx，无需 typecheck/build | — |
 
