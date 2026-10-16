@@ -402,6 +402,16 @@ export const Cmd = {
   EmailConfigGet: 'email.config.get',
   EmailConfigSet: 'email.config.set',
   /**
+   * 管家服务·感知源（percept.status.get / percept.config.set，2026-10 阶段 9 W2）：
+   * 看「总线在采什么、采到了什么」与改「逐源开关与采集名单」。单一真源在后端
+   * agent/core/percept/status.py + agent/config/percept_settings.py（白名单之外的
+   * 极客参数面板改不了）；改完必定落 settings.toml 并由宿主重装配总线，回执带
+   * hot_applied 说明本次是否真已生效。类型契约见 shared/percept-contracts.ts。
+   * @author aceFelix
+   */
+  PerceptStatusGet: 'percept.status.get',
+  PerceptConfigSet: 'percept.config.set',
+  /**
    * 扩展服务（extensions.exec，2026-10）：标题栏「扩展服务」入口 → 右栏面板，
    * 一条通用指令承载五类扩展能力的清单与增删改启停。category 取
    * mcp/tools/skills/plugins/harness，action 为该分类下的动作名；其余参数透传。

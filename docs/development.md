@@ -90,7 +90,7 @@ python scripts/gen_icon.py   # 任一装了 Pillow 的环境（如 jarvis 的 ve
 
 ## 4. 测试
 
-vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **413 用例**：
+vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **484 用例**：
 
 | 测试文件 | 覆盖 |
 |---|---|
@@ -112,6 +112,11 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 | `test/renderer/backendStore.test.ts` | 半双工语音指令路由：`toggleVoice`（未激活→置 voice 模式 + `voice.start`；已激活→`voice.stop`）、`interruptVoice`（`voice.interrupt`）；停止回复：`abortReply`（发 `reply.abort`、状态栏“正在停止...”、不改 busy）；sendMessage 附件（payload 带 images/files、气泡缩略图 data URL、纯图片可发、全空不发）；右栏刷新动作（`refreshSchedule`/`refreshCost`/`refreshState` 发 `schedule.list`/`cost.get`/`state.get` 并映射进 rightStore）；设置面板（`refreshSettings` 发 `settings.get` 全量回填 backendSettings（脏数据置 null）、`setBackendSetting` 乐观更新发 `settings.set`（布尔/数值/时间键通用）、值未变不发指令、回执失败回滚原值、未连接回滚到 null）；未连接（client 为 null）降级不抛异常；会话改名/删除指令（`renameSession` 发 `sessions.rename` 带 name/new_name、`deleteSession` 发 `sessions.delete` 带 name；未连接/回错 ok=false 落系统错误提示）；模型配置修改/删除（`editModel` 发 `models.edit` 并刷 `models.list`、未热切换提示不带重连文案、`hot_switched` 时提示「已按新配置重连」；`removeModel` 发 `models.remove`、`was_current` 决定是否提示「建议另选」；后端拒绝回 false 且不刷列表、未连接回 false 不抛异常）；工作模式/思考强度（`setMode`/`setThinking` 发 `mode.set`/`think.set`、同值短路不发、`result.ok` 为真才写 runtimeStore、失败弹错不写、未连接降级）；管家服务（`sendEmail` 发 `email.send` 携全字段并回 `{ok:true}`、后端失败回 `{ok:false,error}`、未连接回 `{ok:false}`，三者均**不写聊天流**——直连回执交表单内联显示；`fetchEmailConfig` 发 `email.config.get` 成功回解析后的 `EmailConfig`、失败/未连接回 null；`saveEmailConfig` 发 `email.config.set` 成功回 `{ok:true, config}`、后端回错 ok=false 带 error、未连接回 `{ok:false}`，均不写聊天流） |
 | `test/renderer/runtimeStore.test.ts` | runtimeStore（单一职责工作模式/思考状态）：初始值（default/off/空 supported）、`applyRuntimeState` 整块快照写入、`setMode`/`setThinking` 局部更新（ChatArea 工具条两选择器渲染与切换、不支持思考时 disabled 见 `components.test.tsx`） |
 | `test/renderer/butler.test.tsx` | 管家服务（标题栏「设置」旁按钮 → 右栏管家服务面板，2026-10）：`uiStore`（openButler/closeButler 切 `rightView`）；`butlerStore`（openService/closeService 面板内服务视图）；`TitleBar` 管家按钮（未连后端置灰、点击进面板高亮、再点退出）；`ButlerPanel`（默认渲染服务清单、挂载重置回清单、点「邮箱服务」进内嵌视图、← 返回回信息面板）；`EmailServicePanel`（概览「当前邮箱」sender 优先/回退 smtp_user、子标签「邮箱配置」↔「发送邮件」切换、离线态、子返回）；`EmailConfigForm`（字段回填、授权码留空不带 `smtp_password`、填入携带、端口非法本地拦截、保存失败内联）；`EmailForm`（主题/正文留空本地拦截不调 `sendEmail`、提交成功调 `sendEmail` 携全字段并渲染成功态、提交失败内联显示错误且表单不关闭、取消调 `closeService` 回清单） |
+| `test/renderer/extension.test.tsx` | 扩展服务面板（标题栏「扩展服务」→ 右栏第五个视图，2026-10）：`uiStore`（openExtension/closeExtension）、`extensionStore`（openCategory/closeCategory）、`TitleBar` 扩展按钮置灰与 toggle；`ExtensionPanel` 五类分类清单与挂载重置；`ExtensionMcpPanel`（清单/启停/两步删除/新增与编辑表单（名只读）经 `extensions.exec` 的 `mcp.*` 动作）、`ExtensionToolsPanel` / `ExtensionSkillsPanel`（只读清单 + 关键字本地过滤）、`ExtensionPluginsPanel` / `ExtensionHarnessPanel`（已装清单启停卸载 + 市场搜索/安装） |
+| `test/renderer/remote.test.tsx` | 跨设备协同（2026-10）：`RemoteConnectMenu`（未连后端置灰、菜单开合、手机/微信按当前连接态路由「连接/断开」到 `backendStore` 动作、动作后自动收起）；`QrcodeCard`（已连接文案、手机/微信两通道只差二维码与提示、jsdom 无 canvas 时回落显原始 url） |
+| `test/renderer/projectSection.test.tsx` | 左栏项目区（2026-08）：当前项目 + 待生效徽标、「打开文件夹」走 `window.jarvisDesktop.selectDirectory` 成功后 `setProject`、最近项目点击切项目、右键「从列表移除」走 `forgetProject`、`exists=false` 项显“目录不存在”徽标 |
+| `test/renderer/slashAutocomplete.test.tsx` | 斜杠命令补全（`slash.commands`，2026-10）：`slashTriggerOf`（仅“/xxx 且无空白”触发）、`filterSlashCommands`（前缀匹配忽略大小写）、`useSlashAutocomplete` 弹层交互（候选弹出、↑↓ 高亮跟随滚动、Tab/Enter 回填、已等于完整命令名时 Enter 直通、Esc 收起、空目录不弹层） |
+| `test/renderer/percept.test.tsx` | 感知源面板（管家服务第二项，2026-10 阶段 9 W2 第 5 步）：契约宽容解析 `parsePerceptStatus` / `parsePerceptConfig`（完整快照、非数组回空、脏事件丢弃、`log_events` 出厂缺省必须回 true）、`perceptEnableKey`（未装配源回空串→不给开关）、`perceptDetailEntries`（标量/字符串数组成行，嵌套对象与空值跳过）、`formatEventTime` / `perceptEventSummary` 兜底；`perceptActions`（未连 client 读回 null / 写回 ok=false，`event_limit` 透传，回执 ok=false 回 null，保存失败错误原样上交）；`ButlerPanel`（两个服务入口、点感知源进面板）；`PerceptSourcePanel`（总览逐行、宿主未接线文案、总开关即时保存并用回执快照刷新 aria-checked、`hot_applied=false` 的降级提示、保存失败错误内联且不改本地态、离线态、三子标签切换、刷新重拉）；`PerceptSourceList`（已实现源有开关/收编位无开关、按源名推补丁键、账本徽标与末次错误、观察范围展开）；`PerceptScopeForm`（草稿回填、**只提交实际改动的键**、没改动不发补丁、分钟非法本地拦截）；`PerceptEventList`（事件行渲染、「总线未运行」与「暂无事件」两种空态区分） |
 
 > 组件测试不渲染 `App` / `ReactorCanvas`（会挂载 canvas 动画，jsdom 无 2D 上下文），逐个渲染纯展示组件；后端 client 默认 null，组件不会真正发起 WS 连接。
 
@@ -149,6 +154,14 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 - [ ] **管家服务（邮箱服务）**：确保 `~/.jarvis/settings.toml` 的 `[email]` 已启用（与终端 jarvis 共用同一份配置）→ 标题栏右上角「设置」齿轮旁出现「管家服务」按钮（未连后端时置灰不可点）→ 点击后**右栏整体切换为管家服务面板**（服务清单，与设置面板同一替换机制）→ 点「**邮箱服务**」→ 进入后顶部概览卡显示**当前邮箱**（= 发件人，未设发件人则显示 SMTP 账号）、SMTP `host:port`、启用状态、授权码是否已配置，下方「邮箱配置 / 发送邮件」两个标签：
   - **邮箱配置**：字段回填后端现值（授权码恒空、hint 提示「留空保持原授权码不变」）→ 改 SMTP 服务器/端口/发件人/默认收件人 → 点「保存」→ 面板提示已保存，概览卡「当前邮箱」随即刷新为新值；**授权码留空再保存** → 不覆盖原授权码（仍能正常发信）；端口填 `0` 或 `70000` → 本地红字提示非法、不发指令；重启桌面壳后配置仍生效（已写 `settings.toml` 的 `[email]` 表）。
   - **发送邮件**：填 **收件人/主题/正文** → 点「发送」→ 面板内提示发送成功、收件箱收到该邮件（**发送期间中栏流式对话不受影响**，二者互不阻塞）；**主题或正文留空**点「发送」→ 表单内联红字提示必填、不发指令；**收件人留空**→ 发送到 `[email].default_recipient`；**故意填错授权码**→ 表单内联显示认证失败原文（错误不落入聊天流）；「取消」/成功态「关闭」回服务清单；面板 ← 或再点标题栏按钮回信息面板；再次进入面板时应停在服务清单（不残留上次表单）。
+- [ ] **管家服务（感知源，阶段 9 W2）**：确认后端以 serve 模式跑着（否则总览应直说「宿主未接线」）→ 标题栏「管家服务」→ 服务清单应有两个入口（邮箱服务 / 感知源）→ 点「**感知源**」：
+  - **默认全关**：刚进面板时总开关与逐源开关均应为关、计数区显「尚无事件」——**打开面板本身绝不开始采集**；
+  - 拨**总开关** → 无需找「保存」按钮，面板底部提示「已保存并重装配」，总览的「运行状态」变「采集中」（此时逐源仍全关）；再拨一下总开关 → 回到未运行；
+  - 开「**前台窗口**」→ 随意切换几个应用 → 子标签「最近事件」应出现 `focus_changed` 行（时间 + 源名 + 一句摘要 + 显著性），「感知源」行上徽标应变「采到 N 条」，总览的计数与留痕文件路径同步变化（可开文件对账）；
+  - 子标签「采集名单」→ 往「排除应用」加一行当前正用的应用名→ 保存 → 再切到该应用**不应再产生事件**；切到「最近事件」里已采到的历史行仍在（历史不回滚）；改完重启后端后配置仍生效（已写 `settings.toml` 的 `[percept]` 表，其他节与注释不丢）；
+  - 分钟阈值填 `1441` 或留空→ 本地红字提示非法、不发指令；名单里写重复行/空行 → 保存后后端去重丢空（面板回显规范化结果）；没改任何字段点「保存」→ 不发指令也不报错；
+  - 「日历事件 / 系统资源 / 定时提醒」三个收编位**应只有说明没有开关**（本期未装配，给了开关就是假可用）；
+  - 开「**摄像头在场**」（需本机装了 mediapipe 且有摄像头）→ 关掉时应释放摄像头（关掉后其他视觉工具能立即拿到设备）；若本轮未能重装配总线，面板应如实提示「已保存，但需重启后端后生效」而不是假装已生效。
 - [ ] **右栏任务中心**：对话「10 分钟后提醒我喝水」→ 提醒出现在任务中心列表（时间升序）；到点触发后条目消失、⏰ 气泡上屏；对话设截止日期后可见倒计时（临期黄/逾期红）；每日简报触发后「最近简报」折叠块可展开。
 - [ ] **右栏用量与健康**：发几轮对话后用量卡 token/轮数增长（口径同 REPL `/cost`）；运行健康显示 MCP 连接数与工具数（未启用显示“MCP 未启用”）——**MCP 为后台预热（约 9s）**，若刚连上时快照未就绪先显示“未启用”，连接落定后应自动刷新为真实连接态（依 `mcp_ready` 事件，无需重启）；日志流随对话/工具调用滚动追加。
 - [ ] **实时语音**（如后端支持）：切「实时」模式 → 反应炉进入聆听/说话律动 → 状态栏文案随 `status` 事件变化。

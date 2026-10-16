@@ -44,7 +44,7 @@ jarvis (Python)                          jarvis-desktop (Electron)
 | **Chat de-noising** | Thinking blocks / consecutive tool calls / multi-line system notices collapse into one row when done | [Chat experience (中文)](docs/guide/features-chat.md) |
 | **Message rewind** | Hover a user bubble → "rewind": truncate the conversation + optionally roll back workspace files (shadow-git checkpoint) | [Chat experience (中文)](docs/guide/features-chat.md) |
 | **Slash-command passthrough** | `/` commands in the composer run in the engine (allowlist + interactive ban + dynamic skill passthrough) with prefix autocompletion | [Chat experience (中文)](docs/guide/features-chat.md) |
-| **Butler services** | Title-bar button next to settings opens a right-column butler panel to use butler capabilities via a form (first service: email service — view/edit the current mailbox, configure SMTP, send mail; more to come) | [Panels & settings (中文)](docs/guide/features-panels.md) |
+| **Butler services** | Title-bar button next to settings opens a right-column butler panel to use butler capabilities via a form (never through the model): **Email service** (view/edit the current mailbox, configure SMTP, send mail) and **Percept sources** (stage 9 W2: see what the agent is observing and has collected, per-source switches and watch lists — **all off by default**); more services to come | [Panels & settings (中文)](docs/guide/features-panels.md) |
 | **Extension services** | Title-bar button next to butler opens a right-column extensions panel managing five kinds of extensions in one place: **MCP servers** (add/edit/remove + enable/disable), **built-in tools** (list + search), **skills** (search dirs + loaded list), **plugins** (marketplace search + install/uninstall/enable/disable), **harness tools** (browse marketplace + install/uninstall/enable/disable) | [Panels & settings (中文)](docs/guide/features-panels.md) |
 | **Ready to run** | Windows installer available — **no Python required**, just download and launch | — |
 | **Auto update** | Silent check on startup; when a new version exists an "Update" button appears in the title bar → one-click download (with progress) → "Restart to install" (not code-signed, so a SmartScreen prompt is expected) | — |
@@ -100,7 +100,7 @@ jarvis-desktop/
 │   │                  #   appIcon (single icon source), notify (system notifications), tray, update (auto update), logging
 │   ├── preload/       # minimal contextBridge surface (token never hits disk)
 │   ├── renderer/src/  # React: api (ws/dispatcher), stores (Zustand), components, i18n, glyphs, reactor, styles
-│   └── shared/        # contracts.ts: shared contracts mirroring protocol.py
+│   └── shared/        # contracts.ts / percept-contracts.ts: shared contracts mirroring protocol.py
 ├── test/              # main / preload / renderer unit tests (vitest)
 ├── build/ scripts/    # packaging assets (retro pixel reactor icon.ico) + generator script
 └── docs/              # architecture.md / development.md / guide/
@@ -117,7 +117,7 @@ See [Architecture (中文)](docs/architecture.md) for the full tree; tests and i
 | [Panels & Settings (中文)](docs/guide/features-panels.md) | Composer, left models/voices, project↔session, right column, settings |
 | [Voice & Multi-end (中文)](docs/guide/features-voice.md) | True full-duplex voice, phone/WeChat collaboration |
 | [Architecture (中文)](docs/architecture.md) | Runtime topology, startup flow, persistence, security, protocol (commands/events) |
-| [Development Guide (中文)](docs/development.md) | Local env, tests (397 cases), manual walkthrough, phase-2 roadmap |
+| [Development Guide (中文)](docs/development.md) | Local env, tests (484 cases), manual walkthrough, phase-2 roadmap |
 
 ## Community & Support
 

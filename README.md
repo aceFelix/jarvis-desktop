@@ -44,7 +44,7 @@ jarvis（Python）                         jarvis-desktop（Electron）
 | **对话降噪** | 思考块 / 连续工具调用 / 多行系统提示「进行中可见、完成后收起」，一轮任务不再撑满一屏 | [对话体验](docs/guide/features-chat.md) |
 | **消息回溯** | 悬停用户气泡「撤回」：对话截断 + 可选工作区文件回滚（shadow git 检查点） | [对话体验](docs/guide/features-chat.md) |
 | **斜杠命令透传** | 输入框 `/` 命令透传引擎执行（白名单 + 交互禁令 + 技能动态放行）+ 前缀补全 | [对话体验](docs/guide/features-chat.md) |
-| **管家服务** | 标题栏「设置」旁按钮进入右栏管家服务面板，用表单直接使用管家能力（首期：邮箱服务——查看/修改当前邮箱、配置 SMTP、发送邮件，后续可扩展更多服务） | [三栏面板与设置](docs/guide/features-panels.md) |
+| **管家服务** | 标题栏「设置」旁按钮进入右栏管家服务面板，用表单直接使用管家能力（不经过模型）：**邮箱服务**（查看/修改当前邮箱、配置 SMTP、发送邮件）与 **感知源**（阶段 9 W2：看「它在观察我什么、采到了什么」、逐源开关与采集名单，**默认全关**），后续可扩展更多服务 | [三栏面板与设置](docs/guide/features-panels.md) |
 | **扩展服务** | 标题栏「管家服务」旁按钮进入右栏扩展服务面板，集中管理五类扩展能力：**MCP 服务**（增删改 + 启停）、**内置工具**（清单与搜索）、**技能**（目录与已加载清单）、**插件**（市场搜索 + 安装/卸载/启停）、**harness 工具**（市场浏览 + 安装/卸载/启停） | [三栏面板与设置](docs/guide/features-panels.md) |
 | **开箱即用** | 提供 Windows 安装包，**免装 Python**，下载双击即用 | — |
 | **自动更新** | 启动静默检查新版本，有新版本时标题栏出现「更新」按钮 → 一键下载（带进度）→「重启安装」覆盖升级（未做代码签名，SmartScreen 提示属预期） | — |
@@ -100,7 +100,7 @@ jarvis-desktop/
 │   │                  #   appIcon（图标单一来源）、notify（系统通知）、tray（托盘）、update（自动更新）、logging
 │   ├── preload/       # contextBridge 最小暴露面（token 不落盘）
 │   ├── renderer/src/  # React：api（ws/dispatcher）、stores（Zustand）、components、i18n、glyphs、reactor、styles
-│   └── shared/        # contracts.ts：主/preload/渲染共享契约（镜像 protocol.py）
+│   └── shared/        # contracts.ts / percept-contracts.ts：主|preload|渲染共享契约（镜像 protocol.py）
 ├── test/              # main / preload / renderer 三组单测（vitest）
 ├── build/ scripts/    # 打包资源（复古像素反应炉 icon.ico）+ 自绘生成脚本
 └── docs/              # architecture.md / development.md / guide/
@@ -117,7 +117,7 @@ jarvis-desktop/
 | [三栏面板与设置](docs/guide/features-panels.md) | 输入栏、左栏模型/音色、项目↔会话、右栏四区块、设置面板 |
 | [语音与多端](docs/guide/features-voice.md) | 真全双工语音、手机/微信跨设备协同 |
 | [架构说明](docs/architecture.md) | 运行时拓扑、启动流程、持久化、安全边界、协议契约（指令/事件一览） |
-| [开发指南](docs/development.md) | 本地环境、测试（397 用例）、人工走查清单、二期路线图 |
+| [开发指南](docs/development.md) | 本地环境、测试（484 用例）、人工走查清单、二期路线图 |
 
 ## 交流与赞赏
 
