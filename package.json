@@ -1,6 +1,6 @@
 {
   "name": "jarvis-desktop",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "J.A.R.V.I.S 桌面壳（Electron + React）—— 拉起 jarvis serve 后端并提供桌面宿主能力",
   "main": "./out/main/index.js",
   "author": "aceFelix",
