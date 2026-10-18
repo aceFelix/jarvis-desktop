@@ -287,7 +287,8 @@ describe('PerceptSourcePanel', () => {
     await waitFor(() => expect(screen.getByTestId('percept-overview')).toBeInTheDocument())
 
     const overview = screen.getByTestId('percept-overview')
-    expect(screen.getByTestId('percept-assembled')).toHaveTextContent('已装配')
+    // 口径修正：这一行取的是 hub 是否接线，不是“总线装没装”（采集判据在下一行）
+    expect(screen.getByTestId('percept-assembled')).toHaveTextContent('已接线')
     expect(screen.getByTestId('percept-running')).toHaveTextContent('采集中')
     expect(overview).toHaveTextContent('emit 3')
     expect(overview).toHaveTextContent('300 秒内同一件事只算一次')
@@ -298,8 +299,16 @@ describe('PerceptSourcePanel', () => {
     injectFetch(makeStatus({ assembled: false, bus_running: false, counters: {}, log_file: '' }))
     render(<PerceptSourcePanel />)
     await waitFor(() => expect(screen.getByTestId('percept-assembled')).toBeInTheDocument())
-    expect(screen.getByTestId('percept-assembled')).toHaveTextContent('宿主未接线')
-    expect(screen.getByTestId('percept-log-file')).toHaveTextContent('未开启')
+    expect(screen.getByTestId('percept-assembled')).toHaveTextContent('未接线')
+    // 开关开着但拿不到路径（总线未运行/老后端）：说“暂无路径”，不能谎报“已关闭”
+    expect(screen.getByTestId('percept-log-file')).toHaveTextContent('总线未运行')
+  })
+
+  it('留痕开关真关时才显「已关闭」', async () => {
+    injectFetch(makeStatus({ log_file: '', log_events: false }))
+    render(<PerceptSourcePanel />)
+    await waitFor(() => expect(screen.getByTestId('percept-log-file')).toBeInTheDocument())
+    expect(screen.getByTestId('percept-log-file')).toHaveTextContent('已关闭')
   })
 
   it('总开关关掉：即时提交 {enabled:false}，并用回执快照刷新（不是乐观更新）', async () => {
@@ -338,6 +347,14 @@ describe('PerceptSourcePanel', () => {
     await waitFor(() => expect(screen.getByTestId('percept-error')).toHaveTextContent('落盘失败'))
     expect(screen.getByTestId('percept-master-toggle')).toHaveAttribute('aria-checked', 'true')
     expect(screen.queryByTestId('percept-notice')).not.toBeInTheDocument()
+    // 反馈条必须排在总览之前（sticky 钉在顶部）：错误落在长面板底部时，用户
+    // 只会以为“开关坏了”——2026-10 走查就是被这一点挡住了真缺陷。
+    const bar = screen.getByTestId('percept-feedback')
+    // eslint-disable-next-line no-bitwise
+    expect(
+      bar.compareDocumentPosition(screen.getByTestId('percept-overview')) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
   it('读侧离线：显离线提示，不渲染开关', async () => {

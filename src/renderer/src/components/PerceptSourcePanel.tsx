@@ -11,7 +11,12 @@
  * 数据与写回都走一条路：挂载即 `percept.status.get` 拉全量快照，任何开关或名单
  * 改动都调 `percept.config.set`，并用**后端回读的新快照**整体替换本地状态——
  * 本地不做乐观更新，面板显示的永远是后端此刻的真实拓扑。回执 `hot_applied=false`
- * 时如实提示「需重启才生效」，绝不假装已经生效。
+ * 时如实提示「需重启才生效」，不假装已经生效。
+ *
+ * 反馈条（错误/保存回执）放在子返回头下方并做 `position: sticky`：2026-10
+ * 人工走查发现写回失败时错误落在长面板底部（需滚动才能看到），用户拿到的唯一
+ * 信息就是“开关点了没反应”，反而把真缺陷伪装成交互失灵（见 jarvis 仓
+ * docs/fixlogs/percept-config-set-envelope-fix.md）。错误可见性属于功能。
  *
  * 结构复用邮箱服务视图的样式类（.butler-subhead/.butler-overview/.butler-tabs），
  * 感知专属样式见 styles/butler.css。状态由本组件持有，不新增全局 store 状态。
@@ -162,6 +167,22 @@ export default function PerceptSourcePanel(): JSX.Element {
         </button>
       </div>
 
+      {/* 反馈条：错误与保存回执常驻可见（粘在子返回头下方，不随长面板滚出视野） */}
+      {error || notice ? (
+        <div className="percept-feedback" data-testid="percept-feedback">
+          {error ? (
+            <div className="model-form-error" data-testid="percept-error">
+              {error}
+            </div>
+          ) : null}
+          {notice && !error ? (
+            <div className="percept-saved" data-testid="percept-notice">
+              {notice}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* 总览：总开关 + 装配/运行 + 三道闸计数 + 去重窗口 + 留痕 */}
       <div className="butler-overview" data-testid="percept-overview">
         <div className="butler-overview-row">
@@ -218,8 +239,14 @@ export default function PerceptSourcePanel(): JSX.Element {
         </div>
         <div className="butler-overview-row">
           <span className="butler-overview-key">{t('butler.percept.logFile')}</span>
+          {/* 留痕路径三态：有路径→路径；开关真关→已关闭；开着但拿不到路径（总线
+              未运行或老后端）→ 显式说“暂无路径”，不拿“未开启”兼底 */}
           <span className="butler-overview-value" data-testid="percept-log-file">
-            {status.log_file || t('butler.percept.logFileNone')}
+            {status.log_file
+              ? status.log_file
+              : status.log_events
+                ? t('butler.percept.logFileNoBus')
+                : t('butler.percept.logFileNone')}
           </span>
         </div>
       </div>
@@ -245,17 +272,6 @@ export default function PerceptSourcePanel(): JSX.Element {
       ) : (
         <PerceptEventList status={status} />
       )}
-
-      {error ? (
-        <div className="model-form-error" data-testid="percept-error">
-          {error}
-        </div>
-      ) : null}
-      {notice && !error ? (
-        <div className="butler-email-sent" data-testid="percept-notice">
-          {notice}
-        </div>
-      ) : null}
     </div>
   )
 }

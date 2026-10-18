@@ -90,7 +90,7 @@ python scripts/gen_icon.py   # 任一装了 Pillow 的环境（如 jarvis 的 ve
 
 ## 4. 测试
 
-vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **489 用例**：
+vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **490 用例**：
 
 | 测试文件 | 覆盖 |
 |---|---|
@@ -116,7 +116,7 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 | `test/renderer/remote.test.tsx` | 跨设备协同（2026-10）：`RemoteConnectMenu`（未连后端置灰、菜单开合、手机/微信按当前连接态路由「连接/断开」到 `backendStore` 动作、动作后自动收起）；`QrcodeCard`（已连接文案、手机/微信两通道只差二维码与提示、jsdom 无 canvas 时回落显原始 url） |
 | `test/renderer/projectSection.test.tsx` | 左栏项目区（2026-08）：当前项目 + 待生效徽标、「打开文件夹」走 `window.jarvisDesktop.selectDirectory` 成功后 `setProject`、最近项目点击切项目、右键「从列表移除」走 `forgetProject`、`exists=false` 项显“目录不存在”徽标 |
 | `test/renderer/slashAutocomplete.test.tsx` | 斜杠命令补全（`slash.commands`，2026-10）：`slashTriggerOf`（仅“/xxx 且无空白”触发）、`filterSlashCommands`（前缀匹配忽略大小写）、`useSlashAutocomplete` 弹层交互（候选弹出、↑↓ 高亮跟随滚动、Tab/Enter 回填、已等于完整命令名时 Enter 直通、Esc 收起、空目录不弹层） |
-| `test/renderer/percept.test.tsx` | 感知源面板（管家服务第二项，2026-10 阶段 9 W2 第 5 步）：契约宽容解析 `parsePerceptStatus` / `parsePerceptConfig`（完整快照、非数组回空、脏事件丢弃、`log_events` 出厂缺省必须回 true）、`perceptEnableKey`（未装配源回空串→不给开关）、`perceptDetailEntries`（标量/字符串数组成行，嵌套对象与空值跳过）、`formatEventTime` / `perceptEventSummary` 兜底；`perceptActions`（未连 client 读回 null / 写回 ok=false，`event_limit` 透传，回执 ok=false 回 null，保存失败错误原样上交）；`ButlerPanel`（两个服务入口、点感知源进面板）；`PerceptSourcePanel`（总览逐行、宿主未接线文案、总开关即时保存并用回执快照刷新 aria-checked、`hot_applied=false` 的降级提示、保存失败错误内联且不改本地态、离线态、三子标签切换、刷新重拉）；`PerceptSourceList`（已实现源有开关/收编位无开关、按源名推补丁键、账本徽标与末次错误、观察范围展开）；`PerceptScopeForm`（草稿回填、**只提交实际改动的键**、没改动不发补丁、分钟非法本地拦截）；`PerceptEventList`（事件行渲染、「总线未运行」与「暂无事件」两种空态区分） |
+| `test/renderer/percept.test.tsx` | 感知源面板（管家服务第二项，2026-10 阶段 9 W2 第 5 步）：契约宽容解析 `parsePerceptStatus` / `parsePerceptConfig`（完整快照、非数组回空、脏事件丢弃、`log_events` 出厂缺省必须回 true）、`perceptEnableKey`（未装配源回空串→不给开关）、`perceptDetailEntries`（标量/字符串数组成行，嵌套对象与空值跳过）、`formatEventTime` / `perceptEventSummary` 兜底；`perceptActions`（未连 client 读回 null / 写回 ok=false，`event_limit` 透传，回执 ok=false 回 null，保存失败错误原样上交）；`ButlerPanel`（两个服务入口、点感知源进面板）；`PerceptSourcePanel`（总览逐行、后端宿主接线文案、总开关即时保存并用回执快照刷新 aria-checked、`hot_applied=false` 的降级提示、保存失败错误内联且不改本地态、离线态、三子标签切换、刷新重拉）；`PerceptSourceList`（已实现源有开关/收编位无开关、按源名推补丁键、账本徽标与末次错误、观察范围展开）；`PerceptScopeForm`（草稿回填、**只提交实际改动的键**、没改动不发补丁、分钟非法本地拦截）；`PerceptEventList`（事件行渲染、「总线未运行」与「暂无事件」两种空态区分）、留痕路径三态文案（有路径 / 真关显「已关闭」 / 开着但拿不到路径显「总线未运行」）、反馈条在文档序上必须排在总览之前（错误不能藏在滚动区外） |
 
 > 组件测试不渲染 `App` / `ReactorCanvas`（会挂载 canvas 动画，jsdom 无 2D 上下文），逐个渲染纯展示组件；后端 client 默认 null，组件不会真正发起 WS 连接。
 
@@ -154,9 +154,9 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 - [ ] **管家服务（邮箱服务）**：确保 `~/.jarvis/settings.toml` 的 `[email]` 已启用（与终端 jarvis 共用同一份配置）→ 标题栏右上角「设置」齿轮旁出现「管家服务」按钮（未连后端时置灰不可点）→ 点击后**右栏整体切换为管家服务面板**（服务清单，与设置面板同一替换机制）→ 点「**邮箱服务**」→ 进入后顶部概览卡显示**当前邮箱**（= 发件人，未设发件人则显示 SMTP 账号）、SMTP `host:port`、启用状态、授权码是否已配置，下方「邮箱配置 / 发送邮件」两个标签：
   - **邮箱配置**：字段回填后端现值（授权码恒空、hint 提示「留空保持原授权码不变」）→ 改 SMTP 服务器/端口/发件人/默认收件人 → 点「保存」→ 面板提示已保存，概览卡「当前邮箱」随即刷新为新值；**授权码留空再保存** → 不覆盖原授权码（仍能正常发信）；端口填 `0` 或 `70000` → 本地红字提示非法、不发指令；重启桌面壳后配置仍生效（已写 `settings.toml` 的 `[email]` 表）。
   - **发送邮件**：填 **收件人/主题/正文** → 点「发送」→ 面板内提示发送成功、收件箱收到该邮件（**发送期间中栏流式对话不受影响**，二者互不阻塞）；**主题或正文留空**点「发送」→ 表单内联红字提示必填、不发指令；**收件人留空**→ 发送到 `[email].default_recipient`；**故意填错授权码**→ 表单内联显示认证失败原文（错误不落入聊天流）；「取消」/成功态「关闭」回服务清单；面板 ← 或再点标题栏按钮回信息面板；再次进入面板时应停在服务清单（不残留上次表单）。
-- [ ] **管家服务（感知源，阶段 9 W2）**：确认后端以 serve 模式跑着（否则总览应直说「宿主未接线」）→ 标题栏「管家服务」→ 服务清单应有两个入口（邮箱服务 / 感知源）→ 点「**感知源**」：
+- [ ] **管家服务（感知源，阶段 9 W2）**：确认后端以 serve 模式跑着（否则总览应直说「未接线」）→ 标题栏「管家服务」→ 服务清单应有两个入口（邮箱服务 / 感知源）→ 点「**感知源**」：
   - **默认全关**：刚进面板时总开关与逐源开关均应为关、计数区显「尚无事件」——**打开面板本身绝不开始采集**；
-  - 拨**总开关** → 无需找「保存」按钮，面板底部提示「已保存并重装配」，总览的「运行状态」变「采集中」（此时逐源仍全关）；再拨一下总开关 → 回到未运行；
+  - 拨**总开关** → 无需找「保存」按钮，**顶部反馈条**（粘在子返回头下方，不随面板滚出视野）提示「已保存并重装配」，总览的「运行状态」变「采集中」（此时逐源仍全关）；再拨一下总开关 → 回到未运行；
   - 开「**前台窗口**」→ 随意切换几个应用 → 子标签「最近事件」应出现 `focus_changed` 行（时间 + 源名 + 一句摘要 + 显著性），「感知源」行上徽标应变「采到 N 条」，总览的计数与留痕文件路径同步变化（可开文件对账）；
   - 子标签「采集名单」→ 往「排除应用」加一行当前正用的应用名→ 保存 → 再切到该应用**不应再产生事件**；切到「最近事件」里已采到的历史行仍在（历史不回滚）；改完重启后端后配置仍生效（已写 `settings.toml` 的 `[percept]` 表，其他节与注释不丢）；
   - 分钟阈值填 `1441` 或留空→ 本地红字提示非法、不发指令；名单里写重复行/空行 → 保存后后端去重丢空（面板回显规范化结果）；没改任何字段点「保存」→ 不发指令也不报错；

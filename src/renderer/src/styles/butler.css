@@ -118,6 +118,31 @@
     padding: 4px 8px;
 }
 
+/* 反馈条（错误 / 保存回执）：sticky 钉在子返回头下方，随滚动常驻可见。
+   2026-10 人工走查发现写回失败时错误落在长面板底部（不滚动就看不见），
+   用户拿到的唯一信息就是“开关点了没反应”，反而把真缺陷伪装成交互失灵。
+   底色取 --qr-panel-bg（三套皮肤各自定义的不透明面板底），内容从下方
+   穿过时仍可读；边框走 --edge-mid 与面板其余卡片同调。@author aceFelix */
+.percept-feedback {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 10px;
+    background: var(--qr-panel-bg, rgba(8, 18, 32, 0.95));
+    border: 1px solid var(--edge-mid);
+}
+
+/* 保存成功回执：紧凑单行。刻意不复用 .butler-email-sent（那是邮件发送
+   表单的整块大字居中成功态，塞进反馈条会撑破行高） */
+.percept-saved {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--qr-ok);
+}
+
 /* 概览里的计数行：值可能很长（emit 3 · dedup 1 · …），允许换行 */
 .percept-counters .butler-overview-value {
     white-space: normal;

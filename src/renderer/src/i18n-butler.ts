@@ -96,9 +96,12 @@ export const zhButler: Dict = {
   'butler.percept.masterHint': '关闭时所有源都不采集，也不会装配事件总线',
   'butler.percept.logEvents': '本地留痕事件',
   'butler.percept.logEventsHint': '把采到的事件写进本机 jsonl 文件，便于自查「到底采了什么」',
-  'butler.percept.assembled': '总线装配',
-  'butler.percept.assembledOn': '已装配',
-  'butler.percept.assembledOff': '宿主未接线（需以后端 serve 模式运行）',
+  // 「后端宿主」一行取的是状态里的 assembled（= hub 是否接线），不是“总线装没装”；
+  // 早先标成「总线装配：已装配」，总开关关着时会让人以为已经在采（真正的采集
+  // 判据是下一行「运行状态」）。2026-10 人工走查口径修正。
+  'butler.percept.assembled': '后端宿主',
+  'butler.percept.assembledOn': '已接线',
+  'butler.percept.assembledOff': '未接线（需以后端 serve 模式运行）',
   'butler.percept.running': '运行状态',
   'butler.percept.runningOn': '采集中',
   'butler.percept.runningOff': '未运行',
@@ -107,7 +110,11 @@ export const zhButler: Dict = {
   'butler.percept.dedupWindow': '去重窗口',
   'butler.percept.dedupWindowValue': '{n} 秒内同一件事只算一次',
   'butler.percept.logFile': '留痕文件',
-  'butler.percept.logFileNone': '未开启（关掉「本地留痕事件」后的状态）',
+  // 留痕路径三态：有路径→路径；开关真关→已关闭；开关开着但拿不到路径（总线
+  // 未运行或老后端）→ 显式说“暂无路径”，不能再拿“未开启”兼底（那会把
+  // “没跑”说成“已关”，与绿色开关自相矛盾）。
+  'butler.percept.logFileNone': '已关闭（打开「本地留痕事件」后写本机 jsonl）',
+  'butler.percept.logFileNoBus': '开关已开，但总线未运行（暂无路径）',
   'butler.percept.tabSources': '感知源',
   'butler.percept.tabScope': '采集名单',
   'butler.percept.tabEvents': '最近事件',
@@ -227,9 +234,9 @@ export const enButler: Dict = {
   'butler.percept.masterHint': 'When off nothing is collected and the event bus is not assembled',
   'butler.percept.logEvents': 'Keep a local event log',
   'butler.percept.logEventsHint': 'Append collected events to a local jsonl file so you can audit what was captured',
-  'butler.percept.assembled': 'Bus assembly',
-  'butler.percept.assembledOn': 'Assembled',
-  'butler.percept.assembledOff': 'Host not wired (run the backend in serve mode)',
+  'butler.percept.assembled': 'Backend host',
+  'butler.percept.assembledOn': 'Wired',
+  'butler.percept.assembledOff': 'Not wired (run the backend in serve mode)',
   'butler.percept.running': 'Runtime',
   'butler.percept.runningOn': 'Collecting',
   'butler.percept.runningOff': 'Not running',
@@ -238,7 +245,8 @@ export const enButler: Dict = {
   'butler.percept.dedupWindow': 'Dedup window',
   'butler.percept.dedupWindowValue': 'same event counted once within {n}s',
   'butler.percept.logFile': 'Event log file',
-  'butler.percept.logFileNone': 'Disabled (local event log is off)',
+  'butler.percept.logFileNone': 'Disabled (turn on the local event log to write jsonl)',
+  'butler.percept.logFileNoBus': 'Logging is on, but the bus is not running (no path yet)',
   'butler.percept.tabSources': 'Sources',
   'butler.percept.tabScope': 'Scopes',
   'butler.percept.tabEvents': 'Recent events',

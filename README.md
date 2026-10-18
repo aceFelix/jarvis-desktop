@@ -117,7 +117,7 @@ jarvis-desktop/
 | [三栏面板与设置](docs/guide/features-panels.md) | 输入栏、左栏模型/音色、项目↔会话、右栏四区块、设置面板 |
 | [语音与多端](docs/guide/features-voice.md) | 真全双工语音、手机/微信跨设备协同 |
 | [架构说明](docs/architecture.md) | 运行时拓扑、启动流程、持久化、安全边界、协议契约（指令/事件一览） |
-| [开发指南](docs/development.md) | 本地环境、测试（489 用例）、人工走查清单、二期路线图 |
+| [开发指南](docs/development.md) | 本地环境、测试（490 用例）、人工走查清单、二期路线图 |
 
 ## 交流与赞赏
 
