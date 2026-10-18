@@ -90,7 +90,7 @@ python scripts/gen_icon.py   # 任一装了 Pillow 的环境（如 jarvis 的 ve
 
 ## 4. 测试
 
-vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **490 用例**：
+vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **492 用例**：
 
 | 测试文件 | 覆盖 |
 |---|---|
@@ -116,7 +116,7 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 | `test/renderer/remote.test.tsx` | 跨设备协同（2026-10）：`RemoteConnectMenu`（未连后端置灰、菜单开合、手机/微信按当前连接态路由「连接/断开」到 `backendStore` 动作、动作后自动收起）；`QrcodeCard`（已连接文案、手机/微信两通道只差二维码与提示、jsdom 无 canvas 时回落显原始 url） |
 | `test/renderer/projectSection.test.tsx` | 左栏项目区（2026-08）：当前项目 + 待生效徽标、「打开文件夹」走 `window.jarvisDesktop.selectDirectory` 成功后 `setProject`、最近项目点击切项目、右键「从列表移除」走 `forgetProject`、`exists=false` 项显“目录不存在”徽标 |
 | `test/renderer/slashAutocomplete.test.tsx` | 斜杠命令补全（`slash.commands`，2026-10）：`slashTriggerOf`（仅“/xxx 且无空白”触发）、`filterSlashCommands`（前缀匹配忽略大小写）、`useSlashAutocomplete` 弹层交互（候选弹出、↑↓ 高亮跟随滚动、Tab/Enter 回填、已等于完整命令名时 Enter 直通、Esc 收起、空目录不弹层） |
-| `test/renderer/percept.test.tsx` | 感知源面板（管家服务第二项，2026-10 阶段 9 W2 第 5 步）：契约宽容解析 `parsePerceptStatus` / `parsePerceptConfig`（完整快照、非数组回空、脏事件丢弃、`log_events` 出厂缺省必须回 true）、`perceptEnableKey`（未装配源回空串→不给开关）、`perceptDetailEntries`（标量/字符串数组成行，嵌套对象与空值跳过）、`formatEventTime` / `perceptEventSummary` 兜底；`perceptActions`（未连 client 读回 null / 写回 ok=false，`event_limit` 透传，回执 ok=false 回 null，保存失败错误原样上交）；`ButlerPanel`（两个服务入口、点感知源进面板）；`PerceptSourcePanel`（总览逐行、后端宿主接线文案、总开关即时保存并用回执快照刷新 aria-checked、`hot_applied=false` 的降级提示、保存失败错误内联且不改本地态、离线态、三子标签切换、刷新重拉）；`PerceptSourceList`（已实现源有开关/收编位无开关、按源名推补丁键、账本徽标与末次错误、观察范围展开）；`PerceptScopeForm`（草稿回填、**只提交实际改动的键**、没改动不发补丁、分钟非法本地拦截）；`PerceptEventList`（事件行渲染、「总线未运行」与「暂无事件」两种空态区分）、留痕路径三态文案（有路径 / 真关显「已关闭」 / 开着但拿不到路径显「总线未运行」）、反馈条在文档序上必须排在总览之前（错误不能藏在滚动区外） |
+| `test/renderer/percept.test.tsx` | 感知源面板（管家服务第二项，2026-10 阶段 9 W2 第 5 步）：契约宽容解析 `parsePerceptStatus` / `parsePerceptConfig`（完整快照、非数组回空、脏事件丢弃、`log_events` 出厂缺省必须回 true）、`perceptEnableKey`（未装配源回空串→不给开关）、`perceptDetailEntries`（标量/字符串数组成行，嵌套对象与空值跳过）、`formatEventTime` / `perceptEventSummary` 兜底；`perceptActions`（未连 client 读回 null / 写回 ok=false，`event_limit` 透传，回执 ok=false 回 null，保存失败错误原样上交）；`ButlerPanel`（两个服务入口、点感知源进面板）；`PerceptSourcePanel`（总览逐行、后端宿主接线文案、总开关即时保存并用回执快照刷新 aria-checked、`hot_applied=false` 的降级提示、保存失败错误内联且不改本地态、离线态、三子标签切换、刷新重拉）；`PerceptSourceList`（已实现源有开关/收编位无开关、按源名推补丁键、账本徽标与末次错误、观察范围展开）；`PerceptScopeForm`（草稿回填、**只提交实际改动的键**、没改动不发补丁、分钟非法本地拦截）；`PerceptEventList`（事件行渲染、「总线未运行」与「暂无事件」两种空态区分）、留痕路径三态文案（有路径 / 真关显「已关闭」 / 开着但拿不到路径显「总线未运行」）、**打扰预算行（后端给了就显示、`notify_budget` 为 null 时整行不显示）**、反馈条在文档序上必须排在总览之前（错误不能藏在滚动区外） |
 
 > 组件测试不渲染 `App` / `ReactorCanvas`（会挂载 canvas 动画，jsdom 无 2D 上下文），逐个渲染纯展示组件；后端 client 默认 null，组件不会真正发起 WS 连接。
 
@@ -162,6 +162,8 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
   - 分钟阈值填 `1441` 或留空→ 本地红字提示非法、不发指令；名单里写重复行/空行 → 保存后后端去重丢空（面板回显规范化结果）；没改任何字段点「保存」→ 不发指令也不报错；
   - 「日历事件 / 系统资源 / 定时提醒」三个收编位**应只有说明没有开关**（本期未装配，给了开关就是假可用）；
   - 开「**摄像头在场**」（需本机装了 mediapipe 且有摄像头）→ 关掉时应释放摄像头（关掉后其他视觉工具能立即拿到设备）；若本轮未能重装配总线，面板应如实提示「已保存，但需重启后端后生效」而不是假装已生效。
+  - 总览「**打扰预算**」行：后端启用预算时显「今日 N/M · 待补播 K 条」，与 `~/.jarvis/notify_state.json` 对得上；把 `notify_budget_enabled` 改 false 重启 → **整行消失**（而不是编一个 0/0）；
+  - **口播验收**：让一条该播的事件上屏（如仓库源 `echo x >> README.md`）并开着 TTS → 念的是「切到 资源管理器，jarvis 文件夹」这类人话，**不应听到 `.exe`、反斜杠、逐字符拼读**；而 `events.jsonl` 里的 `summary` 仍是完整路径（留痕不被口播改写）。
 - [ ] **感知首次引导（阶段 9 W2 第 7 步）**：先造“从未表过态”的环境（删 `~/.jarvis/percept/consent.json`、`settings.toml` 里不留 `[percept]` 表且总开关为关）→ 启动桌面壳并连上后端 → 聊天区应出现一条 **🔍 开头**的引导气泡（Windows 系统通知同样弹一次，但**不应被 TTS 朗读**），同时标题栏「管家服务」按钮右上角亮脉动提示点、悬停文案变为引导说明 → 点进面板 → 提示点与引导文案同时消失（不是未读计数）→ 重启桌面壳**不应再出现该气泡**（后端已记 `asked_at`）→ 在面板上拨一次总开关 → `consent.json` 里 `choice` 应为 `on`（只改名单不会写 `choice`）。
 - [ ] **右栏任务中心**：对话「10 分钟后提醒我喝水」→ 提醒出现在任务中心列表（时间升序）；到点触发后条目消失、⏰ 气泡上屏；对话设截止日期后可见倒计时（临期黄/逾期红）；每日简报触发后「最近简报」折叠块可展开。
 - [ ] **右栏用量与健康**：发几轮对话后用量卡 token/轮数增长（口径同 REPL `/cost`）；运行健康显示 MCP 连接数与工具数（未启用显示“MCP 未启用”）——**MCP 为后台预热（约 9s）**，若刚连上时快照未就绪先显示“未启用”，连接落定后应自动刷新为真实连接态（依 `mcp_ready` 事件，无需重启）；日志流随对话/工具调用滚动追加。

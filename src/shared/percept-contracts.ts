@@ -98,6 +98,20 @@ export interface PerceptConfig {
  */
 export type PerceptConfigPatch = Partial<PerceptConfig>
 
+/** W1 打扰预算的当前状态（回答“采到了为什么不说”的那一行）。 */
+export interface NotifyBudget {
+  /** 计数所属日期（后端按日重置）。 */
+  day: string
+  /** 今日已播次数。 */
+  count: number
+  /** 每日播报上限（<=0 = 后端没给，面板不显示那一行）。 */
+  daily_max: number
+  /** 入库待补播的条数（静默时段与超额度攒下的）。 */
+  pending: number
+  /** 静默时段（"HH:MM-HH:MM"，空串 = 未启用）。 */
+  quiet_hours: string
+}
+
 /** `percept.status.get` / `percept.config.set` 共同的回执结构（后者多两字段）。 */
 export interface PerceptStatus {
   enabled: boolean
@@ -117,6 +131,12 @@ export interface PerceptStatus {
   pending: string[]
   /** 面板可编辑的配置快照（编辑表单的回填数据源）。 */
   config: PerceptConfig
+  /**
+   * W1 打扰预算快照；null = 预算未启用或后端版本不认识这个字段。
+   * 感知事件被门槛判为“不值得打扰”时不会出现在任何计数里，
+   * 面板需要这一行才能解释“jsonl 在涨但没人吵我”。
+   */
+  notify_budget: NotifyBudget | null
   /** 本次保存后宿主是否真的重装配过（null = 这是只读快照、没有保存语义）。 */
   hot_applied: boolean | null
   /** 本次实际写入的规范化补丁（null = 同上）。 */
@@ -261,6 +281,29 @@ function parseApplied(payload: unknown): PerceptConfigPatch | null {
 }
 
 /**
+ * 打扰预算段的宽容解析：缺字段回默认值，整个字段缺失/类型不对回 null。
+ *
+ * 回 null 而不是零值对象：面板要能区分“预算未启用”与“今日一次没播”，
+ * 前者不该显示那一行，后者是正常状态。
+ * @author aceFelix
+ */
+function parseNotifyBudget(raw: unknown): NotifyBudget | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const p = raw as Record<string, unknown>
+  const num = (v: unknown): number =>
+    typeof v === 'number' && Number.isFinite(v) ? Math.trunc(v) : 0
+  const dailyMax = num(p.daily_max)
+  if (dailyMax <= 0) return null
+  return {
+    day: typeof p.day === 'string' ? p.day : '',
+    count: num(p.count),
+    daily_max: dailyMax,
+    pending: num(p.pending),
+    quiet_hours: typeof p.quiet_hours === 'string' ? p.quiet_hours : ''
+  }
+}
+
+/**
  * `percept.status.get` / `percept.config.set` 回执的宽容解析。
  *
  * 原则与 parseEmailConfig 一致：**读侧永不抛异常**，坏字段回落安全默认值，
@@ -295,6 +338,7 @@ export function parsePerceptStatus(payload: unknown): PerceptStatus {
     recent_events: recentEvents,
     pending: toStringList(p.pending),
     config: parsePerceptConfig(p.config),
+    notify_budget: parseNotifyBudget(p.notify_budget),
     hot_applied: typeof p.hot_applied === 'boolean' ? p.hot_applied : null,
     applied: parseApplied(p.applied)
   }

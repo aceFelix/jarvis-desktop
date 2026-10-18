@@ -117,7 +117,7 @@ See [Architecture (中文)](docs/architecture.md) for the full tree; tests and i
 | [Panels & Settings (中文)](docs/guide/features-panels.md) | Composer, left models/voices, project↔session, right column, settings |
 | [Voice & Multi-end (中文)](docs/guide/features-voice.md) | True full-duplex voice, phone/WeChat collaboration |
 | [Architecture (中文)](docs/architecture.md) | Runtime topology, startup flow, persistence, security, protocol (commands/events) |
-| [Development Guide (中文)](docs/development.md) | Local env, tests (490 cases), manual walkthrough, phase-2 roadmap |
+| [Development Guide (中文)](docs/development.md) | Local env, tests (492 cases), manual walkthrough, phase-2 roadmap |
 
 ## Community & Support
 

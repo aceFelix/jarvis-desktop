@@ -115,6 +115,8 @@ export const zhButler: Dict = {
   // “没跑”说成“已关”，与绿色开关自相矛盾）。
   'butler.percept.logFileNone': '已关闭（打开「本地留痕事件」后写本机 jsonl）',
   'butler.percept.logFileNoBus': '开关已开，但总线未运行（暂无路径）',
+  'butler.percept.budget': '打扰预算',
+  'butler.percept.budgetValue': '今日 {used}/{max} · 待补播 {pending} 条',
   'butler.percept.tabSources': '感知源',
   'butler.percept.tabScope': '采集名单',
   'butler.percept.tabEvents': '最近事件',
@@ -247,6 +249,8 @@ export const enButler: Dict = {
   'butler.percept.logFile': 'Event log file',
   'butler.percept.logFileNone': 'Disabled (turn on the local event log to write jsonl)',
   'butler.percept.logFileNoBus': 'Logging is on, but the bus is not running (no path yet)',
+  'butler.percept.budget': 'Notify budget',
+  'butler.percept.budgetValue': '{used}/{max} today · {pending} queued',
   'butler.percept.tabSources': 'Sources',
   'butler.percept.tabScope': 'Scopes',
   'butler.percept.tabEvents': 'Recent events',

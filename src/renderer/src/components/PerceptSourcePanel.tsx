@@ -249,6 +249,21 @@ export default function PerceptSourcePanel(): JSX.Element {
                 : t('butler.percept.logFileNone')}
           </span>
         </div>
+        {status.notify_budget ? (
+          <div className="butler-overview-row" data-testid="percept-budget">
+            <span className="butler-overview-key">{t('butler.percept.budget')}</span>
+            {/* 打扰预算：解释“jsonl 在涨但没声音”——额度用尽 / 静默时段 /
+                被重要度门槛判为不值得打扰，三种情形对用户都是“没播报”。
+                后端未启用预算时这个字段为 null，整行不显示（不编零）。 */}
+            <span className="butler-overview-value">
+              {t('butler.percept.budgetValue', {
+                used: status.notify_budget.count,
+                max: status.notify_budget.daily_max,
+                pending: status.notify_budget.pending
+              })}
+            </span>
+          </div>
+        ) : null}
       </div>
 
       {/* 子标签：感知源 / 采集名单 / 最近事件 */}

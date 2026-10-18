@@ -103,6 +103,13 @@ function makeStatus(over: Record<string, unknown> = {}): Record<string, unknown>
       }
     ],
     pending: ['calendar', 'system', 'schedule'],
+    notify_budget: {
+      day: '2026-10-18',
+      count: 3,
+      daily_max: 10,
+      pending: 2,
+      quiet_hours: '23:00-07:00'
+    },
     config: {
       enabled: true,
       window_enabled: true,
@@ -309,6 +316,27 @@ describe('PerceptSourcePanel', () => {
     render(<PerceptSourcePanel />)
     await waitFor(() => expect(screen.getByTestId('percept-log-file')).toBeInTheDocument())
     expect(screen.getByTestId('percept-log-file')).toHaveTextContent('已关闭')
+  })
+
+  it('打扰预算行：解释“采到了为什么不说”（今日额度 + 待补播）', async () => {
+    injectFetch()
+    render(<PerceptSourcePanel />)
+    await waitFor(() => expect(screen.getByTestId('percept-budget')).toBeInTheDocument())
+    expect(screen.getByTestId('percept-budget')).toHaveTextContent('今日 3/10')
+    expect(screen.getByTestId('percept-budget')).toHaveTextContent('待补播 2 条')
+  })
+
+  it('后端没给预算（未启用或老版本）：整行不显示，也不编一个 0/0 出来', async () => {
+    // 契约层：字段缺失/类型不对/`daily_max<=0` 都回 null
+    expect(parsePerceptStatus(makeStatus({ notify_budget: undefined })).notify_budget).toBeNull()
+    expect(parsePerceptStatus(makeStatus({ notify_budget: 'x' })).notify_budget).toBeNull()
+    expect(
+      parsePerceptStatus(makeStatus({ notify_budget: { count: 1, daily_max: 0 } })).notify_budget
+    ).toBeNull()
+    injectFetch(makeStatus({ notify_budget: undefined }))
+    render(<PerceptSourcePanel />)
+    await waitFor(() => expect(screen.getByTestId('percept-log-file')).toBeInTheDocument())
+    expect(screen.queryByTestId('percept-budget')).not.toBeInTheDocument()
   })
 
   it('总开关关掉：即时提交 {enabled:false}，并用回执快照刷新（不是乐观更新）', async () => {
