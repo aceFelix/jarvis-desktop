@@ -199,3 +199,12 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 - 故障恢复 / 安全模式（后端崩溃自动重启 + 降级 UI）。
 - macOS / Linux 安装包（mac 需签名 + 公证）。
 - 实时语音模式深度接入、手机 Bridge 复用。
+- **渲染层组件目录分组**（与下一条同批做）：`src/renderer/src/components/` 的 29 个平铺文件按
+  [组件地图](../src/renderer/src/components/README.md) 第二节的五簇切子目录（`ui/` `chat/` `butler/`
+  `extension/` + 根目录留布局骨架），同时定死边界规则：`ui/` 不得 import `stores/`，簇与簇之间
+  只走 props / 事件、不许跨簇 import 内部子组件。改动面实测 27 处目录内同级 import + 32 处外部
+  按路径引用（`App.tsx` 8 处 + 10 个测试文件）+ 15 处文档路径 + `.aoci/baseline.json` 25 条索引，
+  属零行为变更，故单独成批提交（先纯 `git mv`，再改 import 与文档），不与功能改动混提。
+- **逼近 800 行上限的文件拆分**（按余量排序）：`stores/backendStore.ts` 768 行（只剩 32 行余量，
+  且是全应用最常改的文件）、`i18n.ts` 745 行、`components/LeftSidebar.tsx` 607 行、
+  `components/ChatArea.tsx` 546 行。前两个下一个新功能就会顶破，按 code-structure 规则须先拆再写。

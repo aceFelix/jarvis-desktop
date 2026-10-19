@@ -127,6 +127,7 @@ jarvis-desktop/
 ```
 
 完整目录树见 [架构说明](docs/architecture.md)；测试与图标资源见 [开发指南](docs/development.md)。
+想知道「屏幕上某个控件是哪个文件管的」，查 [组件地图](src/renderer/src/components/README.md)（29 个组件逐个列职责）。
 
 ## 文档地图
 

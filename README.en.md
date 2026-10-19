@@ -127,6 +127,7 @@ jarvis-desktop/
 ```
 
 See [Architecture (中文)](docs/architecture.md) for the full tree; tests and icon assets are in [Development Guide (中文)](docs/development.md).
+Looking for which file owns a given piece of the UI? Check the [component map (中文)](src/renderer/src/components/README.md) — all 29 components, one line each.
 
 ## Documentation Map
 
