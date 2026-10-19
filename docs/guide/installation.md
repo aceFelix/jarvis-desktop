@@ -15,6 +15,7 @@
 
 - **dev 模式（开发者本机跑）**：桌面壳依赖本机 `jarvis` 源码仓库与 Python 环境（不捆绑 Python），跑 `python -m agent.serve`。
 - **分发形态（发给终端用户）**：随 Windows 安装包分发，用户**无需安装 Python**，下载双击即用。
+  安装包直链、体积与 SmartScreen 说明见 [README · 下载安装包](../../README.md#下载安装包)。
 
 dev 模式依赖：
 

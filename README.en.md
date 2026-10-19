@@ -46,7 +46,7 @@ jarvis (Python)                          jarvis-desktop (Electron)
 | **Slash-command passthrough** | `/` commands in the composer run in the engine (allowlist + interactive ban + dynamic skill passthrough) with prefix autocompletion | [Chat experience (中文)](docs/guide/features-chat.md) |
 | **Butler services** | Title-bar button next to settings opens a right-column butler panel to use butler capabilities via a form (never through the model): **Email service** (view/edit the current mailbox, configure SMTP, send mail) and **Percept sources** (stage 9 W2: see what the agent is observing and has collected, per-source switches and watch lists — **all off by default**; if you never made a choice it tells you once after connecting and lights a notice dot on the button); more services to come | [Panels & settings (中文)](docs/guide/features-panels.md) |
 | **Extension services** | Title-bar button next to butler opens a right-column extensions panel managing five kinds of extensions in one place: **MCP servers** (add/edit/remove + enable/disable), **built-in tools** (list + search), **skills** (search dirs + loaded list), **plugins** (marketplace search + install/uninstall/enable/disable), **harness tools** (browse marketplace + install/uninstall/enable/disable) | [Panels & settings (中文)](docs/guide/features-panels.md) |
-| **Ready to run** | Windows installer available — **no Python required**, just download and launch | — |
+| **Ready to run** | Windows installer available — **no Python required**, just download and launch | [Download the Installer](#download-the-installer) |
 | **Auto update** | Silent check on startup; when a new version exists an "Update" button appears in the title bar → one-click download (with progress) → "Restart to install" (not code-signed, so a SmartScreen prompt is expected) | — |
 
 ## Screenshots
@@ -72,6 +72,26 @@ Multi-end collaboration — scan to connect WeChat; phone and desktop share one 
 | Phone: chatting with ClawBot in WeChat | Desktop: the same conversation synced |
 |---|---|
 | ![Phone chatting with ClawBot in WeChat](assets/screenshots/connect-wechat3.png) | ![Desktop showing the phone-initiated conversation](assets/screenshots/connect-wechat2.png) |
+
+## Download the Installer
+
+**End users should stop here**: grab the Windows installer and double-click — **no Python / Node needed**
+(the backend is frozen with PyInstaller into `jarvis-serve.exe` and shipped inside the package).
+
+| Version | Platform | Direct download |
+|---|---|---|
+| v1.0.0 | Windows x64 | [JARVIS.Desktop-Setup-1.0.0.exe](https://github.com/aceFelix/jarvis-desktop/releases/download/v1.0.0/JARVIS.Desktop-Setup-1.0.0.exe) (~100 MB) |
+
+- All versions and release notes: [Releases](https://github.com/aceFelix/jarvis-desktop/releases/latest)
+  (every release carries a `latest.yml` holding the installer's sha512 digest)
+- The installer is not code-signed, so the Windows SmartScreen "unknown publisher" prompt is expected —
+  pick "More info → Run anyway"
+- After installing, set your model API key in the settings panel; later upgrades are one click on the
+  title-bar "Update" button (mechanics in [Installation & Running (中文)](docs/guide/installation.md#自动更新))
+- Installers are published only to GitHub Releases by CI; the
+  [GitCode mirror](https://gitcode.com/acefelix/jarvis-desktop) has source code but no installers
+
+Developers who want to run from source: see the next section.
 
 ## Quick Start
 

@@ -46,7 +46,7 @@ jarvis（Python）                         jarvis-desktop（Electron）
 | **斜杠命令透传** | 输入框 `/` 命令透传引擎执行（白名单 + 交互禁令 + 技能动态放行）+ 前缀补全 | [对话体验](docs/guide/features-chat.md) |
 | **管家服务** | 标题栏「设置」旁按钮进入右栏管家服务面板，用表单直接使用管家能力（不经过模型）：**邮箱服务**（查看/修改当前邮箱、配置 SMTP、发送邮件）与 **感知源**（阶段 9 W2：看「它在观察我什么、采到了什么」、逐源开关与采集名单，**默认全关**，从未表过态时会在连接后告知一次并在按钮上点亮提示点），后续可扩展更多服务 | [三栏面板与设置](docs/guide/features-panels.md) |
 | **扩展服务** | 标题栏「管家服务」旁按钮进入右栏扩展服务面板，集中管理五类扩展能力：**MCP 服务**（增删改 + 启停）、**内置工具**（清单与搜索）、**技能**（目录与已加载清单）、**插件**（市场搜索 + 安装/卸载/启停）、**harness 工具**（市场浏览 + 安装/卸载/启停） | [三栏面板与设置](docs/guide/features-panels.md) |
-| **开箱即用** | 提供 Windows 安装包，**免装 Python**，下载双击即用 | — |
+| **开箱即用** | 提供 Windows 安装包，**免装 Python**，下载双击即用 | [下载安装包](#下载安装包) |
 | **自动更新** | 启动静默检查新版本，有新版本时标题栏出现「更新」按钮 → 一键下载（带进度）→「重启安装」覆盖升级（未做代码签名，SmartScreen 提示属预期） | — |
 
 ## 界面预览
@@ -72,6 +72,26 @@ jarvis（Python）                         jarvis-desktop（Electron）
 | 手机端：微信 ClawBot 对话 | 桌面端：同步展示该对话 |
 |---|---|
 | ![手机端微信与 ClawBot 对话](assets/screenshots/connect-wechat3.png) | ![桌面端同步展示手机发起的对话](assets/screenshots/connect-wechat2.png) |
+
+## 下载安装包
+
+**终端用户走这条路即可**：下载 Windows 安装包，双击安装，**无需安装 Python / Node**
+（后端已用 PyInstaller 冻结成 `jarvis-serve.exe`，随包一起分发）。
+
+| 版本 | 平台 | 直接下载 |
+|---|---|---|
+| v1.0.0 | Windows x64 | [JARVIS.Desktop-Setup-1.0.0.exe](https://github.com/aceFelix/jarvis-desktop/releases/download/v1.0.0/JARVIS.Desktop-Setup-1.0.0.exe)（约 100 MB） |
+
+- 全部版本与更新说明：[Releases](https://github.com/aceFelix/jarvis-desktop/releases/latest)
+  （每个 Release 附 `latest.yml`，内含安装包的 sha512 校验值）
+- 安装包未做代码签名，Windows SmartScreen 的「未知发布者」提示属预期，
+  点「更多信息 → 仍要运行」即可
+- 装完首次启动请在设置面板配置模型 API Key；之后升级用标题栏「更新」按钮一键完成，
+  机制见 [自动更新](docs/guide/installation.md#自动更新)
+- 安装包只由 CI 发布到 GitHub Releases，[GitCode 镜像](https://gitcode.com/acefelix/jarvis-desktop)
+  上只有源码、没有安装包
+
+想从源码跑（开发者）请看下一节。
 
 ## 快速开始
 
