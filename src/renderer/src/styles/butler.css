@@ -103,3 +103,240 @@
 .butler-tabs {
     margin-top: 2px;
 }
+
+/* ---- 感知源面板（2026-10 阶段 9 W2）：状态总览 + 逐源卡片 + 名单表单 + 事件列表 ---- */
+/* 配色一律取 --edge-* / --qr-* 变量，随皮肤联动（与邮箱视图同策略）。 */
+
+/* 子返回头：标题居左、刷新按钮靠右 */
+.percept-subhead {
+    justify-content: flex-start;
+}
+
+.percept-refresh {
+    margin-left: auto;
+    font-size: 12px;
+    padding: 4px 8px;
+}
+
+/* 反馈条（错误 / 保存回执）：sticky 钉在子返回头下方，随滚动常驻可见。
+   2026-10 人工走查发现写回失败时错误落在长面板底部（不滚动就看不见），
+   用户拿到的唯一信息就是“开关点了没反应”，反而把真缺陷伪装成交互失灵。
+   底色取 --qr-panel-bg（三套皮肤各自定义的不透明面板底），内容从下方
+   穿过时仍可读；边框走 --edge-mid 与面板其余卡片同调。@author aceFelix */
+.percept-feedback {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 10px;
+    background: var(--qr-panel-bg, rgba(8, 18, 32, 0.95));
+    border: 1px solid var(--edge-mid);
+}
+
+/* 保存成功回执：紧凑单行。刻意不复用 .butler-email-sent（那是邮件发送
+   表单的整块大字居中成功态，塞进反馈条会撑破行高） */
+.percept-saved {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--qr-ok);
+}
+
+/* 概览里的计数行：值可能很长（emit 3 · dedup 1 · …），允许换行 */
+.percept-counters .butler-overview-value {
+    white-space: normal;
+    word-break: break-word;
+}
+
+/* 逐源卡片列表 */
+.percept-sources {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.percept-source {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border: 1px solid var(--edge-mid);
+    background: rgba(91, 200, 255, 0.04);
+}
+
+/* 未装配的收编位：整卡弱化，不给开关只给理由 */
+.percept-source.is-pending {
+    opacity: 0.62;
+    background: transparent;
+}
+
+.percept-source-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.percept-source-name {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: var(--qr-accent);
+}
+
+.percept-source-hint {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--qr-dim);
+}
+
+/* 运行账本徽标行 */
+.percept-source-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.percept-badge {
+    padding: 1px 6px;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    border: 1px solid var(--edge-mid);
+    color: var(--qr-accent);
+}
+
+.percept-badge.is-on {
+    color: var(--qr-ok);
+    border-color: var(--qr-ok);
+}
+
+.percept-badge.is-muted {
+    color: var(--qr-dim);
+}
+
+.percept-badge.is-warn {
+    color: var(--qr-warn);
+    border-color: var(--qr-warn);
+}
+
+.percept-source-error {
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--qr-warn);
+    word-break: break-all;
+}
+
+/* 观察范围：展开按钮（次要文本按钮，不抢开关的视觉重量） */
+.percept-detail-toggle {
+    align-self: flex-start;
+    padding: 2px 0;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--qr-dim);
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--edge-mid);
+    cursor: pointer;
+}
+
+.percept-detail-toggle:hover {
+    color: var(--qr-accent);
+}
+
+.percept-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    border: 1px dashed var(--edge-mid);
+}
+
+.percept-detail-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 11px;
+}
+
+/* 键名保持后端原样（snake_case，不翻译），值右对齐可换行 */
+.percept-detail-key {
+    color: var(--qr-dim);
+    white-space: nowrap;
+}
+
+.percept-detail-value {
+    color: var(--qr-panel-fg, inherit);
+    text-align: right;
+    word-break: break-all;
+}
+
+.percept-detail-empty {
+    font-size: 11px;
+    color: var(--qr-dim);
+}
+
+/* 采集名单表单：复用 .setting-row/.model-input/.butler-textarea，只收紧行距 */
+.percept-scope {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.percept-scope-hint {
+    margin-bottom: 2px;
+}
+
+.percept-textarea {
+    min-height: 64px;
+}
+
+/* 最近事件列表 */
+.percept-events {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.percept-event-ul {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.percept-event {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    border-left: 2px solid var(--edge-strong);
+    background: rgba(91, 200, 255, 0.05);
+}
+
+.percept-event-time {
+    color: var(--qr-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+.percept-event-source {
+    color: var(--qr-accent);
+    letter-spacing: 0.5px;
+}
+
+/* 摘要占满剩余宽度，长标题换行不撑破面板 */
+.percept-event-summary {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--qr-panel-fg, inherit);
+    word-break: break-word;
+}
+
+.percept-event-salience {
+    color: var(--qr-dim);
+    font-size: 11px;
+}

@@ -29,6 +29,8 @@ export default function TitleBar(): JSX.Element {
   const closeButler = useUiStore((s) => s.closeButler)
   const openExtension = useUiStore((s) => s.openExtension)
   const closeExtension = useUiStore((s) => s.closeExtension)
+  // 感知源首次引导到达标志（W2 第 7 步）：给「管家服务」按钮挂一次性提示点
+  const butlerHint = useUiStore((s) => s.butlerHint)
   // 未连上后端时管家服务不可用（指令链路依赖 WS），置灰（口径同左栏模式切换）
   const wsConnected = useBackendStore((s) => s.wsConnected)
   // 自动更新状态（主进程推送经 App 写入 updateStore）
@@ -103,15 +105,18 @@ export default function TitleBar(): JSX.Element {
           </button>
         ) : null}
         {/* 管家服务按钮（设置齿轮旁）：右栏切换为 ButlerPanel，未连后端置灰。
-            文案较长故用 .butler-btn 自适应宽度，避免被 .win-btn 固定 40px 挤换行 */}
+            文案较长故用 .butler-btn 自适应宽度，避免被 .win-btn 固定 40px 挤换行。
+            butlerHint（W2 第 7 步）：后端首次引导气泡会滚出屏幕，故给入口按钮挂
+            一个看得见的着陆点；进入面板（openButler）即清，不记未读计数 */}
         <button
           className={`win-btn butler-btn${rightView === 'butler' ? ' active' : ''}`}
-          title={t('butler.tip')}
+          title={butlerHint ? t('butler.hintTip') : t('butler.tip')}
           data-testid="btn-open-butler"
           disabled={!wsConnected}
           onClick={toggleButler}
         >
           {g.butler} {t('butler.title')}
+          {butlerHint ? <span className="notice-dot" data-testid="butler-notice-dot" /> : null}
         </button>
         {/* 扩展服务按钮（管家服务旁）：右栏切换为 ExtensionPanel（MCP / 内置工具 /
             技能 / 插件 / harness 五类集中管理），未连后端置灰（指令链路依赖 WS） */}
