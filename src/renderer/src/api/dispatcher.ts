@@ -26,6 +26,7 @@ import { useRemoteStore } from '../stores/remoteStore'
 import { useLeftStore, type ModelItem, type SessionItem, type VoiceItem } from '../stores/leftStore'
 import { useMetricsStore, type MetricsPayload } from '../stores/metricsStore'
 import { useRightStore, type McpStatus } from '../stores/rightStore'
+import { useUiStore } from '../stores/uiStore'
 import { getReactor } from '../stores/reactorRef'
 import type { ReactorStatus } from '../reactor'
 import type { JarvisConnection } from '../stores/backendStore'
@@ -413,15 +414,21 @@ export function dispatchServerEvent(
       break
     }
 
-    // ---- 主动播报（每日简报 / 用户提醒 / 截止日期） ----
+    // ---- 主动播报（每日简报 / 用户提醒 / 截止日期 / 感知观察 / 感知首次引导） ----
     case 'proactive_notify': {
       const p = (payload ?? {}) as ProactiveNotifyPayload
       const kind = p.kind ?? 'briefing'
       const text = String(p.text ?? '')
       const title = String(p.title ?? '贾维斯主动提醒')
-      // 上屏：reminder 带 ⏰ 前缀；briefing/deadline 全文多行系统气泡
-      //（.message 基类 white-space: pre-wrap，\n 直接换行）
-      chat.addSystem(kind === 'reminder' ? `⏰ ${text}` : text)
+      // 上屏：reminder 带 ⏰ 前缀；感知首次引导带 🔍 前缀（与逐条“观察”区分）；
+      // 其余全文多行系统气泡（.message 基类 white-space: pre-wrap，\n 直接换行）
+      chat.addSystem(
+        kind === 'reminder'
+          ? `⏰ ${text}`
+          : kind === 'percept_ask'
+            ? `🔍 ${text}`
+            : text
+      )
       // 主进程系统通知：窗口隐藏/最小化到托盘时依然弹（走 jarvisDesktop.notify）
       try {
         window.jarvisDesktop?.notify?.({ title, body: text })
@@ -431,6 +438,12 @@ export function dispatchServerEvent(
       // reminder 且带 task_id：窗口可见即视为已读，回执停止升级重发
       if (kind === 'reminder' && p.task_id) {
         conn.ackProactive(String(p.task_id))
+      }
+      // 感知层首次引导（W2 第 7 步）：给「管家服务」按钮挂一次性提示点——
+      // 气泡会滚出屏幕，而“想开就去这里”这个入口得有个看得见的着陆点。
+      // 不入库、不计数：后端那份 consent 记录才是“问过没”的真源。
+      if (kind === 'percept_ask') {
+        useUiStore.getState().showButlerHint()
       }
       // 任务中心联动：简报原文上右栏；提醒触发/截止日期检查后列表有变化
       //（ fired 任务离列、days_left 更新），统一刷新。@author aceFelix

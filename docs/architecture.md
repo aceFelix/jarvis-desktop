@@ -154,6 +154,8 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `email.config.get` | — | `{enabled, smtp_host, smtp_port, smtp_user, sender, default_recipient, has_password}`（读取 `[email]` 配置；**不回传授权码明文**，只回 `has_password` 布尔；管家服务「邮箱服务」→「邮箱配置」标签挂载时拉取，2026-10） |
 | `email.config.set` | `enabled`/`smtp_host`/`smtp_port`/`smtp_user`/`smtp_password`/`sender`/`default_recipient`（均可选，至少一项） | 回写后的同 `email.config.get` 字段（serve 侧白名单字段 + 端口 1..65535 校验 → 转义 upsert `settings.toml` 的 `[email]` 表 → 同步运行时 `Settings`；**`smtp_password` 留空 = 保持原授权码不变**；落盘失败 ok=false 且不动运行时；同步处理器，本地快速 IO，2026-10） |
 | `extensions.exec` | `category`（`mcp`/`tools`/`skills`/`plugins`/`harness`）+ `action` + 动作相关参数 | `{ok, data, message}`（扩展服务面板**一条通用指令承载五类扩展**的清单与增删改启停；serve 侧 `WorkbenchAPI.run_extension` → `agent/ui/workbench/extensions_api.py` 按 category 分发；插件/harness 的克隆安装等阻塞 IO 经 `asyncio.to_thread` 承载；2026-10） |
+| `percept.status.get` | —［, `event_limit`］ | 感知层快照 `{enabled, assembled, bus_running, counters, dedup_window_s, log_file, log_events, sources[], recent_events[], pending[], config, notify_budget}`（管家服务「感知源」面板挂载时一次拿全：总开关与逐源启用、总线三道闸计数、源自报的观察范围（`source.state()`）、最近事件与留痕文件路径（`log_file` 三态：留痕真关→空 / 总线在跑→实际路径 / 开着但没跑→默认路径；`assembled` 只表示后端宿主已接线，在不在采看 `bus_running`）、**W1 打扰预算快照 `notify_budget`**（`{day, count, daily_max, pending, quiet_hours}`，回答“jsonl 在涨为什么没声音”；后端未启用预算或读取异常时为 `null`，面板整行不显示）、可编辑配置快照；`event_limit` 上限 50；源名中文标签与“这个源采什么”均由后端 `status.py` 给出（单一真源）；未装配的收编位带 `pending_reason`，**前端据此不给开关**；类型镜像 `src/shared/percept-contracts.ts`；2026-10 阶段 9 W2） |
+| `percept.config.set` | `enabled`/`window_enabled`/…/`log_events`/四个名单数组/两个分钟阈值（均可选，至少一项） | 同 `percept.status.get` 快照 + `hot_applied` + `applied`（后端顺序：白名单校验 → 外科式 upsert `settings.toml` 的 `[percept]` 表 → 改运行时 `Settings` → **请宿主重装配总线**（逐源启用是装配期快照，不重装配就是“面板显已开、实际没在采”；停旧总线会真正释放 IMAP 连接与摄像头）→ 回读快照。`hot_applied=false` = 配置已落盘但本次会话未重装配，面板必须提示“需重启才生效”而不是假装已生效；白名单**之外的键直接报错**（不静默忽略），极客参数（去重窗口/地板分/采样间隔）不得入面板；2026-10 阶段 9 W2） |
 
 ### 斜杠命令透传与补全（slash.exec / slash.commands，2026-10）
 
@@ -515,11 +517,12 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
 右栏第三个视图：`ButlerPanel.tsx` 整体替换右栏（与 `SettingsPanel` 同一替换机制，
 `uiStore.rightView === 'butler'`），入口为标题栏右上角「设置」齿轮旁的 **管家服务**
 按钮（`TitleBar.tsx`，兼 toggle、激活态高亮，随后端连接态置灰）。面板两级视图，
-状态在单一职责的 `butlerStore`（`activeService`：''=服务清单，'email'=邮箱服务视图；
-面板每次挂载重置回清单）：
+状态在单一职责的 `butlerStore`（`activeService`：''=服务清单，`'email'`=邮箱服务视图，
+`'percept'`=感知源视图；面板每次挂载重置回清单）。服务视图组件集中在
+`SERVICE_VIEWS` 映射表里按 id 取（而不是按服务数量堆嵌套三元），新增服务＝
+`SERVICES` 加条目 + `SERVICE_VIEWS` 加组件 + i18n 加文案：
 
-- **服务清单**（面板首页）：服务入口行（名称 + 一句话说明），后续扩展只需往
-  `SERVICES` 清单加条目 + i18n 加文案；
+- **服务清单**（面板首页）：服务入口行（名称 + 一句话说明）；
 - **邮箱服务**（原「邮件发送」，2026-10 改名并扩展）：面板内嵌 `EmailServicePanel.tsx`，
   顶部常显**当前邮箱概览卡**（当前发件邮箱 = `sender || smtp_user`、SMTP `host:port`、
   启用状态、授权码是否已配置），子标签「邮箱配置」/「发送邮件」二选一：
@@ -530,9 +533,35 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
   - **发送邮件**（复用 `EmailForm.tsx`）：经 `email.send` 指令直连后端 `SendEmailTool`
     （协议细节见上「指令一览」表 `email.send` 行）；成功/失败均在面板内提示
     （错误内联、表单不关闭可重试），取消/完成回服务清单。
+- **感知源**（2026-10 阶段 9 W2 第 6 步，后端 `percept.*` RPC 为第 5 步）：面板内嵌 `PerceptSourcePanel.tsx`，回答三个
+  问题对应三个子标签——「它在看我什么」（`PerceptSourceList.tsx`：逐源开关 + 运行账本
+  徽标 + 可展开的源自报观察范围）、「能不能少看一点」（`PerceptScopeForm.tsx`：四个
+  名单文本域每行一项 + 两个分钟阈值，**只提交实际改动的键**）、「到底采到了什么」
+  （`PerceptEventList.tsx`：最近事件原样渲染，不做前端二次脱敏）。关键口径：
+  - **总开关与逐源开关即时保存**（一次点击一份补丁），不等用户再找“保存”按钮；
+  - 本地**不做乐观更新**：写回执里后端回读的快照整体替换本地状态，面板显示的永远是
+    后端此刻的真实拓扑；`hot_applied=false` 时显式提示“重启后端后生效”；
+  - 未装配的收编位（calendar / system / schedule）灰显 + 理由，**没有开关**；
+  - 源名与说明均取自后端（`status.py` 的 `SOURCE_LABELS` / `SOURCE_HINTS`），前端不
+    再硬编码；英文界面下源名仍显中文，是这套口径的已知取舍。
 
-配置数据由 `EmailServicePanel` 持 `useState`（挂载 `fetchEmailConfig` 拉取，离线/失败
-显离线态），**不新增全局 store**。样式在 `styles/butler.css`（面板只补服务清单、
+**感知首次引导（W2 第 7 步）**：面板只能由用户主动打开，所以“知道有这项能力”需要一个
+可见的着陆点。后端在从未表过态时投递一条 `proactive_notify`（`kind=percept_ask`），
+`api/dispatcher.ts` 收到后做两件事：上屏一条带 🔍 前缀的系统气泡，并调
+`uiStore.showButlerHint()`；`components/TitleBar.tsx` 据此在「管家服务」按钮内渲染
+`.notice-dot`（样式在 `styles/main.css`，与 `.status-dot` 共用 `pulse` 关键帧）并把
+`title` 换成 `butler.hintTip`。三条约束：**进面板即清**（`openButler()` 同时置
+`butlerHint: false`，它是“这里有你没看过的东西”而不是未读计数）、**不持久化也不入库**
+（后端 `~/.jarvis/percept/consent.json` 才是“问过没”的唯一真源，壳里再存一份只会两处
+对不上）、**普通感知事件（`kind=percept`）不点亮提示点**。
+
+配置与事件数据由各服务面板持 `useState`（挂载拉取，离线/失败显离线态），
+**不新增全局 store**；感知指令的动作拆到 `stores/perceptActions.ts`（与
+`extensionActions` / `remoteActions` 同范式注入 `backendStore`，避开其 800 行上限），
+感知类型契约另立 `src/shared/percept-contracts.ts`（`contracts.ts` 已近 800 行，只加
+两条 `Cmd` 常量）。管家服务域文案拆到 `renderer/src/i18n-butler.ts`（按**业务域**而非
+按语言切，zh/en 同批键相邻防单向漏改），`i18n.ts` 以 `{...zhCore, ...zhButler}` 合并，
+查键与兜底口径不变。样式在 `styles/butler.css`（面板只补服务清单、
 概览卡与表单专属类，容器复用 `.settings-head` / `.settings-back` / `.settings-panel`
 既有样式，随三皮肤联动）。
 
@@ -581,7 +610,7 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
 - **指标**：`metrics`（每 2 秒推送）
 - **实时语音（真全双工）**：`talk_started` / `talk_stopped` / `volume` / `user_speaking` / `ai_speaking` / `user_transcript` / `ai_transcript` / `ai_transcript_delta` / `talk_audio`（下行 24kHz PCM 帧，base64；空串 payload = 打断 flush，由 `audio/talkPlayback.ts` 排播/清空）——duplex 会话下麦克风采集与播放均在渲染进程（浏览器 `getUserMedia({echoCancellation:true})` 系统级 AEC），服务端引擎只收发 WS 帧（`BridgeMic`/`BridgeSpk`，镜像 jarvis `agent/voice/realtime_bridge_audio.py`）
 - **半双工语音**：`voice_started` / `voice_stopped` / `voice_state`（payload 为 `listening｜thinking｜speaking｜standby｜exited`）/ `voice_user_transcript` / `voice_ai_text_delta`（流式增量）/ `voice_ai_text`（全量）——音频 I/O 留 serve 本机 pyaudio，壳只做遥控 + 状态/文字显示
-- **主动播报**：`proactive_notify`（payload `{kind: briefing｜reminder｜deadline, title, text, task_id}`；由 serve 侧 `ProactiveHub` 装配的每日简报 / 对话提醒 / 截止日期触发，仅 `--serve` / 桌面壳运行期间生效）
+- **主动播报**：`proactive_notify`（payload `{kind, title, text, task_id}`，kind 为**开放联合**：`briefing｜reminder｜deadline｜percept｜percept_ask`；由 serve 侧 `ProactiveHub` 装配的每日简报 / 对话提醒 / 截止日期 / 感知层事件触发，`percept_ask` 为感知能力首次引导（W2 第 7 步，只投递一次），仅 `--serve` / 桌面壳运行期间生效）
 
 渲染侧 `api/dispatcher.ts` 把上述事件映射进 Zustand store（`chatStore` / `leftStore` / `metricsStore` / `rightStore`）与反应炉动画实例，组件只订阅 store 切片——事件→UI 的映射口径与引擎事件表同源（历史对照：jarvis 仓 pywebview 工作台的 `app.js::dispatchEvent` 曾同口径，已随窗口壳于 2026-10 删除，本 dispatcher 为唯一现役实现）。其中 `proactive_notify` 除上屏聊天气泡外，还调 `window.jarvisDesktop.notify` 经主进程弹 Windows 原生通知（`src/main/notify.ts`），reminder 带 `task_id` 时回发 `proactive.ack`。
 

@@ -53,6 +53,7 @@ import { useSlashStore } from './slashStore'
 import { buildResourceActions } from './resourceActions'
 import { buildRemoteActions } from './remoteActions'
 import { buildExtensionActions, type ExtensionActions } from './extensionActions'
+import { buildPerceptActions, type PerceptActions } from './perceptActions'
 import {
   useRightStore,
   type CostInfo,
@@ -122,7 +123,7 @@ function rlog(msg: string): void {
   }
 }
 
-export interface BackendStoreState extends ExtensionActions {
+export interface BackendStoreState extends ExtensionActions, PerceptActions {
   state: BackendState
   info: BackendInfo | null
   error: string
@@ -702,6 +703,9 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
 
     // ---- 扩展服务（MCP / 工具 / 技能 / 插件 / harness）：拆出 extensionActions.ts ----
     ...buildExtensionActions(() => get().client),
+
+    // ---- 感知源（阶段 9 W2）：拆出 perceptActions.ts（800 行上限，口径同邮箱配置）----
+    ...buildPerceptActions(() => get().client),
 
     sendEmail: async (payload) => {
       // 管家服务·邮件发送（email.send）：直接取回执，错误交表单内联显示，
