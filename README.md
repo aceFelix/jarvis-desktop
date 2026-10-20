@@ -149,15 +149,17 @@ jarvis-desktop/
 <table>
 <tr>
   <td align="center">微信群「Hello Jarvis.」</td>
-  <td align="center">QQ 群「Hello Jarvis.」（群号 1109055256）</td>
+  <td align="center">QQ 群「Hello Jarvis.」<br/>（群号 1109055256）</td>
+  <td align="center">抖音群「Hello Jarvis.」<br/>（群号 777346526350）</td>
 </tr>
 <tr>
   <td><img src="assets/communication/discussion-group.png" alt="微信群 Hello Jarvis." width="150"/></td>
   <td><img src="assets/communication/discussion-group2.jpg" alt="QQ 群 Hello Jarvis." width="150"/></td>
+  <td><img src="assets/communication/discussion-group3.jpg" alt="抖音群 Hello Jarvis." width="150"/></td>
 </tr>
 </table>
 
-> 微信群二维码 7 天内有效，过期后可从 QQ 群获取最新入群方式。
+> 微信群二维码 7 天内有效，过期后可从 QQ 群获取最新入群方式；QQ 群与抖音群可直接在 App 内搜索群号加入。
 
 **赞赏支持** —— 如果 J.A.R.V.I.S. Desktop 对你有帮助，欢迎请我喝杯咖啡——你的支持是项目持续迭代的动力，🦀🦀。
 
