@@ -19,7 +19,7 @@ import type {
   HarnessMarketItem,
   PluginItem,
   PluginMarketItem
-} from '../../../shared/contracts'
+} from '../../../shared/extension-contracts'
 
 /** 已安装插件面板（plugins.install/uninstall/enable/disable + 市场搜索）。 */
 export function ExtensionPluginsPanel(): JSX.Element {
