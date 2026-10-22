@@ -34,6 +34,10 @@ import './styles/butler.css'
 // 按职责拆分的模块样式，同样需早于皮肤引入以允许主题层基于 --edge-* 变量联动。
 // @author aceFelix
 import './styles/extension.css'
+// 任务中心（2026-10 阶段 10 W3 右栏「跨会话目标」台账 + 「副作用账本」清单）：
+// 按职责拆分的模块样式，同样需早于皮肤引入以允许主题层基于 --edge-* / --qr-* 联动。
+// @author aceFelix
+import './styles/task-center.css'
 import './styles/theme-dark-y2k.css'
 import './styles/theme-light-y2k.css'
 import './styles/theme-retro.css'

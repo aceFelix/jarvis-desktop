@@ -1,5 +1,5 @@
 /**
- * 右栏信息面板：任务中心 / 会话与用量 / 系统状态 / 运行健康 四区块。
+ * 右栏信息面板：任务中心 / 跨会话目标 / 副作用账本 / 会话与用量 / 系统状态 / 运行健康 六区块。
  *
  * 设置已独立为 SettingsPanel 组件（标题栏齿轮进入，整体替换本面板），
  * 本组件只留运行时信息展示。
@@ -7,6 +7,8 @@
  * 数据源：
  * - 任务中心/用量/运行健康：rightStore（dispatcher 在 init /
  *   assistant_done / proactive_notify 时触发刷新）；
+ * - 跨会话目标 + 副作用账本（阶段 10 W3）：tasksStore（`tasks.exec` /
+ *   `actions.exec` 快照），刷新入口统一走 `backendStore.refreshTasks`；
  * - 系统状态：metrics 事件每 2 秒推送进 useMetricsStore；
  *   CPU > 85% 时进度条变红（hot），与 workbench 口径一致。
  *
@@ -15,6 +17,8 @@
 
 import { useMetricsStore } from '../stores/metricsStore'
 import { useRightStore, type DeadlineItem } from '../stores/rightStore'
+import SpineTaskPanel from './SpineTaskPanel'
+import EffectJournalPanel from './EffectJournalPanel'
 import { useT } from '../i18n'
 import { useGlyphs } from '../glyphs'
 
@@ -228,6 +232,19 @@ export default function RightSidebar(): JSX.Element {
         <span className="col-title">{t('right.tasks')}</span>
       </div>
       <TaskCenter />
+
+      {/* 跨会话目标台账（阶段 10 W3）：驱动器在不在跑、卡在哪一步、要不要授权。
+          @author aceFelix */}
+      <div className="col-header">
+        <span className="col-title">{t('tasks.spine.head')}</span>
+      </div>
+      <SpineTaskPanel />
+
+      {/* 副作用账本（阶段 10 W3）：我动过什么、哪些还能撤、哪些撤不回。@author aceFelix */}
+      <div className="col-header">
+        <span className="col-title">{t('tasks.journal.head')}</span>
+      </div>
+      <EffectJournalPanel />
 
       <div className="col-header">
         <span className="col-title">{t('right.usage')}</span>

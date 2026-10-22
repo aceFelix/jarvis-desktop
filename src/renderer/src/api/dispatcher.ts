@@ -98,6 +98,10 @@ export function dispatchServerEvent(
       // 输入框 / 前缀弹层消费；技能安装变化靠下次 init 刷新。
       // @author aceFelix
       void conn.refreshSlashCommands()
+      // 任务中心（阶段 10 W3）：跨会话目标台账 + 副作用账本快照，重连/后端换代后
+      // 重新拉一次（与面板自身那次拉取同一个入口，不会多开一条数据通路）。
+      // @author aceFelix
+      void conn.refreshTasks()
       // 握手完成：状态栏从启动期的「等待后端启动...」切到「就绪」。init 是每连接
       // 首帧，此前只有首轮回复结束/断线才会刷新状态文案，连上后端后长期挂着
       // 「等待后端启动...」会让人误以为后端没起来。@author aceFelix
@@ -136,6 +140,10 @@ export function dispatchServerEvent(
       void conn.refreshSessions()
       // 一轮对话消耗了 token：刷新右栏用量卡。@author aceFelix
       void conn.refreshCost()
+      // 一轮结束也刷任务中心：本轮的文件改动会落进副作用账本（延时窗口内的
+      // 预约在这里才能看到倒计时），而目标可能在对话里被新建/推进一步。
+      // 只读两个快照、不比 cost.get 贵，不起轮询。@author aceFelix
+      void conn.refreshTasks()
       logLine('回复完成')
       break
     case 'tool_use': {
@@ -449,6 +457,12 @@ export function dispatchServerEvent(
       //（ fired 任务离列、days_left 更新），统一刷新。@author aceFelix
       if (kind === 'briefing') {
         useRightStore.getState().setBriefing(text)
+      }
+      // 任务脊柱播报（kind=task，驱动器“做完一步/卡住了/等你授权”）：台账与
+      // 账本都已经变了，不刷新就会停在旧状态（批准按钮会因快照未更新而看不到）。
+      // @author aceFelix
+      if (kind === 'task') {
+        void conn.refreshTasks()
       }
       void conn.refreshSchedule()
       logLine(`主动播报（${kind}）：${title}`)
