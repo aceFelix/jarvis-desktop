@@ -547,7 +547,7 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
   - **总开关与逐源开关即时保存**（一次点击一份补丁），不等用户再找“保存”按钮；
   - 本地**不做乐观更新**：写回执里后端回读的快照整体替换本地状态，面板显示的永远是
     后端此刻的真实拓扑；`hot_applied=false` 时显式提示“重启后端后生效”；
-  - 未装配的收编位（calendar / system / schedule）灰显 + 理由，**没有开关**；
+  - 未装配的收编位（阶段 11 之后只剩 schedule）灰显 + 理由，**没有开关**；
   - 源名与说明均取自后端（`status.py` 的 `SOURCE_LABELS` / `SOURCE_HINTS`），前端不
     再硬编码；英文界面下源名仍显中文，是这套口径的已知取舍。
 

@@ -82,14 +82,14 @@ function makeStatus(over: Record<string, unknown> = {}): Record<string, unknown>
       makeSource(),
       makeSource({ name: 'file', label: '目录堆积', detail: { watch_dirs: ['E:/Downloads'] } }),
       makeSource({
-        name: 'calendar',
-        label: '日历事件',
+        name: 'schedule',
+        label: '定时提醒',
         implemented: false,
         registered: false,
         bus_enabled: false,
         enabled: false,
         detail: {},
-        pending_reason: '本期未装配：面板上刻意不给开关'
+        pending_reason: '刻意不并进总线：面板上不给开关'
       })
     ],
     recent_events: [
@@ -102,7 +102,7 @@ function makeStatus(over: Record<string, unknown> = {}): Record<string, unknown>
         dedup_key: 'chrome|订单表.xlsx'
       }
     ],
-    pending: ['calendar', 'system', 'schedule'],
+    pending: ['schedule'],
     notify_budget: {
       day: '2026-10-18',
       count: 3,
@@ -164,7 +164,7 @@ describe('percept-contracts · 宽容解析', () => {
     expect(status.sources[0].name).toBe('window')
     expect(status.sources[0].stats.events).toBe(2)
     expect(status.sources[2].implemented).toBe(false)
-    expect(status.sources[2].pending_reason).toContain('本期未装配')
+    expect(status.sources[2].pending_reason).toContain('刻意不并进总线')
     expect(status.recent_events[0].payload.summary).toContain('Chrome')
     expect(status.config.file_watch_dirs).toEqual(['E:/Downloads'])
     expect(status.hot_applied).toBe(false)
@@ -193,11 +193,11 @@ describe('percept-contracts · 宽容解析', () => {
     expect(cfg.vcs_repos).toEqual([])
   })
 
-  it('逐源开关键：已实现的源有键，未装配的收编位回空串（面板据此不给开关）', () => {
-    expect(perceptEnableKey('window')).toBe('window_enabled')
-    expect(perceptEnableKey('vision')).toBe('vision_enabled')
-    expect(perceptEnableKey('calendar')).toBe('')
-    expect(perceptEnableKey('system')).toBe('')
+  it('逐源开关键：七个已实现源都有键，只剩 schedule 回空串（面板据此不给开关）', () => {
+    for (const name of ['window', 'file', 'vcs', 'mail', 'vision', 'calendar', 'system']) {
+      expect(perceptEnableKey(name)).toBe(`${name}_enabled`)
+    }
+    expect(perceptEnableKey('schedule')).toBe('')
   })
 
   it('源自报细节：标量与字符串数组成行，嵌套对象/空值跳过，布尔用中性符号', () => {
@@ -427,8 +427,23 @@ describe('PerceptSourceList', () => {
     render(<PerceptSourceList sources={sourcesOf()} busy={false} onPatch={onPatch} />)
 
     expect(screen.getByTestId('percept-source-toggle-window')).toBeInTheDocument()
-    expect(screen.queryByTestId('percept-source-toggle-calendar')).not.toBeInTheDocument()
-    expect(screen.getByTestId('percept-pending-reason-calendar')).toHaveTextContent('本期未装配')
+    expect(screen.queryByTestId('percept-source-toggle-schedule')).not.toBeInTheDocument()
+    expect(screen.getByTestId('percept-pending-reason-schedule')).toHaveTextContent('刻意不并进总线')
+  })
+
+  it('阶段 11 收编后：calendar / system 出现在开关列表里，不再是灰卡', () => {
+    const sources = parsePerceptStatus({
+      sources: [
+        makeSource({ name: 'calendar', label: '日历事件', detail: { lead_minutes: 30 } }),
+        makeSource({ name: 'system', label: '系统资源', detail: { cpu_threshold: 85 } })
+      ]
+    }).sources
+    render(<PerceptSourceList sources={sources} busy={false} onPatch={vi.fn()} />)
+
+    expect(screen.getByTestId('percept-source-toggle-calendar')).toBeInTheDocument()
+    expect(screen.getByTestId('percept-source-toggle-system')).toBeInTheDocument()
+    expect(screen.queryByTestId('percept-pending-calendar')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('percept-pending-system')).not.toBeInTheDocument()
   })
 
   it('点开关：按源名推补丁键提交', () => {

@@ -10,7 +10,7 @@
  * 口径承诺（与后端注释同源，改动前请先读那两个文件）：
  * - `sources[].enabled` 是「总开关 AND 逐源开关」的**装配期结论**，不是运行时事实；
  *   运行时以 `registered`（总线有没有这个源）与 `bus_enabled` 判断；
- * - 未装配的收编位（calendar / system / schedule）`implemented=false` 且带
+ * - 未装配的收编位（阶段 11 之后只剩 schedule）`implemented=false` 且带
  *   `pending_reason`，面板**刻意不给开关**——有开关背后没人采比没有开关更糟；
  * - `hot_applied` 只在 `percept.config.set` 的回执里出现：false = 配置已落盘但
  *   本次会话没重装配（宿主不在或装配抛错），面板须提示「需重启才生效」。
@@ -400,13 +400,15 @@ const ENABLE_KEYS: ReadonlySet<string> = new Set([
   'file_enabled',
   'vcs_enabled',
   'mail_enabled',
-  'vision_enabled'
+  'vision_enabled',
+  'calendar_enabled',
+  'system_enabled'
 ])
 
 /**
  * 源名 → 面板可改的逐源开关键（`${name}_enabled`）。
  *
- * 不在白名单里（包括 calendar / system / schedule 三个未装配的收编位）回空串，
+ * 不在白名单里（阶段 11 之后只剩 schedule 一个收编位）回空串，
  * 调用方据此**不给开关**：比“开关点了采不到东西”更好的设计是没有开关。
  * @author aceFelix
  */
