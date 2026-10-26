@@ -156,6 +156,8 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `extensions.exec` | `category`（`mcp`/`tools`/`skills`/`plugins`/`harness`）+ `action` + 动作相关参数 | `{ok, data, message}`（扩展服务面板**一条通用指令承载五类扩展**的清单与增删改启停；serve 侧 `WorkbenchAPI.run_extension` → `agent/ui/workbench/extensions_api.py` 按 category 分发；插件/harness 的克隆安装等阻塞 IO 经 `asyncio.to_thread` 承载；2026-10） |
 | `percept.status.get` | —［, `event_limit`］ | 感知层快照 `{enabled, assembled, bus_running, counters, dedup_window_s, log_file, log_events, sources[], recent_events[], pending[], config, notify_budget}`（管家服务「感知源」面板挂载时一次拿全：总开关与逐源启用、总线三道闸计数、源自报的观察范围（`source.state()`）、最近事件与留痕文件路径（`log_file` 三态：留痕真关→空 / 总线在跑→实际路径 / 开着但没跑→默认路径；`assembled` 只表示后端宿主已接线，在不在采看 `bus_running`）、**W1 打扰预算快照 `notify_budget`**（`{day, count, daily_max, pending, quiet_hours}`，回答“jsonl 在涨为什么没声音”；后端未启用预算或读取异常时为 `null`，面板整行不显示）、可编辑配置快照；`event_limit` 上限 50；源名中文标签与“这个源采什么”均由后端 `status.py` 给出（单一真源）；未装配的收编位带 `pending_reason`，**前端据此不给开关**；类型镜像 `src/shared/percept-contracts.ts`；2026-10 阶段 9 W2） |
 | `percept.config.set` | `enabled`/`window_enabled`/…/`log_events`/四个名单数组/两个分钟阈值（均可选，至少一项） | 同 `percept.status.get` 快照 + `hot_applied` + `applied`（后端顺序：白名单校验 → 外科式 upsert `settings.toml` 的 `[percept]` 表 → 改运行时 `Settings` → **请宿主重装配总线**（逐源启用是装配期快照，不重装配就是“面板显已开、实际没在采”；停旧总线会真正释放 IMAP 连接与摄像头）→ 回读快照。`hot_applied=false` = 配置已落盘但本次会话未重装配，面板必须提示“需重启才生效”而不是假装已生效；白名单**之外的键直接报错**（不静默忽略），极客参数（去重窗口/地板分/采样间隔）不得入面板；2026-10 阶段 9 W2） |
+| `tasks.exec` | `action`（`status`/`create`/`show`/`pause`/`resume`/`cancel`/`advance`/`delete`/`approve`）+ 动作相关参数 | 台账快照 `{ok, action, message, goals[], count, driver_running, base_dir, tasks_config{enabled, wait_deadline_hours, step_max_attempts, retry_backoff_s, blocked_ask_days}[, need_confirm, goal, items]}`（右栏「跨会话目标」区块数据源；`driver_running`（驱动线程真的在跑）与 `tasks_config.enabled`（配置意图）**刻意分两个字段回传**，面板分开画，否则就是“显示已开、实际没人推”的假可用；`delete` 为**两拍**：不带 confirm 只回 `need_confirm=true` + 目标明细，一字未动；`approve` 一拍：按该步的 `denied_tools` 签发“仅本步被拒工具 + 仅目标工作目录 + 30 分钟”的 W1 授权租约再把步骤退回待执行，`denied_tools` 为空时**拒绝放行**（不签范围不明的租约）并给出原因；类型镜像 `src/shared/tasks-contracts.ts`，唯一真源 jarvis `agent/serve/rpc_tasks.py`；2026-10 阶段 10 W3） |
+| `actions.exec` | `action`（`status`/`list`/`undo`/`cancel_hold`/`undo_task`）+ `id`/`goal_id`/`confirm` | 账本快照 `{ok, action, message, enabled, counts, held[], held_labels[], window_size, recent[], actions_config{undo_window_s, track_local_writes, hold_blocks_equivalent, irreversible_tools}[, need_confirm, preview, items]}`（右栏「副作用账本」区块数据源；账本未启用时**照样回快照**（`enabled=false` + 一句说明），面板显“未启用”而不是报错；`undo`（整轮回滚，粒度是本轮而不是单文件）与 `undo_task`（按目标批量）为**两拍**，第一拍 `preview` 分别是 `{files[], untracked_count, workdir, hint}` 对象与记录数组两种形状；`cancel_hold` 一拍落手（撤的是还没执行的预约）；“能不能撤”由后端 `reversible` / `undo_spec.kind` 定（邮件已发出就是 `none`），面板只说明不给按钮；2026-10 阶段 10 W3） |
 
 ### 斜杠命令透传与补全（slash.exec / slash.commands，2026-10）
 
@@ -415,12 +417,16 @@ theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配�
   并排）——原生 `<input type="time">` 的时/分弹出面板由 Chromium 内部 UI 绘制
   （白底 + 系统蓝选中），CSS 无法触达，故弃用。
 
-### 右栏四区块（任务中心 / 用量 / 系统状态 / 运行健康）与设置面板
+### 右栏六区块（任务中心 / 跨会话目标 / 副作用账本 / 用量 / 系统状态 / 运行健康）与设置面板
 
-右栏信息面板（`RightSidebar.tsx`）自上而下四区块；任务/用量/健康数据集中在 `stores/rightStore.ts`：
+右栏信息面板（`RightSidebar.tsx`）自上而下六区块；提醒/用量/健康这些**只读展示型**快照集中在 `stores/rightStore.ts`，而带写操作与两拍确认的任务中心快照单独放在 `stores/tasksStore.ts`（“谁能动台账”这条排查线索只留一处）：
 
 - **任务中心**：`schedule.list` 的待触发提醒（时间升序）+ 活跃截止日期（`days_left`
   倒计时，≤3 天标黄、逾期标红）+ 最近简报折叠块（`proactive_notify` kind=briefing 时更新）；
+- **跨会话目标**（阶段 10 W3，`SpineTaskPanel.tsx`）：`tasks.exec` 台账，驱动器在不在跑、
+  卡在哪一步、等什么（等待条件/最迟时刻/已试次数/被哪些工具拦）就地管控，详见下一节；
+- **副作用账本**（阶段 10 W3，`EffectJournalPanel.tsx`）：`actions.exec` 账本，扣住的预约
+  （带倒计时、可一拍撤回预约）与最近已执行项（两拍整轮回退），能不能回退看后端 `reversible`；
 - **会话与用量**：`cost.get` 的当前模型 + token 四类累计（输入/输出/缓存读/缓存写合并展示）
   + **缓存命中率**（`cache_hit_rate`，一行百分比，`usage-cache-hit-rate`）+ **上下文窗口占比**
   （`context_percent`，一行百分比 + gauge 进度条 `usage-context`，>85% 标红；title 透出「窗口/假设窗口
@@ -433,11 +439,11 @@ theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配�
   + 事件日志流（滚动 30 条：回复完成/工具调用/info/warn/error/主动播报）。MCP 为后台
   预热（约 9s），`init` 拉到快照常为 null，连接落定后服务端推 `mcp_ready` 事件补齐。
 
-刷新时机（`dispatcher.ts` 接线）：`init` 十路齐刷（左栏三面板 + schedule/cost/state + 设置回填 + 项目/协同回填 + slash.commands 补全目录，2026-10）；
-`assistant_done` 刷 `cost.get`（一轮对话消耗了 token）；`session_loaded` / `session_new`
+刷新时机（`dispatcher.ts` 接线）：`init` 十一路齐刷（左栏三面板 + schedule/cost/state + 设置回填 + 项目/协同回填 + slash.commands 补全目录 + 任务中心两份快照，2026-10）；
+`assistant_done` 刷 `cost.get`（一轮对话消耗了 token）与 `refreshTasks()`（本轮文件改动会落进副作用账本，目标也可能在对话里被新建/推进一步）；`session_loaded` / `session_new`
 也刷 `cost.get`（恢复历史会话后 `_messages`/`_dialog_count` 已填，右栏上下文窗口占比与
 轮数/消息数据此重算，不再停在 init 时的 0；新会话则归零，2026-10 修复）；`proactive_notify` 刷 `schedule.list`
-（fired 任务离列、days_left 更新）；`mcp_ready` 直写右栏 `mcp` 快照（payload 结构非法时退回
+（fired 任务离列、days_left 更新），kind=task（任务脊柱“做完一步/卡住了/等你授权”）额外刷一次台账与账本，否则批准按钮会因快照未更新而看不到；`mcp_ready` 直写右栏 `mcp` 快照（payload 结构非法时退回
 主动拉一次 `state.get`，避免谎报）。待发送附件集中在 `stores/attachStore.ts`（从 ChatArea
 提升），📎/粘贴共用同一份 chips 列表。
 
@@ -598,6 +604,39 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
   `resourceActions` 的拆分范式，避免 `backendStore` 超 800 行）。样式在
   `styles/extension.css`（容器复用 `.settings-head` / `.settings-panel`，随三皮肤联动）。
 
+### 右栏任务中心：跨会话目标与副作用账本（tasks.exec / actions.exec，2026-10 阶段 10 W3）
+
+后台驱动器（jarvis `agent/core/tasks/driver.py`）能自己推目标，但推不动时只会把一句话
+播到聊天流——用户看不到台账、也做不了动作。本切片把两侧都接到桌面上：
+
+- **数据链路**：`init` / `assistant_done` / `kind=task` 播报 / 面板挂载与刷新按钮 →
+  `backendStore.refreshTasks()`（动作工厂 `stores/taskActions.ts`）→ `tasks.exec` + `actions.exec`
+  两份快照 → `stores/tasksStore.ts` → `SpineTaskPanel.tsx` / `EffectJournalPanel.tsx`。
+  **一个入口拉两份快照**（台账与账本是两套后端存储，并发拉不串行等），面板只订阅 store；
+- **不走 runCommand**：与邮箱/感知表单同口径，`client.sendCommand` 直取回执，**错误在面板
+  内联显示**（`.tasks-notice`），不写进聊天流——这些是运维状态不是对话内容；两个区块共用
+  一份 notice 态，靠 `panel` 字段分流，同一条后端原文不会画两遍；
+- **文案一律用后端 `message` 原文**，前端不改写不美化：面板把“撤不动”写成“已撤销”就是
+  又一次谎报；未知状态/未知 kind 一律收敛成安全文案（不把 `tasks.journal.state.foo` 这类
+  内部键名画到界面上）；
+- **两拍确认不在动作层合并**：`delete` / `undo` / `undo_task` 第一拍不带 confirm（后端
+  一字未动、只回影响面），面板把清单摊开后再问一次；`cancel_hold`（撤未执行的预约）与
+  `approve`（用户点按钮即表态）一拍落手。第二拍靠 `kind` + `id` 重发，不复用第一拍回执，
+  免得旧快照盖掉后端已变化的状态；
+- **批准 = 签一条限定范围的租约**（不只是“退回待执行”）：重试走的是同一条无 UI 默认权限
+  判定，同一个 ASK 还会再拦一次，所以下发放行只能靠 W1 授权租约。后端按本步记录的
+  `denied_tools` 签发“仅这些工具 + 仅目标工作目录 + 30 分钟”的租约；`denied_tools` 为空时
+  后端**拒签**（范围不明等于全放行），面板因此禁用按钮并说明原因，而不是点一次拿一个错。
+  回执里那句“租约只放宽文件类调用的确认，Bash 这类不带路径参数的调用放宽不了”必须原样
+  显示，不能让按钮看起来像万能钥匙；
+- **驱动器三态文案**：无快照=未连后端 / `driver_running`=在盯 / `tasks_config.enabled=false`=
+  配置里关着。只画一条就会出现“面板显示已开、实际没人推”（与 W2 感知层同一个坑）；
+- **拆文件口径**（单文件 800 行上限，行为不变）：契约按业务域拆出 `shared/tasks-contracts.ts`
+  与 `shared/extension-contracts.ts`（`contracts.ts` 只留指令枚举与公共解析）；文案按业务域
+  拆出 `i18n-tasks.ts`（中英同文件相邻，先例 `i18n-butler.ts`）；样式拆 `styles/task-center.css`
+  并在 `main.tsx` 里**早于三张皮肤**引入（配色走 `--edge-*` / `--qr-*` 变量随主题联动）；
+  `dispatcher.test.ts` 同步按事件域拆出 `dispatcherNotify.test.ts` + `dispatcherFixtures.ts`。
+
 ### 事件一览
 
 - **对话流**：`user_message` / `assistant_text`（流式增量）/ `assistant_thinking` / `tool_use` / `tool_result` / `assistant_done`
@@ -610,9 +649,9 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
 - **指标**：`metrics`（每 2 秒推送）
 - **实时语音（真全双工）**：`talk_started` / `talk_stopped` / `volume` / `user_speaking` / `ai_speaking` / `user_transcript` / `ai_transcript` / `ai_transcript_delta` / `talk_audio`（下行 24kHz PCM 帧，base64；空串 payload = 打断 flush，由 `audio/talkPlayback.ts` 排播/清空）——duplex 会话下麦克风采集与播放均在渲染进程（浏览器 `getUserMedia({echoCancellation:true})` 系统级 AEC），服务端引擎只收发 WS 帧（`BridgeMic`/`BridgeSpk`，镜像 jarvis `agent/voice/realtime_bridge_audio.py`）
 - **半双工语音**：`voice_started` / `voice_stopped` / `voice_state`（payload 为 `listening｜thinking｜speaking｜standby｜exited`）/ `voice_user_transcript` / `voice_ai_text_delta`（流式增量）/ `voice_ai_text`（全量）——音频 I/O 留 serve 本机 pyaudio，壳只做遥控 + 状态/文字显示
-- **主动播报**：`proactive_notify`（payload `{kind, title, text, task_id}`，kind 为**开放联合**：`briefing｜reminder｜deadline｜percept｜percept_ask`；由 serve 侧 `ProactiveHub` 装配的每日简报 / 对话提醒 / 截止日期 / 感知层事件触发，`percept_ask` 为感知能力首次引导（W2 第 7 步，只投递一次），仅 `--serve` / 桌面壳运行期间生效）
+- **主动播报**：`proactive_notify`（payload `{kind, title, text, task_id}`，kind 为**开放联合**：`briefing｜reminder｜deadline｜percept｜percept_ask｜task`；由 serve 侧 `ProactiveHub` 装配的每日简报 / 对话提醒 / 截止日期 / 感知层事件 / **任务脊柱驱动器**（kind=task，2026-10 阶段 10 W3）触发，`percept_ask` 为感知能力首次引导（W2 第 7 步，只投递一次），仅 `--serve` / 桌面壳运行期间生效）
 
-渲染侧 `api/dispatcher.ts` 把上述事件映射进 Zustand store（`chatStore` / `leftStore` / `metricsStore` / `rightStore`）与反应炉动画实例，组件只订阅 store 切片——事件→UI 的映射口径与引擎事件表同源（历史对照：jarvis 仓 pywebview 工作台的 `app.js::dispatchEvent` 曾同口径，已随窗口壳于 2026-10 删除，本 dispatcher 为唯一现役实现）。其中 `proactive_notify` 除上屏聊天气泡外，还调 `window.jarvisDesktop.notify` 经主进程弹 Windows 原生通知（`src/main/notify.ts`），reminder 带 `task_id` 时回发 `proactive.ack`。
+渲染侧 `api/dispatcher.ts` 把上述事件映射进 Zustand store（`chatStore` / `leftStore` / `metricsStore` / `rightStore` / `tasksStore`）与反应炉动画实例，组件只订阅 store 切片——事件→UI 的映射口径与引擎事件表同源（历史对照：jarvis 仓 pywebview 工作台的 `app.js::dispatchEvent` 曾同口径，已随窗口壳于 2026-10 删除，本 dispatcher 为唯一现役实现）。其中 `proactive_notify` 除上屏聊天气泡外，还调 `window.jarvisDesktop.notify` 经主进程弹 Windows 原生通知（`src/main/notify.ts`），reminder 带 `task_id` 时回发 `proactive.ack`。
 
 `session_ready` 仅为引擎装配完成通知（只刷新会话列表，不清屏）：该事件由 `_ensure_session`
 在首轮回合中途发出，带清屏语义会吞掉乐观上屏的首发用户气泡（实测启动后首条消息只剩

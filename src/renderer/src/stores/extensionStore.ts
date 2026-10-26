@@ -13,7 +13,7 @@
  */
 
 import { create } from 'zustand'
-import type { ExtensionCategory } from '../../../shared/contracts'
+import type { ExtensionCategory } from '../../../shared/extension-contracts'
 
 /** 面板内当前分类：''=分类清单（面板首页）。 */
 export type ActiveCategory = '' | ExtensionCategory

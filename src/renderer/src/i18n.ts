@@ -17,6 +17,8 @@
 
 import { useSettingsStore, type Language } from './stores/settingsStore'
 import { zhButler, enButler } from './i18n-butler'
+// 任务中心域（阶段 10 W3：跨会话目标 + 副作用账本）同样按业务域拆出（800 行上限）
+import { zhTasks, enTasks } from './i18n-tasks'
 
 type Dict = Record<string, string>
 
@@ -172,6 +174,9 @@ const zh: Dict = {
 
   // ---- 管家服务域（服务清单 / 邮箱 / 感知源）：拆到 i18n-butler.ts（800 行上限）----
   ...zhButler,
+
+  // ---- 任务中心域（跨会话目标 + 副作用账本）：拆到 i18n-tasks.ts（同上）----
+  ...zhTasks,
 
   // ---- 扩展服务（标题栏「管家服务」旁按钮入口 → 右栏面板，五类集中管理）----
   'extension.title': '扩展服务',
@@ -521,6 +526,9 @@ const en: Dict = {
 
   // ---- Butler domain (service list / email / percept): split into i18n-butler.ts ----
   ...enButler,
+
+  // ---- Task center domain (cross-session goals + effect journal): i18n-tasks.ts ----
+  ...enTasks,
 
   // ---- Extension services (title-bar button next to Butler, right-column panel) ----
   'extension.title': 'Extensions',

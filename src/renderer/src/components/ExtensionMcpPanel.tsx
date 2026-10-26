@@ -18,7 +18,7 @@ import { useState } from 'react'
 import { useBackendStore } from '../stores/backendStore'
 import { useT } from '../i18n'
 import { ExtensionSubhead, useExtensionData } from './extensionShared'
-import type { McpListData, McpServerItem } from '../../../shared/contracts'
+import type { McpListData, McpServerItem } from '../../../shared/extension-contracts'
 
 /** 表单页状态：null=清单页；'new'=新增；McpServerItem=编辑该 server。 */
 type FormTarget = null | 'new' | McpServerItem

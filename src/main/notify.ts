@@ -18,7 +18,7 @@ import type { NotifyRequest } from '../shared/contracts'
 /**
  * 弹一条系统通知；窗口未聚焦时闪烁任务栏提醒。
  *
- * @param req - 通知请求体（title/body）。
+ * @param req - 通知请求体（title/body，可带 silent）。
  * @param getFocusedWindow - 取"应关联的窗口"的函数（默认取主窗口）。
  *   抽成参数便于单测注入假窗口，避免依赖真实 BrowserWindow 状态。
  */
@@ -34,7 +34,16 @@ export function showSystemNotification(
   }
   try {
     if (Notification.isSupported()) {
-      new Notification({ title: title || 'J.A.R.V.I.S', body }).show()
+      // silent 只在后端判“只上屏不朗读”（静默时段降级投递）时显式传：
+      // Windows 缺省会弹带提示音的 toast，不关掉就只做到了“TTS 不读、toast 仍响”。
+      // 不把 silent:false 也写进选项：多一个键会把“原有通知行为零变化”这件事
+      // 变成需要改一堆断言的伪回归。
+      const opts: { title: string; body: string; silent?: boolean } = {
+        title: title || 'J.A.R.V.I.S',
+        body
+      }
+      if (req?.silent === true) opts.silent = true
+      new Notification(opts).show()
     }
   } catch (err) {
     log(`系统通知弹出失败: ${err instanceof Error ? err.message : String(err)}`)

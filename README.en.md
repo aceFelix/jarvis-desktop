@@ -37,7 +37,7 @@ jarvis (Python)                          jarvis-desktop (Electron)
 
 | Capability | Description | Details |
 |---|---|---|
-| **Three-column workbench** | Left (mode / sessions / models / voices + project area) · center (chat stream + composer) · right (tasks / usage / system / health); transparent background + arc-reactor animation + three theme skins | [Architecture (中文)](docs/architecture.md) |
+| **Three-column workbench** | Left (mode / sessions / models / voices + project area) · center (chat stream + composer) · right (reminders / cross-session goals / effect journal / usage / system / health); transparent background + arc-reactor animation + three theme skins | [Architecture (中文)](docs/architecture.md) |
 | **True full-duplex voice** | `/talk` does audio I/O in the renderer (browser-level AEC) — speak to interrupt the AI; half-duplex `/voice` is bridged the same way | [Voice & multi-end (中文)](docs/guide/features-voice.md) |
 | **Multi-end collaboration** | Phone PWA / WeChat ClawBot join by QR code, **sharing the same session** with the desktop and serializing sends via the engine query lock | [Voice & multi-end (中文)](docs/guide/features-voice.md) |
 | **Model & voice management** | 11 vendors, add/edit/delete, hot-switch; voice-model adaptation linkage; self-drawn themed selects / time picker | [Panels & settings (中文)](docs/guide/features-panels.md) |
@@ -46,6 +46,7 @@ jarvis (Python)                          jarvis-desktop (Electron)
 | **Slash-command passthrough** | `/` commands in the composer run in the engine (allowlist + interactive ban + dynamic skill passthrough) with prefix autocompletion | [Chat experience (中文)](docs/guide/features-chat.md) |
 | **Butler services** | Title-bar button next to settings opens a right-column butler panel to use butler capabilities via a form (never through the model): **Email service** (view/edit the current mailbox, configure SMTP, send mail) and **Percept sources** (stage 9 W2: see what the agent is observing and has collected, per-source switches and watch lists — **all off by default**; if you never made a choice it tells you once after connecting and lights a notice dot on the button); more services to come | [Panels & settings (中文)](docs/guide/features-panels.md) |
 | **Extension services** | Title-bar button next to butler opens a right-column extensions panel managing five kinds of extensions in one place: **MCP servers** (add/edit/remove + enable/disable), **built-in tools** (list + search), **skills** (search dirs + loaded list), **plugins** (marketplace search + install/uninstall/enable/disable), **harness tools** (browse marketplace + install/uninstall/enable/disable) | [Panels & settings (中文)](docs/guide/features-panels.md) |
+| **Task center** | Two new right-column blocks (stage 10 W3): the **cross-session goal** ledger (whether the driver is actually running, which step is stuck and what it waits for, with pause / skip-wait / delete in place; when a step waits for approval one click **approves and retries** — the backend grants a lease scoped to exactly the tools this step was denied, the goal's own workdir and 30 minutes) and the **effect journal** (held reservations count down and can be withdrawn, applied entries roll back the whole turn behind a two-step confirm, and things that cannot be undone — a mail already sent — are labelled as such instead of offering a dead button) | [Panels & settings (中文)](docs/guide/features-panels.md) |
 | **Ready to run** | Windows installer available — **no Python required**, just download and launch | [Download the Installer](#download-the-installer) |
 | **Auto update** | Silent check on startup; when a new version exists an "Update" button appears in the title bar → one-click download (with progress) → "Restart to install" (not code-signed, so a SmartScreen prompt is expected) | — |
 
@@ -120,14 +121,15 @@ jarvis-desktop/
 │   │                  #   appIcon (single icon source), notify (system notifications), tray, update (auto update), logging
 │   ├── preload/       # minimal contextBridge surface (token never hits disk)
 │   ├── renderer/src/  # React: api (ws/dispatcher), stores (Zustand), components, i18n, glyphs, reactor, styles
-│   └── shared/        # contracts.ts / percept-contracts.ts: shared contracts mirroring protocol.py
+│   └── shared/        # contracts.ts / percept-contracts.ts / extension-contracts.ts / tasks-contracts.ts:
+│   │                  #   shared contracts (commands mirror protocol.py, replies mirror rpc_tasks.py)
 ├── test/              # main / preload / renderer unit tests (vitest)
 ├── build/ scripts/    # packaging assets (retro pixel reactor icon.ico) + generator script
 └── docs/              # architecture.md / development.md / guide/
 ```
 
 See [Architecture (中文)](docs/architecture.md) for the full tree; tests and icon assets are in [Development Guide (中文)](docs/development.md).
-Looking for which file owns a given piece of the UI? Check the [component map (中文)](src/renderer/src/components/README.md) — all 29 components, one line each.
+Looking for which file owns a given piece of the UI? Check the [component map (中文)](src/renderer/src/components/README.md) — all 31 components, one line each.
 
 ## Documentation Map
 
@@ -135,10 +137,10 @@ Looking for which file owns a given piece of the UI? Check the [component map (�
 |---|---|
 | [Installation & Running (中文)](docs/guide/installation.md) | Prerequisites, running, env vars, scripts, CI |
 | [Chat Experience (中文)](docs/guide/features-chat.md) | De-noising, attachments, rewind, slash-command passthrough |
-| [Panels & Settings (中文)](docs/guide/features-panels.md) | Composer, left models/voices, project↔session, right column, settings |
+| [Panels & Settings (中文)](docs/guide/features-panels.md) | Composer, left models/voices, project↔session, right column (six sections incl. cross-session goals and the effect journal), settings |
 | [Voice & Multi-end (中文)](docs/guide/features-voice.md) | True full-duplex voice, phone/WeChat collaboration |
 | [Architecture (中文)](docs/architecture.md) | Runtime topology, startup flow, persistence, security, protocol (commands/events) |
-| [Development Guide (中文)](docs/development.md) | Local env, tests (492 cases), manual walkthrough, phase-2 roadmap |
+| [Development Guide (中文)](docs/development.md) | Local env, tests (524 cases), manual walkthrough, phase-2 roadmap |
 
 ## Community & Support
 

@@ -37,7 +37,7 @@ jarvis（Python）                         jarvis-desktop（Electron）
 
 | 能力 | 说明 | 详见 |
 |---|---|---|
-| **三栏工作台** | 左栏（模式/历史/模型/音色 + 项目区）· 中栏（对话流 + 输入栏）· 右栏（任务/用量/系统/健康）；透明背景 + 方舟反应炉动效 + 三主题皮肤 | [架构说明](docs/architecture.md) |
+| **三栏工作台** | 左栏（模式/历史/模型/音色 + 项目区）· 中栏（对话流 + 输入栏）· 右栏（提醒 / 跨会话目标 / 副作用账本 / 用量 / 系统 / 健康）；透明背景 + 方舟反应炉动效 + 三主题皮肤 | [架构说明](docs/architecture.md) |
 | **真全双工语音** | `/talk` 音频 I/O 在渲染进程（浏览器系统级 AEC），对着 AI 说话即打断；半双工 `/voice` 照 `/talk` 模式经 serve 桥接 | [语音与多端](docs/guide/features-voice.md) |
 | **多端协同** | 手机 PWA / 微信 ClawBot 扫码接入，与桌面**共享同一会话**、抢引擎 query 锁串行发送 | [语音与多端](docs/guide/features-voice.md) |
 | **模型与音色管理** | 11 厂商模型、添加/修改/删除、热切换；音色-模型适配联动；自绘主题化下拉/时间选择器 | [三栏面板与设置](docs/guide/features-panels.md) |
@@ -46,6 +46,7 @@ jarvis（Python）                         jarvis-desktop（Electron）
 | **斜杠命令透传** | 输入框 `/` 命令透传引擎执行（白名单 + 交互禁令 + 技能动态放行）+ 前缀补全 | [对话体验](docs/guide/features-chat.md) |
 | **管家服务** | 标题栏「设置」旁按钮进入右栏管家服务面板，用表单直接使用管家能力（不经过模型）：**邮箱服务**（查看/修改当前邮箱、配置 SMTP、发送邮件）与 **感知源**（阶段 9 W2：看「它在观察我什么、采到了什么」、逐源开关与采集名单，**默认全关**，从未表过态时会在连接后告知一次并在按钮上点亮提示点），后续可扩展更多服务 | [三栏面板与设置](docs/guide/features-panels.md) |
 | **扩展服务** | 标题栏「管家服务」旁按钮进入右栏扩展服务面板，集中管理五类扩展能力：**MCP 服务**（增删改 + 启停）、**内置工具**（清单与搜索）、**技能**（目录与已加载清单）、**插件**（市场搜索 + 安装/卸载/启停）、**harness 工具**（市场浏览 + 安装/卸载/启停） | [三栏面板与设置](docs/guide/features-panels.md) |
+| **任务中心** | 右栏两个新区块（阶段 10 W3）：**跨会话目标**台账（驱动器在不在跑、卡在哪一步、等什么，就地暂停/跳过等待/删除，卡在等授权时一键**批准并重试**——后端只按本步被拒工具 + 目标目录 + 30 分钟签一条授权租约）与**副作用账本**（扣住的预约带倒计时可撤回、已执行项整轮回退需两拍确认、邮件已发出这类只写「撤不回」不给无效按钮） | [三栏面板与设置](docs/guide/features-panels.md) |
 | **开箱即用** | 提供 Windows 安装包，**免装 Python**，下载双击即用 | [下载安装包](#下载安装包) |
 | **自动更新** | 启动静默检查新版本，有新版本时标题栏出现「更新」按钮 → 一键下载（带进度）→「重启安装」覆盖升级（未做代码签名，SmartScreen 提示属预期） | — |
 
@@ -120,14 +121,15 @@ jarvis-desktop/
 │   │                  #   appIcon（图标单一来源）、notify（系统通知）、tray（托盘）、update（自动更新）、logging
 │   ├── preload/       # contextBridge 最小暴露面（token 不落盘）
 │   ├── renderer/src/  # React：api（ws/dispatcher）、stores（Zustand）、components、i18n、glyphs、reactor、styles
-│   └── shared/        # contracts.ts / percept-contracts.ts：主|preload|渲染共享契约（镜像 protocol.py）
+│   └── shared/        # contracts.ts / percept-contracts.ts / extension-contracts.ts / tasks-contracts.ts：
+│   │                  #   主|preload|渲染共享契约（指令枚举镜像 protocol.py，回执形状镜像 rpc_tasks.py）
 ├── test/              # main / preload / renderer 三组单测（vitest）
 ├── build/ scripts/    # 打包资源（复古像素反应炉 icon.ico）+ 自绘生成脚本
 └── docs/              # architecture.md / development.md / guide/
 ```
 
 完整目录树见 [架构说明](docs/architecture.md)；测试与图标资源见 [开发指南](docs/development.md)。
-想知道「屏幕上某个控件是哪个文件管的」，查 [组件地图](src/renderer/src/components/README.md)（29 个组件逐个列职责）。
+想知道「屏幕上某个控件是哪个文件管的」，查 [组件地图](src/renderer/src/components/README.md)（31 个组件逐个列职责）。
 
 ## 文档地图
 
@@ -135,10 +137,10 @@ jarvis-desktop/
 |---|---|
 | [安装与运行](docs/guide/installation.md) | 前置条件、运行、环境变量、常用脚本、CI |
 | [对话体验](docs/guide/features-chat.md) | 对话降噪、消息附件、消息撤回、斜杠命令透传与补全 |
-| [三栏面板与设置](docs/guide/features-panels.md) | 输入栏、左栏模型/音色、项目↔会话、右栏四区块、设置面板 |
+| [三栏面板与设置](docs/guide/features-panels.md) | 输入栏、左栏模型/音色、项目↔会话、右栏六区块（含跨会话目标与副作用账本）、设置面板 |
 | [语音与多端](docs/guide/features-voice.md) | 真全双工语音、手机/微信跨设备协同 |
 | [架构说明](docs/architecture.md) | 运行时拓扑、启动流程、持久化、安全边界、协议契约（指令/事件一览） |
-| [开发指南](docs/development.md) | 本地环境、测试（492 用例）、人工走查清单、二期路线图 |
+| [开发指南](docs/development.md) | 本地环境、测试（524 用例）、人工走查清单、二期路线图 |
 
 ## 交流与赞赏
 

@@ -12,7 +12,7 @@
 import { useMemo, useState } from 'react'
 import { useT } from '../i18n'
 import { ExtensionSubhead, useExtensionData } from './extensionShared'
-import type { SkillItem, SkillsData, ToolItem } from '../../../shared/contracts'
+import type { SkillItem, SkillsData, ToolItem } from '../../../shared/extension-contracts'
 
 /** 大小写不敏感的包含匹配（关键字为空则全通过）。 */
 function matches(keyword: string, ...fields: string[]): boolean {

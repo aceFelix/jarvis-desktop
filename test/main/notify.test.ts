@@ -72,6 +72,23 @@ describe('showSystemNotification · 弹通知', () => {
     expect(h.instances[0].opts).toEqual({ title: 'J.A.R.V.I.S', body: '正文' })
   })
 
+  it('silent=true → 选项带 silent（静默时段降级投递，toast 不出声）', () => {
+    // 后端判“只上屏不朗读”时用这个开关：Windows 缺省 toast 自带提示音。
+    showSystemNotification({ title: '贾维斯提醒', body: '喝水', silent: true }, () => null)
+    expect(h.instances[0].opts).toEqual({
+      title: '贾维斯提醒',
+      body: '喝水',
+      silent: true
+    })
+  })
+
+  it('未传 silent → 选项不含该键（旧后端行为零变化）', () => {
+    // 不把 silent:false 也写进选项：多一个键会把“原有通知行为不变”变成
+    // 需要改一堆断言的伪回归。@author aceFelix
+    showSystemNotification({ title: 't', body: 'b' }, () => null)
+    expect(h.instances[0].opts).not.toHaveProperty('silent')
+  })
+
   it('title 与 body 均空 → 不弹（防空白气泡）', () => {
     showSystemNotification({ title: '', body: '   ' }, () => null)
     expect(h.instances).toHaveLength(0)

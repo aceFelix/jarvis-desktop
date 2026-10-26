@@ -1,0 +1,294 @@
+/* 任务中心（2026-10 阶段 10 W3）：右栏两个新区块——「跨会话目标」台账与
+   「副作用账本」清单。容器复用 #right-col / .col-header / .side-empty /
+   .setting-hint / .model-input 既有样式；本文件只补区块内的行式布局、状态色标、
+   chips、两拍确认卡与内联反馈条，配色一律走 --edge-* / --qr-* 变量以随三套皮肤
+   联动（缺省值在 remote.css 定义，浅色/复古皮肤各自覆盖）。
+   @author aceFelix */
+
+/* ---- 区块容器：纵向堆叠，与右栏其它卡片同间距 ---- */
+.tasks-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+/* 区块头：左侧状态说明 + 右侧按钮组 */
+.tasks-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
+}
+
+.tasks-head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+/* 驱动器在跑：正常色；未跑/未启用：警示色（不能让"没人推"看起来像正常） */
+.tasks-driver-on { color: var(--qr-ok); }
+.tasks-driver-off { color: var(--qr-warn); }
+
+/* 小节标题（扣住待发 / 最近记录）：弱化小字加顶距 */
+.tasks-section-title {
+    font-size: 11px;
+    color: var(--qr-dim);
+    margin-top: 4px;
+}
+
+/* ---- 行内小按钮：右栏宽度窄，比 .action-btn 更紧凑 ---- */
+.tasks-mini-btn {
+    padding: 3px 8px;
+    font-size: 11px;
+    color: var(--qr-panel-fg, #e0f2ff);
+    background: rgba(91, 200, 255, 0.1);
+    border: 1px solid var(--edge-mid);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+}
+
+.tasks-mini-btn:hover:not(:disabled) { background: rgba(91, 200, 255, 0.22); }
+.tasks-mini-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.tasks-mini-btn.primary {
+    color: #04121f;
+    background: linear-gradient(135deg, #5bc8ff, #00d5ff);
+    border: none;
+}
+
+/* 破坏性动作（删除目标）：警示描边，与普通按钮区分 */
+.tasks-mini-btn.danger {
+    border-color: var(--qr-danger, #e5534b);
+    color: var(--qr-danger, #e5534b);
+}
+
+/* ---- 建目标表单：仅点「建一个」后出现 ---- */
+.tasks-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--edge-mid);
+    background: rgba(91, 200, 255, 0.04);
+}
+
+.tasks-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+/* ---- 目标 / 账本清单 ---- */
+.tasks-goal-ul,
+.tasks-record-ul {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.tasks-goal,
+.tasks-record {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    border: 1px solid var(--edge-mid);
+    background: rgba(91, 200, 255, 0.04);
+}
+
+.tasks-goal-main,
+.tasks-record-main {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+    font-size: 12px;
+}
+
+/* 目标文本：可换行但要有上限，避免一条长目标吃掉整栏 */
+.tasks-goal-text {
+    flex: 1;
+    min-width: 0;
+    color: var(--qr-panel-fg, inherit);
+    word-break: break-word;
+}
+
+.tasks-goal-progress {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--qr-dim);
+}
+
+/* 账本行的字段宽度：时间/工具弱化且不抢主文本空间 */
+.tasks-record-time {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--qr-dim);
+}
+
+.tasks-record-tool {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--qr-accent);
+}
+
+.tasks-record-preview {
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+}
+
+/* 撤不回的项：不给按钮，只留一句弱化说明（title 里是后端原因） */
+.tasks-record-frozen {
+    font-size: 11px;
+    color: var(--qr-dim);
+}
+
+/* ---- 状态色标：目标状态与账本状态共用一套 to-* 类 ---- */
+.tasks-goal-dot {
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--qr-dim);
+}
+
+.tasks-goal-dot.to-run { background: var(--qr-ok); }
+.tasks-goal-dot.to-bad { background: var(--qr-danger, #e5534b); }
+.tasks-goal-dot.to-pause { background: var(--qr-warn); }
+.tasks-goal-dot.to-done { background: var(--qr-ok); }
+.tasks-goal-dot.to-held { background: var(--qr-warn); }
+.tasks-goal-dot.to-ok { background: var(--qr-ok); }
+.tasks-goal-dot.to-dim { background: var(--qr-dim); }
+
+/* 步骤明细里的色标要容纳 ✓ / · 字形，故放开宽高与底色 */
+.tasks-steps-li .tasks-goal-dot {
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    background: none;
+    font-size: 11px;
+    color: var(--qr-dim);
+}
+
+.tasks-steps-li .tasks-goal-dot.to-done { color: var(--qr-ok); }
+.tasks-steps-li .tasks-goal-dot.to-blocked { color: var(--qr-warn); }
+.tasks-steps-li .tasks-goal-dot.to-failed { color: var(--qr-danger, #e5534b); }
+
+/* ---- 元信息 chips：等什么 / 最迟 / 已试几次 / 被谁拦 ---- */
+.tasks-goal-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.tasks-chip {
+    padding: 1px 6px;
+    font-size: 11px;
+    border-radius: 6px;
+    border: 1px solid var(--edge-mid);
+    color: var(--qr-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+/* 需要用户处理的 chip（等你授权 / 被拦 / 失败原因）：警示色 */
+.tasks-chip.warn,
+.tasks-chip.tone-held { color: var(--qr-warn); border-color: var(--qr-warn); }
+.tasks-chip.tone-bad { color: var(--qr-danger, #e5534b); border-color: var(--qr-danger, #e5534b); }
+.tasks-chip.tone-ok { color: var(--qr-ok); }
+.tasks-chip.tone-dim { color: var(--qr-dim); }
+
+/* ---- 行内操作按钮组 ---- */
+.tasks-goal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* ---- 步骤明细折叠区 ---- */
+.tasks-steps {
+    font-size: 11px;
+    color: var(--qr-dim);
+}
+
+.tasks-steps-ul {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    list-style: none;
+    margin: 4px 0 0;
+    padding-left: 4px;
+}
+
+.tasks-steps-li {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    word-break: break-word;
+}
+
+/* ---- 两拍确认卡：后端一字未动，这里只摊影响面 ---- */
+.tasks-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--qr-warn);
+    background: rgba(255, 217, 160, 0.08);
+}
+
+.tasks-confirm-title {
+    font-size: 11px;
+    color: var(--qr-warn);
+}
+
+.tasks-confirm-target {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--qr-panel-fg, inherit);
+    word-break: break-all;
+}
+
+.tasks-confirm-ul {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 140px;
+    overflow-y: auto;
+}
+
+.tasks-confirm-li {
+    font-size: 11px;
+    color: var(--qr-dim);
+    word-break: break-all;
+}
+
+/* ---- 内联反馈条：成功/失败都留在面板里，不进聊天流 ---- */
+.tasks-notice {
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 6px 8px;
+    border-left: 2px solid var(--qr-dim);
+    background: rgba(91, 200, 255, 0.06);
+    word-break: break-word;
+}
+
+.tasks-notice.tone-ok { border-left-color: var(--qr-ok); }
+.tasks-notice.tone-warn { border-left-color: var(--qr-warn); color: var(--qr-warn); }
