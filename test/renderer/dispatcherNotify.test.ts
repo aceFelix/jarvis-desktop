@@ -100,6 +100,22 @@ describe('dispatchServerEvent · 主动播报 proactive_notify', () => {
     expect(conn.ackProactive).toHaveBeenCalledWith('t1')
   })
 
+  it('silent=true 的降级投递：气泡照上屏，通知带 silent（toast 不能出声）', () => {
+    // 后端 speak=False（命中静默时段）时透传 silent：不透传就只关掉了 TTS，
+    // Windows toast 仍会响一声，静默时段等于白设。@author aceFelix
+    const conn = makeConn()
+    dispatchServerEvent(
+      {
+        event: 'proactive_notify',
+        data: { kind: 'reminder', title: '贾维斯提醒', text: '喝水', task_id: 't9', silent: true }
+      },
+      conn
+    )
+    const sys = useChatStore.getState().messages.filter((m) => m.kind === 'system')
+    expect(sys[0].kind === 'system' && sys[0].text).toBe('⏰ 喝水')
+    expect(notifySpy).toHaveBeenCalledWith({ title: '贾维斯提醒', body: '喝水', silent: true })
+  })
+
   it('reminder 无 task_id → 不回执（无从确认）', () => {
     const conn = makeConn()
     dispatchServerEvent(

@@ -88,7 +88,7 @@ npm run dev
 | `npm run dev` | electron-vite 开发模式（热重载 + 拉起后端） |
 | `npm run build` | 打包主进程 / preload / 渲染进程到 `out/` |
 | `npm run typecheck` | tsc 类型检查（node + web 两套程序） |
-| `npm run test` | vitest 单测（227 用例，覆盖握手解析、生命周期状态机、图标解析、系统通知、WS 客户端、事件分发、各 Zustand store、ThemedSelect / ThemedTimePicker / FontPicker、React 组件等，明细见 [开发指南](../development.md)） |
+| `npm run test` | vitest 单测（527 用例，覆盖握手解析、生命周期状态机、图标解析、系统通知（含静默降级）、WS 客户端、事件分发、各 Zustand store、ThemedSelect / ThemedTimePicker / FontPicker、React 组件等，明细见 [开发指南](../development.md)） |
 
 ## CI
 

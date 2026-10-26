@@ -437,9 +437,16 @@ export function dispatchServerEvent(
             ? `🔍 ${text}`
             : text
       )
-      // 主进程系统通知：窗口隐藏/最小化到托盘时依然弹（走 jarvisDesktop.notify）
+      // 主进程系统通知：窗口隐藏/最小化到托盘时依然弹（走 jarvisDesktop.notify）。
+      // silent 透传后端裁决：“静默时段降级投递”要求上屏但不出声，而 Windows
+      // toast 自带提示音，不透传就会“TTS 闭嘴、toast 响一声”。缺省不传该键，
+      // 旧后端（无 silent 字段）行为零变化。@author aceFelix
       try {
-        window.jarvisDesktop?.notify?.({ title, body: text })
+        window.jarvisDesktop?.notify?.(
+          p.silent === true
+            ? { title, body: text, silent: true }
+            : { title, body: text }
+        )
       } catch {
         // 通知失败不影响上屏
       }

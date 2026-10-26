@@ -96,6 +96,11 @@ export interface UpdateStatusEvent {
 export interface NotifyRequest {
   title: string
   body: string
+  /**
+   * true = 不播放系统提示音（静默时段降级投递：气泡与通知照投，但不出声）。
+   * 默认 false；Windows 上缺省会弹带声 toast，所以后端 speak=false 时必须显式传 true。
+   */
+  silent?: boolean
 }
 
 /**
@@ -112,6 +117,8 @@ export interface ProactiveNotifyPayload {
   title: string
   text: string
   task_id?: string
+  /** 后端判定“只上屏不朗读”（静默时段降级投递）；缺省按正常播报处理。 */
+  silent?: boolean
 }
 
 /** 窗口控制动作（自绘标题栏按钮）。 */

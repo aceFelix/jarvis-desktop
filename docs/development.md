@@ -175,6 +175,7 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 - [ ] **托盘**：点关闭按钮 → 窗口隐藏到托盘（进程不退）；托盘菜单「显示」→ 窗口恢复；二次运行 `npm run dev` → 聚焦已有窗口（单实例锁）。
 - [ ] **退出回收**：托盘菜单「退出」→ 窗口关闭 + **Python 进程被杀**（任务管理器确认无孤儿 `python -m agent.serve`；Windows 走 `taskkill /T` 杀进程树）。
 - [ ] **主动播报**：`briefing_time` 临时改为 2 分钟后重启 `npm run dev` → 到点聊天区出现简报气泡 + Windows 系统通知；对话「1 分钟后提醒我喝水」→ 到点 ⏰ 气泡 + 通知；关闭窗口只剩托盘时通知仍弹（主进程 Notification 不依赖窗口）。详见 [`jarvis/docs/plans/proactive-desktop.md`](../../jarvis/docs/plans/proactive-desktop.md)。
+- [ ] **静默时段降级投递（2026-10-22，后端 `[policy.notify_budget]`）**：把 `quiet_hours` 改成盖住当前时刻的窗口→ 重启 `npm run dev`（配置改了必须重启，预算单例只在首次建立）→ 对话「1 分钟后提醒我喝水」→ 到点应：**⏰ 气泡上屏、系统通知也弹，但两处都不出声**（TTS 不朗读、toast 不带提示音——payload 里的 `silent` 透传到 `Notification`）。拿不出声就去看 `~/.jarvis/notify_state.json`：降级那条**既不在 `pending`、`count` 也不 +1**（上屏不算一次打扰）。对比项：同静默窗口内的**每日简报应既不出声也不上屏**（入库待补播）——两者差异是设计，不是 bug；机制见 [`jarvis/docs/architecture/16-W1判断层.md`](../../jarvis/docs/architecture/16-W1判断层.md) 第四节。
 - [ ] **降级路径**：故意把 `JARVIS_REPO` 指向不存在目录 → 弹窗提示「找不到 jarvis 仓库」+ 日志路径，遮罩显示诊断文案（不白屏、不悬挂）。
 
 ## 6. 二期路线图
