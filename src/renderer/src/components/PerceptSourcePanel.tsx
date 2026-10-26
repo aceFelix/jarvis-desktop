@@ -48,6 +48,10 @@ export default function PerceptSourcePanel(): JSX.Element {
   const closeService = useButlerStore((s) => s.closeService)
   const fetchPerceptStatus = useBackendStore((s) => s.fetchPerceptStatus)
   const savePerceptConfig = useBackendStore((s) => s.savePerceptConfig)
+  // 模型改过感知配置（settings_changed 带感知键）→ 计数器自增 → 重拉。
+  // 不监听会怎样：面板开着时模型把某个源关了，卡片仍显示“已开启”，
+  // 用户以为没关。@author aceFelix
+  const perceptTick = useBackendStore((s) => s.perceptTick)
 
   const [tab, setTab] = useState<PerceptTab>('sources')
   const [status, setStatus] = useState<PerceptStatus | null>(null)
@@ -70,9 +74,10 @@ export default function PerceptSourcePanel(): JSX.Element {
 
   useEffect(() => {
     void reload()
-    // 仅挂载时拉一次；reload 引用每轮新建但只在此处调用一次
+    // 挂载时拉一次；之后只在模型改了感知配置（perceptTick 自增）时重拉。
+    // reload 引用每轮新建但只在此处调用，故不列入依赖。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchPerceptStatus])
+  }, [fetchPerceptStatus, perceptTick])
 
   /**
    * 提交一份配置补丁（开关即时保存 / 名单表单保存共用同一条路）。

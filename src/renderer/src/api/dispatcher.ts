@@ -11,6 +11,7 @@
  */
 
 import type { ServerEvent } from '../api/ws'
+import { isPerceptConfigKey } from '../../../shared/percept-contracts'
 import type {
   CurrentProject,
   ProactiveNotifyPayload,
@@ -283,6 +284,24 @@ export function dispatchServerEvent(
       chat.addSystem(note)
       void conn.refreshSessions()
       void conn.refreshCost()
+      break
+    }
+    // ---- 配置变更广播（阶段 12：模型通过 ConfigSet 改了配置） ----
+    //
+    // 为什么需要：设置面板只在 init（连上时）拉一次 settings.get，之后从不刷新。
+    // 模型把音量 100→50 时文件与运行时都对了，但滑杆还停在 100——用户会以为
+    // 没生效；更糟的是他这时顺手拖一下滑杆，面板会把 100 又写回去，静默地
+    // 覆盖掉模型的改动。感知源面板同理（它的开关也是模型可以改的）。
+    //
+    // 不直接拿 payload 里的值回填：一是判类型/缺字段要再写一份宽容解析，二是
+    // settings.get 已经是现成的权威口径（也能顺势拿到模型没改的键）。
+    // 一次 set 只带一组键，重拉开销可以忽略。@author aceFelix
+    case 'settings_changed': {
+      void conn.refreshSettings()
+      const keys = (payload as { keys?: unknown })?.keys
+      if (Array.isArray(keys) && keys.some((k) => isPerceptConfigKey(String(k)))) {
+        conn.refreshPercept()
+      }
       break
     }
     // ---- 斜杠命令透传（slash.exec → slash_result 事件，2026-10） ----

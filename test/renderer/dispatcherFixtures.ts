@@ -21,7 +21,7 @@ import { useRightStore } from '@renderer/stores/rightStore'
 import { useRemoteStore } from '@renderer/stores/remoteStore'
 import type { JarvisConnection } from '@renderer/stores/backendStore'
 
-/** 假连接门面：十一个刷新动作 + 提醒已读回执均为 spy。 */
+/** 假连接门面：十二个刷新动作 + 提醒已读回执均为 spy。 */
 export function makeConn(): JarvisConnection {
   return {
     refreshSessions: vi.fn().mockResolvedValue(undefined),
@@ -31,6 +31,9 @@ export function makeConn(): JarvisConnection {
     refreshCost: vi.fn().mockResolvedValue(undefined),
     refreshState: vi.fn().mockResolvedValue(undefined),
     refreshSettings: vi.fn().mockResolvedValue(undefined),
+    // 感知源面板重拉（2026-10 阶段 12）：模型改感知配置后 settings_changed 触发。
+    // @author aceFelix
+    refreshPercept: vi.fn(),
     // 项目区刷新（2026-08）：init / project_switched 都会拉取一次。
     // @author aceFelix
     refreshProjects: vi.fn().mockResolvedValue(undefined),

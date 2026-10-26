@@ -86,6 +86,14 @@ export interface JarvisConnection {
   /** 设置面板刷新（settings.get → settingsStore.backendSettings 全量回填）。 */
   refreshSettings: () => Promise<void>
   /**
+   * 请求感知源面板重拉（`settings_changed` 带感知键时由 dispatcher 调）。
+   *
+   * 感知面板的状态是组件自己的局部 state（`PerceptSourcePanel` 挂载时拉一次），
+   * 所以这里只递一个计数器；面板把它列入 effect 依赖后自动重拉。
+   * @author aceFelix
+   */
+  refreshPercept: () => void
+  /**
    * 项目区刷新（project.get + projects.list → leftStore）。
    * init 事件拉起一次；project_switched 事件后重拉（上一次项目会自动置顶到最近）。
    * @author aceFelix
@@ -215,6 +223,12 @@ export interface BackendStoreState
   refreshCost: () => Promise<void>
   refreshState: () => Promise<void>
   refreshSettings: () => Promise<void>
+  /** 感知源面板重拉计数器（模型改了感知配置后自增，面板监听它重拉）。
+   * @author aceFelix */
+  perceptTick: number
+  /** 请求感知源面板重拉（`settings_changed` 带感知键时由 dispatcher 调）。
+   * @author aceFelix */
+  refreshPercept: () => void
   /** 项目区刷新：拉当前项目 + 最近项目列表，回填 leftStore。@author aceFelix */
   refreshProjects: () => Promise<void>
   /**
@@ -255,6 +269,7 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     refreshCost: () => get().refreshCost(),
     refreshState: () => get().refreshState(),
     refreshSettings: () => get().refreshSettings(),
+    refreshPercept: () => get().refreshPercept(),
     refreshProjects: () => get().refreshProjects(),
     refreshRemote: () => get().refreshRemote(),
     refreshSlashCommands: () => get().refreshSlashCommands(),
@@ -306,6 +321,9 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     wsConnected: false,
     statusLabel: { text: '等待后端启动...', tone: 'idle' },
     client: null,
+    // 感知源面板重拉计数器：模型改感知配置后由 settings_changed 事件自增。
+    // @author aceFelix
+    perceptTick: 0,
 
     applyBackendStatus: (state, info, error) => {
       const prevInfo = get().info
@@ -600,6 +618,13 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
       if (result !== null) {
         useSettingsStore.getState().applyBackendSettings(parseBackendSettings(result))
       }
+    },
+
+    refreshPercept: () => {
+      // 感知源面板重拉：面板状态是组件局部 state，只能靠计数器通知它。
+      // 为什么不在 store 里直调 fetchPerceptStatus：那会多开一条数据通路，
+      // 而面板自己已经有一条（挂载时拉 + 每次改开关后拉）。@author aceFelix
+      set((s) => ({ perceptTick: s.perceptTick + 1 }))
     },
 
     // ---- 项目工作区（2026-08 新增）----

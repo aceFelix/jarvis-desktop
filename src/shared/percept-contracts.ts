@@ -405,6 +405,24 @@ const ENABLE_KEYS: ReadonlySet<string> = new Set([
   'system_enabled'
 ])
 
+/** 感知段里非开关、但也会影响面板展示的键（阶段 12 模型可改的那几项）。 */
+const PERCEPT_PARAM_KEYS: ReadonlySet<string> = new Set(['window_linger_minutes'])
+
+/**
+ * 该协议键是否属于感知配置（模型改完要连带刷新感知源面板）。
+ *
+ * 与 `ENABLE_KEYS` 的区别：这里要多认一个总开关——它在协议层叫
+ * `percept_enabled`，而面板内部的 `PerceptConfig` 叫 `enabled`，直接拿
+ * `ENABLE_KEYS` 判会漏掉“模型把感知整个关了”这件事。
+ *
+ * 判错的代价不对称：多认一个只是多拉一次 `percept.status.get`（便宜），
+ * 漏认则面板一直显示旧开关（用户以为没关）。
+ * @author aceFelix
+ */
+export function isPerceptConfigKey(key: string): boolean {
+  return key === 'percept_enabled' || ENABLE_KEYS.has(key) || PERCEPT_PARAM_KEYS.has(key)
+}
+
 /**
  * 源名 → 面板可改的逐源开关键（`${name}_enabled`）。
  *

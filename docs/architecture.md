@@ -440,6 +440,7 @@ theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配�
   预热（约 9s），`init` 拉到快照常为 null，连接落定后服务端推 `mcp_ready` 事件补齐。
 
 刷新时机（`dispatcher.ts` 接线）：`init` 十一路齐刷（左栏三面板 + schedule/cost/state + 设置回填 + 项目/协同回填 + slash.commands 补全目录 + 任务中心两份快照，2026-10）；
+`settings_changed` 刷 `settings.get`（模型改了配置，带感知键时另递增 `perceptTick` 让感知源面板重拉，2026-10 阶段 12）；
 `assistant_done` 刷 `cost.get`（一轮对话消耗了 token）与 `refreshTasks()`（本轮文件改动会落进副作用账本，目标也可能在对话里被新建/推进一步）；`session_loaded` / `session_new`
 也刷 `cost.get`（恢复历史会话后 `_messages`/`_dialog_count` 已填，右栏上下文窗口占比与
 轮数/消息数据此重算，不再停在 init 时的 0；新会话则归零，2026-10 修复）；`proactive_notify` 刷 `schedule.list`
@@ -508,7 +509,13 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
   不进 localStorage）：init 时 `settings.get` 经 `parseBackendSettings` 宽容解析全量回填
   （类型不符/缺字段置 null，兼容旧版后端）；改动时 `backendStore.setBackendSetting(key, value)`
   乐观更新 + 发 `settings.set`（值未变不发指令），回执失败回滚原值（prev=null 回滚到
-  null，错误写聊天流）。三组控件：
+  null，错误写聊天流）。
+
+  **不只 init 会刷新**（2026-10 阶段 12）：模型通过 `ConfigSet` 改配置时后端推
+  `settings_changed`，dispatcher 重调 `refreshSettings()` 全量重拉、带感知键时另递增
+  `perceptTick` 让感知源面板重拉。没有这条事件时面板会停在连上那一刻的快照，用户看到
+  “改了但界面没变”，再拖一下滑杆就把旧值写回去覆盖模型的改动
+  （fixlog：`config-panel-not-refreshed-after-model-set-fix`）。三组控件：
   - **语音播报**：主动播报待机 TTS 开关（拨动开关 role=switch）+ 播报音量（0-100）/
     语速（0.5-2.0×）滑杆——TTS 参数每次播报现读 Settings，改完立即生效；
   - **每日简报**：启用开关 + 简报时间（自绘时间选择器 `ThemedTimePicker`：小时/分钟两个
@@ -635,7 +642,7 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
   与 `shared/extension-contracts.ts`（`contracts.ts` 只留指令枚举与公共解析）；文案按业务域
   拆出 `i18n-tasks.ts`（中英同文件相邻，先例 `i18n-butler.ts`）；样式拆 `styles/task-center.css`
   并在 `main.tsx` 里**早于三张皮肤**引入（配色走 `--edge-*` / `--qr-*` 变量随主题联动）；
-  `dispatcher.test.ts` 同步按事件域拆出 `dispatcherNotify.test.ts` + `dispatcherFixtures.ts`。
+  `dispatcher.test.ts` 同步按事件域拆出 `dispatcherNotify.test.ts` + `dispatcherSettings.test.ts`（配置变更域）+ `dispatcherFixtures.ts`。
 
 ### 事件一览
 
@@ -643,6 +650,7 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
 - **会话**：`init` / `session_ready` / `session_loaded` / `session_new` / `session_renamed` / `session_deleted`
 - **消息回溯**：`rewound`（payload `{ok, removed, removed_user, files_restored, reason}`；`checkpoint.rewind` 引擎队列内落地后推一次：成功时 dispatcher 按 `removed_user` 调 `chatStore.rewindTailFromUser` 裁气泡（本地发送侧不裁防双裁）并提示文件回滚结果；失败弹错不裁；另刷会话列表与成本）
 - **斜杠命令透传**：`slash_result`（payload `{command, ok, text}`；`slash.exec` 每执行/拒绝一条推一次：dispatcher 落 `kind: 'slash'` 命令输出卡片、解除 busy 并刷成本；技能命令另走正常对话流式事件，2026-10）
+- **配置变更**：`settings_changed`（payload `{keys: string[], source: 'model'}`；后端 `ConfigSet` 改完一项/一批推一次：dispatcher 重调 `conn.refreshSettings()`（`settings.get` 是权威口径），带感知键时额外 `conn.refreshPercept()` 递增 `perceptTick` 让感知源面板重拉。这是 2026-10-26 实测缺陷的修复：面板只在 `init` 拉一次 `settings.get`，模型改完音量后滑杆停在旧值，用户顺手一拖就把旧值写回去、静默覆盖模型的改动；fixlog `config-panel-not-refreshed-after-model-set-fix`）
 - **提示**：`info` / `warn` / `error` / `status` / `ask_user`
 - **模型热切换**：`model_switched`（payload `{model}`；引擎已把运行中的 provider / 模型换成 `model` 的落地回执：壳清匹配的「待生效」标记 + 刷 `models.list` / 成本 / 状态，「· 当前」随之移动）
 - **项目工作区**：`project_switched`（payload `{workdir, name}`；`project.set` 在引擎线程内落地后推一次，与 `model_switched` 同为「入队即返回、落地走事件」：壳据此写当前项目、清匹配的「待生效」标记，并刷会话列表 + 项目区）
