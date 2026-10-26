@@ -14,7 +14,6 @@ import { create } from 'zustand'
 import {
   Cmd,
   parseBackendSettings,
-  parseEmailConfig,
   parseRuntimeState,
   type BackendInfo,
   type BackendSettingKey,
@@ -22,9 +21,6 @@ import {
   type BackendState,
   type CheckpointPreviewResult,
   type CurrentProject,
-  type EmailConfig,
-  type EmailConfigPatch,
-  type EmailSendPayload,
   type ModelAddPayload,
   type ModelEditPayload,
   type PermissionMode,
@@ -49,11 +45,16 @@ import { useRuntimeStore } from './runtimeStore'
 import { useSettingsStore } from './settingsStore'
 import { useMetricsStore, type MetricsPayload } from './metricsStore'
 import { useSlashStore } from './slashStore'
-// 资源/协同两组动作拆出动作工厂（遵守单文件 800 行上限，行为不变）。@author aceFelix
+// 资源/协同/扩展/感知/任务/邮箱六组动作拆出动作工厂（遵守单文件 800 行上限，行为不变）。@author aceFelix
 import { buildResourceActions } from './resourceActions'
 import { buildRemoteActions } from './remoteActions'
 import { buildExtensionActions, type ExtensionActions } from './extensionActions'
 import { buildPerceptActions, type PerceptActions } from './perceptActions'
+// 任务中心（阶段 10 W3）动作拆出 taskActions.ts（同 800 行上限口径）。@author aceFelix
+import { buildTaskActions, type TaskActions } from './taskActions'
+// 管家服务邮箱三条动作拆出 butlerActions.ts（2026-10，行为不变）。@author aceFelix
+import { buildButlerActions, type ButlerActions } from './butlerActions'
+import { useTasksStore } from './tasksStore'
 import {
   useRightStore,
   type CostInfo,
@@ -94,6 +95,8 @@ export interface JarvisConnection {
   refreshRemote: () => Promise<void>
   /** 斜杠命令补全目录刷新（slash.commands → slashStore；init 时调一次）。@author aceFelix */
   refreshSlashCommands: () => Promise<void>
+  /** 任务中心刷新（tasks.exec + actions.exec status → tasksStore）。@author aceFelix */
+  refreshTasks: () => Promise<void>
   /** 提醒已读回执（proactive.ack）：fire-and-forget，失败静默。 */
   ackProactive: (taskId: string) => void
 }
@@ -123,7 +126,8 @@ function rlog(msg: string): void {
   }
 }
 
-export interface BackendStoreState extends ExtensionActions, PerceptActions {
+export interface BackendStoreState
+  extends ExtensionActions, PerceptActions, TaskActions, ButlerActions {
   state: BackendState
   info: BackendInfo | null
   error: string
@@ -153,28 +157,6 @@ export interface BackendStoreState extends ExtensionActions, PerceptActions {
    * @author aceFelix
    */
   refreshSlashCommands: () => Promise<void>
-  /**
-   * 管家服务·邮件发送（email.send，2026-10）：标题栏「管家服务」表单提交。
-   * 用 `client.sendCommand` 直接取回执（**不走 runCommand**）——runCommand 把
-   * 失败写进聊天流，而弹窗表单的错误应在表单内联显示、不污染对话；本方法把
-   * `ok/error` 原样返回给表单。未连后端时返回 ok=false + 错误文案。
-   * @author aceFelix
-   */
-  sendEmail: (payload: EmailSendPayload) => Promise<{ ok: boolean; error?: string }>
-  /**
-   * 邮箱服务配置读取（email.config.get，2026-10）：面板打开时拉取当前发件邮箱与
-   * SMTP 配置。用 `client.sendCommand` 直取回执（不走 runCommand，不污染聊天流）；
-   * 未连后端/回执失败返回 null，面板据此显离线态。@author aceFelix
-   */
-  fetchEmailConfig: () => Promise<EmailConfig | null>
-  /**
-   * 邮箱服务配置保存（email.config.set，2026-10）：提交改动补丁（授权码留空=
-   * 保持原值），成功回读后半配置快照、失败回 `{ok:false,error}` 供表单内联显示。
-   * @author aceFelix
-   */
-  saveEmailConfig: (
-    patch: EmailConfigPatch
-  ) => Promise<{ ok: boolean; error?: string; config?: EmailConfig }>
   /** 停止当前回复（reply.abort）：busy 由服务端 assistant_done 事件收尾。 */
   abortReply: () => Promise<void>
   newSession: () => Promise<void>
@@ -276,6 +258,7 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     refreshProjects: () => get().refreshProjects(),
     refreshRemote: () => get().refreshRemote(),
     refreshSlashCommands: () => get().refreshSlashCommands(),
+    refreshTasks: () => get().refreshTasks(),
     ackProactive: (taskId) => {
       // 提醒已读回执：只发不等（send），失败静默——不因回执问题把错误
       // 写进聊天流（与 runCommand 的显式指令不同，这是后台自动确认）。
@@ -385,6 +368,9 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
         if (slot.current === client) slot.current = null
         rlog('ws disconnect')
         set({ client: null, wsConnected: false })
+        // 任务中心跟着清：留着旧台账会诱导用户对已经不存在的目标点撤销/批准。
+        // @author aceFelix
+        useTasksStore.getState().resetAll()
       }
     },
 
@@ -707,47 +693,11 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     // ---- 感知源（阶段 9 W2）：拆出 perceptActions.ts（800 行上限，口径同邮箱配置）----
     ...buildPerceptActions(() => get().client),
 
-    sendEmail: async (payload) => {
-      // 管家服务·邮件发送（email.send）：直接取回执，错误交表单内联显示，
-      // 不走 runCommand（不写聊天流）。未连后端直接回失败，不弹窗到聊天区。
-      const client = get().client
-      if (!client) return { ok: false, error: '未连接到后端' }
-      try {
-        const reply = await client.sendCommand(Cmd.EmailSend, { ...payload })
-        if (!reply.ok) return { ok: false, error: reply.error ?? '发送失败' }
-        return { ok: true }
-      } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : String(err) }
-      }
-    },
+    // ---- 任务中心（阶段 10 W3）：拆出 taskActions.ts（两拍确认不过本层）----
+    ...buildTaskActions(() => get().client),
 
-    fetchEmailConfig: async () => {
-      // 邮箱服务配置（email.config.get）：只读直取回执，离线/失败静默回 null，
-      // 面板显离线态，不写聊天流。@author aceFelix
-      const client = get().client
-      if (!client) return null
-      try {
-        const reply = await client.sendCommand(Cmd.EmailConfigGet, {})
-        if (!reply.ok) return null
-        return parseEmailConfig(reply.result)
-      } catch {
-        return null
-      }
-    },
-
-    saveEmailConfig: async (patch) => {
-      // 邮箱服务配置（email.config.set）：直取回执，错误交表单内联显示（不走
-      // runCommand）。成功后回读后端快照（含 has_password），供表单刷新。@author aceFelix
-      const client = get().client
-      if (!client) return { ok: false, error: '未连接到后端' }
-      try {
-        const reply = await client.sendCommand(Cmd.EmailConfigSet, { ...patch })
-        if (!reply.ok) return { ok: false, error: reply.error ?? '保存失败' }
-        return { ok: true, config: parseEmailConfig(reply.result) }
-      } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : String(err) }
-      }
-    },
+    // ---- 管家服务·邮箱（2026-10）：拆出 butlerActions.ts（错误内联在表单，不进聊天流）----
+    ...buildButlerActions(() => get().client),
 
     refreshSlashCommands: async () => {
       // 斜杠命令补全目录（slash.commands）只读刷新：不走 runCommand（那是
@@ -766,3 +716,4 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     }
   }
 })
+

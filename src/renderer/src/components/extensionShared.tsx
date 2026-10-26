@@ -12,7 +12,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useBackendStore } from '../stores/backendStore'
 import { useExtensionStore } from '../stores/extensionStore'
 import { useT } from '../i18n'
-import type { ExtensionCategory } from '../../../shared/contracts'
+import type { ExtensionCategory } from '../../../shared/extension-contracts'
 
 /**
  * 子面板返回头：← 回分类清单（不退出整个扩展面板）。

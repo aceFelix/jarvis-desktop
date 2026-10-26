@@ -10,7 +10,8 @@
  * 一个 client 取值器，无其他 store 依赖。@author aceFelix
  */
 
-import { Cmd, type ExtensionCategory, type ExtensionEnvelope } from '../../../shared/contracts'
+import { Cmd } from '../../../shared/contracts'
+import type { ExtensionCategory, ExtensionEnvelope } from '../../../shared/extension-contracts'
 import type { JarvisWsClient } from '../api/ws'
 
 /** 拆出的扩展服务动作集合（与 BackendStoreState 中同名成员签名一致）。 */

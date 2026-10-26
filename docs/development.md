@@ -90,7 +90,7 @@ python scripts/gen_icon.py   # 任一装了 Pillow 的环境（如 jarvis 的 ve
 
 ## 4. 测试
 
-vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **492 用例**：
+vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **524 用例**：
 
 | 测试文件 | 覆盖 |
 |---|---|
@@ -101,7 +101,7 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 | `test/preload/index.test.ts` | preload 暴露面契约：`jarvisDesktop` 键、notify 通道存在、notify 走 SystemNotify 通道原样 send、通道名稳定契约、既有能力（log/windowControl/onBackendStatus）未被挤掉、自动更新三通道（downloadUpdate/installUpdate 走 invoke、onUpdateStatus 订阅 + 取消订阅） |
 | `test/renderer/ws.test.ts` | `JarvisWsClient`：URL 构造与 token 编码、handleRaw 事件分发、sendCommand 回执兑现、同类型 FIFO 匹配、send 只发不等、断线拒绝 pending + 退避重连、close 不重连 |
 | `test/renderer/chatStore.test.ts` | 消息流 store 全部 action：流式增量、thinking/text 分累、finishAssistant、工具卡建卡与按 id 回填、乱序补卡、ask_user、replayHistory、clear、addUser 缩略图 images 字段 |
-| `test/renderer/dispatcher.test.ts` | `dispatchServerEvent` 全事件路由 → chat/left/metrics/right store 与状态栏回调（含 `assistant_done` 撤销 busy + 刷 `cost.get`，init 七路刷新（右栏三指令 + 设置回填）、会话管理事件（`session_new` 清屏+提示、`session_ready`/`session_renamed`/`session_deleted` 只刷列表不清屏））；列表类型守卫；`proactive_notify` 主动播报（briefing/reminder/deadline/percept 上屏、reminder 带 task_id 回 ack、系统通知调用、window 缺失降级、briefing 进右栏最近简报 + 刷 `schedule.list`；`kind=percept_ask` 的首次引导路由见 `butler.test.tsx`）；半双工语音 `voice_*` 事件（started/stopped/state 迁移/user_transcript/ai_text_delta→ai_text 全量替换、talk_started 权威复位 talk 模式） |
+| `test/renderer/dispatcher.test.ts` + `test/renderer/dispatcherNotify.test.ts` | `dispatchServerEvent` 全事件路由 → chat/left/metrics/right/tasks store 与状态栏回调。两个文件按**事件域**拆开（2026-10 阶段 10 W3，单文件 800 行上限），假 `JarvisConnection`（十一个刷新动作全为 spy）与各 store 复位抽在 `test/renderer/dispatcherFixtures.ts` 共用。主干文件：聊天流式增量、`assistant_done` 撤销 busy + 刷 `cost.get` 与 `refreshTasks()`、init 十一路刷新（右栏三指令 + 设置回填 + 项目/协同/补全目录 + 任务中心两份快照）、会话管理事件、列表类型守卫、语音 `voice_*`；拆分文件：`proactive_notify`（briefing/reminder/deadline/percept 上屏、reminder 带 task_id 回 ack、系统通知调用、window 缺失降级、briefing 进右栏最近简报 + 刷 `schedule.list`；**kind=task 刷一次任务中心、非 task 播报不刷**）、跨设备协同 `qrcode`/`remote_state`、`rewound` 消息回溯、`slash_result` 命令输出卡片；`kind=percept_ask` 的首次引导路由见 `butler.test.tsx` |
 | `test/renderer/components.test.tsx` | React 组件（@testing-library/react）：ChatArea 气泡流式渲染 + 光标 + 工具卡 + ask_user + 发送/附件/截屏禁用 + 发送/停止双态按钮（busy 时变“■ 停止”、点击发 `reply.abort`、busy 中 Enter 不叠发）+ 📎 附件链路（file input 变更 → chips → 发送 payload 带 files）+ 用户气泡缩略图 + AI 气泡复制按钮（流式结束后出现、写剪贴板变「已复制」）+ 📸 截屏入附件 chips + 语音状态条（voiceActive 显示阶段文案 + 打断/退出按钮）+ 降噪折叠（思考块流式中展开、回复结束后自动收起成一行「思考过程 · N 字」；连续工具调用聚合成一条「工具调用 ×N」框：执行中展开且标题显示在跑的工具、全部完成后自动收起、有失败标红计数且仍收起；单条工具不包组；中间夹系统提示切组；历史汇总卡不并组；手点展开后不被自动态抢回）；LeftSidebar 面板切换 + 列表渲染 + 模式高亮（文本/实时/语音三按钮）+ 语音中 footer 标记 + 会话项交互（单击 220ms 延时发 `sessions.open`、当前会话不发；右键显删除按钮点击发 `sessions.delete`；双击进内联改名、回车发 `sessions.rename` 且不误触 open、Esc 取消不发）+ 左栏「＋ 添加模型」流（末项渲「＋ 添加模型」且点击进 ModelForm、字段默认值口径（deepseek/openai/text，下拉断言走 `data-value`）、空名本地校验提示且不发指令、提交发 `models.add` 带裁剪字段并刷列表关表单、自绘下拉改选厂商/接口类型后提交带所选值、回执失败保持表单打开、取消与顶部返回箭头均回列表不发指令）+ 模型配置修改/删除（双击模型项进编辑表单且预填 `config`（标题「修改模型配置」+ 目标提示行）、内置模型名输入框禁用、Key 框恒空且 hint 提示「留空保持原 Key」、改名+改 Base URL 提交发 `models.edit` 带裁剪字段并回列表提示「配置已更新」、回执 `hot_switched` 时提示「已按新配置重连」、右键自定义模型显删除按钮点击发 `models.remove` 并刷新列表、内置模型右键不出按钮、双击不误触发 `models.select`（单击定时器被清）、当前项（noop）双击仍可进编辑）；RightSidebar 指标 + 任务中心（提醒/截止日期/简报折叠块）+ 用量卡 + 运行健康（MCP 快照、日志流倒序）；SettingsPanel 独立设置面板（外观主题/语言分段控件 + 字体英文/中文行（懒加载枚举本机字体、选项以自身字体预览、选字体上抛族名、已选时点默认上抛 null、API 不可用回落预设）、切浅色/复古写 `<html data-theme>`、切英文文案联动、后端联动四组未拉取时全显离线态、回填后渲染开关/时间/滑杆、TTS 开关乐观翻转发 `settings.set`、自绘时间选择器点选拼回 HH:MM 提交（重选当前值不发）、音量滑杆拖动写回、← 返回）；LeftSidebar retro 主题模式按钮显 `[TXT]`、切回 dark 恢复 Y2K 尖括号牌 `<TXT>`；TitleBar 窗口控制 IPC + 齿轮切换设置面板（激活态高亮） |
 | `test/renderer/themedSelect.test.tsx` | 自绘主题化下拉 `ThemedSelect`：收起态只渲触发器（当前值文案 + `data-value` + `aria-expanded=false`）、展开渲染全部选项并标记当前项 `aria-selected`、点选回调新值并关闭（重复选当前值不回调）、键盘（↑↓ 移动高亮 + Enter 选中 + Esc 只关不选 + Tab 离开收起）、点击触发器/浮层之外关闭、滚动（浮层内滚动保持打开、页面滚动收起）；可搜索扩展（`searchable` 渲顶部过滤输入按 label/value 子串筛、无匹配显 `emptyText`、选项 `fontFamily` 自身字体预览 + `hint` 标签、`onOpen` 展开时在用户手势栈内回调一次） |
 | `test/renderer/fontUtils.test.ts` | 字体纯函数：`buildFontStack`（两者皆空回 null、英文在前中文次之等宽尾、字体名内引号/分号清洗）、`isLikelyCjkFont`（中文字体命中/西文排除/Noto CJK 不误伤）、`normalizeFontList`（大小写去重、空串/非串过滤、cjkFirst 置顶分组、否则字母序） |
@@ -117,6 +117,7 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 | `test/renderer/projectSection.test.tsx` | 左栏项目区（2026-08）：当前项目 + 待生效徽标、「打开文件夹」走 `window.jarvisDesktop.selectDirectory` 成功后 `setProject`、最近项目点击切项目、右键「从列表移除」走 `forgetProject`、`exists=false` 项显“目录不存在”徽标 |
 | `test/renderer/slashAutocomplete.test.tsx` | 斜杠命令补全（`slash.commands`，2026-10）：`slashTriggerOf`（仅“/xxx 且无空白”触发）、`filterSlashCommands`（前缀匹配忽略大小写）、`useSlashAutocomplete` 弹层交互（候选弹出、↑↓ 高亮跟随滚动、Tab/Enter 回填、已等于完整命令名时 Enter 直通、Esc 收起、空目录不弹层） |
 | `test/renderer/percept.test.tsx` | 感知源面板（管家服务第二项，2026-10 阶段 9 W2 第 5 步）：契约宽容解析 `parsePerceptStatus` / `parsePerceptConfig`（完整快照、非数组回空、脏事件丢弃、`log_events` 出厂缺省必须回 true）、`perceptEnableKey`（未装配源回空串→不给开关）、`perceptDetailEntries`（标量/字符串数组成行，嵌套对象与空值跳过）、`formatEventTime` / `perceptEventSummary` 兜底；`perceptActions`（未连 client 读回 null / 写回 ok=false，`event_limit` 透传，回执 ok=false 回 null，保存失败错误原样上交）；`ButlerPanel`（两个服务入口、点感知源进面板）；`PerceptSourcePanel`（总览逐行、后端宿主接线文案、总开关即时保存并用回执快照刷新 aria-checked、`hot_applied=false` 的降级提示、保存失败错误内联且不改本地态、离线态、三子标签切换、刷新重拉）；`PerceptSourceList`（已实现源有开关/收编位无开关、按源名推补丁键、账本徽标与末次错误、观察范围展开）；`PerceptScopeForm`（草稿回填、**只提交实际改动的键**、没改动不发补丁、分钟非法本地拦截）；`PerceptEventList`（事件行渲染、「总线未运行」与「暂无事件」两种空态区分）、留痕路径三态文案（有路径 / 真关显「已关闭」 / 开着但拿不到路径显「总线未运行」）、**打扰预算行（后端给了就显示、`notify_budget` 为 null 时整行不显示）**、反馈条在文档序上必须排在总览之前（错误不能藏在滚动区外） |
+| `test/renderer/tasks.test.tsx` | 任务中心（右栏两个新区块，2026-10 阶段 10 W3）：契约宽容解析 `parseTasksSnapshot` / `parseActionsSnapshot` / `parseEffectRecord` / `parseUndoPreview`（完整快照、goals 非数组回空、布尔只认真 `true`、`denied_tools` 缺失给空表、`preview` 对象形与数组形分别收敛）、`shortId` / `fmtEpoch`；`taskActions`（未连 client 读回 null / 写回 ok=false，`create` 的 steps/wait 只在有值时进 payload，**两拍动作第一拍绝不带 confirm**、第二拍才带，`cancel_hold` 一拍不塞 confirm，`approve` 的 minutes 省略不传/传了取整，业务失败与传输失败都回 ok=false 且文案取后端原文，`refreshTasks` 成功回填两份快照/失败保留旧数据/离线不动 store）；`SpineTaskPanel`（挂载即拉一次、驱动器三态文案分别说、等授权才画批准按钮且按 goal+step id 发 approve、`denied_tools` 为空时**点了不发请求**只说明、暂停态不递批准但仍显「等你授权」、建目标表单空文本拦下、删除与批量撤销的两拍流程且确认卡内容取自第一拍、空台账空态）；`EffectJournalPanel`（未启用只说明不给撤销入口、held 行倒计时与一拍撤回预约、回退这一轮两拍（文件清单 + 整轮提醒原文都摊开）、撑不住的项只写「撤不回」+ 后端原因不给按钮、未知状态收敛成「未知状态」不外泄内部键名、反馈条按 `panel` 分流不画两遍） |
 
 > 组件测试不渲染 `App` / `ReactorCanvas`（会挂载 canvas 动画，jsdom 无 2D 上下文），逐个渲染纯展示组件；后端 client 默认 null，组件不会真正发起 WS 连接。
 
@@ -166,12 +167,15 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
   - **口播验收**：让一条该播的事件上屏（如仓库源 `echo x >> README.md`）并开着 TTS → 念的是「切到 资源管理器，jarvis 文件夹」这类人话，**不应听到 `.exe`、反斜杠、逐字符拼读**；而 `events.jsonl` 里的 `summary` 仍是完整路径（留痕不被口播改写）。
 - [ ] **感知首次引导（阶段 9 W2 第 7 步）**：先造“从未表过态”的环境（删 `~/.jarvis/percept/consent.json`、`settings.toml` 里不留 `[percept]` 表且总开关为关）→ 启动桌面壳并连上后端 → 聊天区应出现一条 **🔍 开头**的引导气泡（Windows 系统通知同样弹一次，但**不应被 TTS 朗读**），同时标题栏「管家服务」按钮右上角亮脉动提示点、悬停文案变为引导说明 → 点进面板 → 提示点与引导文案同时消失（不是未读计数）→ 重启桌面壳**不应再出现该气泡**（后端已记 `asked_at`）→ 在面板上拨一次总开关 → `consent.json` 里 `choice` 应为 `on`（只改名单不会写 `choice`）。
 - [ ] **右栏任务中心**：对话「10 分钟后提醒我喝水」→ 提醒出现在任务中心列表（时间升序）；到点触发后条目消失、⏰ 气泡上屏；对话设截止日期后可见倒计时（临期黄/逾期红）；每日简报触发后「最近简报」折叠块可展开。
+- [ ] **右栏跨会话目标与副作用账本（阶段 10 W3）**：先把后端 `settings.toml` 的 `[tasks] enabled=true` 且配好凭据 → 头部应显「驱动器在盯」（若配置关着则显「[tasks] 是关的」、线程未起显「驱动器未起」，**三者文案不得互混**）→ 点「建一个」填「收集纪要; 汇总成 weekly.txt」→ 新目标出现在列表且进度 `0/2` → 等它跑到一步需要写文件的步骤（或让模型自己开干）→ 目标行应出现「等你授权」chip 与被拦工具名 → 点「批准并重试」→ 面板内反馈条应原样列出**放行范围（工具名 + 目标目录 + 30 分钟）**，且那句「Bash 这类不带路径参数的调用放宽不了」不能丢 → 打开 `~/.jarvis/leases.json` 对得上刚签的那条 → 重试后该步真能推过（文件落盘）。
+  副作用账本：让一轮对话改一个已存在的文件 → 「最近记录」出现 `applied` 行 → 点「回退这一轮」→ **第一拍只列影响面（哪些文件 + 几个新建文件会被删）且一字未动** → 取消→ 文件不变；再来一次→ 点「确认执行」→ 工作区回到本轮开始前，该行变「已撤销」；发一封邮件 → 该行应显「撤不回」（hover 看后端原因）而**不是**一个无效按钮；延时窗口内的预约（如定时发送）在「扣住待发」里带倒计时，点「撤回」应立即消失且不弹二次确认。
 - [ ] **右栏用量与健康**：发几轮对话后用量卡 token/轮数增长（口径同 REPL `/cost`）；运行健康显示 MCP 连接数与工具数（未启用显示“MCP 未启用”）——**MCP 为后台预热（约 9s）**，若刚连上时快照未就绪先显示“未启用”，连接落定后应自动刷新为真实连接态（依 `mcp_ready` 事件，无需重启）；日志流随对话/工具调用滚动追加。
 - [ ] **实时语音**（如后端支持）：切「实时」模式 → 反应炉进入聆听/说话律动 → 状态栏文案随 `status` 事件变化。
 - [ ] **半双工语音**（如后端配好 STT/TTS）：切「🎤 语音」模式 → 中栏出现语音状态条「聆听中...」 → 说话自动识别上屏用户气泡 → AI 回复流式上屏 + 本机扬声器 TTS 播报 → 自动回聆听（连续循环）；播报中点「✋ 打断」或直接开口 → 立即停播回聆听（双通道）；点「⏹ 退出语音」或说退下词 → 回文本模式（**告别语气泡不应残留字面 `<standby/>` 标记**——退下信令只驱动状态机，不上屏）；语音中切「实时」→ 自动停语音（互斥）。
 - [ ] **托盘**：点关闭按钮 → 窗口隐藏到托盘（进程不退）；托盘菜单「显示」→ 窗口恢复；二次运行 `npm run dev` → 聚焦已有窗口（单实例锁）。
 - [ ] **退出回收**：托盘菜单「退出」→ 窗口关闭 + **Python 进程被杀**（任务管理器确认无孤儿 `python -m agent.serve`；Windows 走 `taskkill /T` 杀进程树）。
 - [ ] **主动播报**：`briefing_time` 临时改为 2 分钟后重启 `npm run dev` → 到点聊天区出现简报气泡 + Windows 系统通知；对话「1 分钟后提醒我喝水」→ 到点 ⏰ 气泡 + 通知；关闭窗口只剩托盘时通知仍弹（主进程 Notification 不依赖窗口）。详见 [`jarvis/docs/plans/proactive-desktop.md`](../../jarvis/docs/plans/proactive-desktop.md)。
+- [ ] **静默时段降级投递（2026-10-22，后端 `[policy.notify_budget]`）**：把 `quiet_hours` 改成盖住当前时刻的窗口→ 重启 `npm run dev`（配置改了必须重启，预算单例只在首次建立）→ 对话「1 分钟后提醒我喝水」→ 到点应：**⏰ 气泡上屏、系统通知也弹，但两处都不出声**（TTS 不朗读、toast 不带提示音——payload 里的 `silent` 透传到 `Notification`）。拿不出声就去看 `~/.jarvis/notify_state.json`：降级那条**既不在 `pending`、`count` 也不 +1**（上屏不算一次打扰）。对比项：同静默窗口内的**每日简报应既不出声也不上屏**（入库待补播）——两者差异是设计，不是 bug；机制见 [`jarvis/docs/architecture/16-W1判断层.md`](../../jarvis/docs/architecture/16-W1判断层.md) 第四节。
 - [ ] **降级路径**：故意把 `JARVIS_REPO` 指向不存在目录 → 弹窗提示「找不到 jarvis 仓库」+ 日志路径，遮罩显示诊断文案（不白屏、不悬挂）。
 
 ## 6. 二期路线图
@@ -199,12 +203,17 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 - 故障恢复 / 安全模式（后端崩溃自动重启 + 降级 UI）。
 - macOS / Linux 安装包（mac 需签名 + 公证）。
 - 实时语音模式深度接入、手机 Bridge 复用。
-- **渲染层组件目录分组**（与下一条同批做）：`src/renderer/src/components/` 的 29 个平铺文件按
-  [组件地图](../src/renderer/src/components/README.md) 第二节的五簇切子目录（`ui/` `chat/` `butler/`
-  `extension/` + 根目录留布局骨架），同时定死边界规则：`ui/` 不得 import `stores/`，簇与簇之间
+- **渲染层组件目录分组**（与下一条同批做）：`src/renderer/src/components/` 的 31 个平铺文件按
+  [组件地图](../src/renderer/src/components/README.md) 第二节的六簇切子目录（`ui/` `chat/` `butler/`
+  `extension/` `task/` + 根目录留布局骨架），同时定死边界规则：`ui/` 不得 import `stores/`，簇与簇之间
   只走 props / 事件、不许跨簇 import 内部子组件。改动面实测 27 处目录内同级 import + 32 处外部
   按路径引用（`App.tsx` 8 处 + 10 个测试文件）+ 15 处文档路径 + `.aoci/baseline.json` 25 条索引，
   属零行为变更，故单独成批提交（先纯 `git mv`，再改 import 与文档），不与功能改动混提。
-- **逼近 800 行上限的文件拆分**（按余量排序）：`stores/backendStore.ts` 768 行（只剩 32 行余量，
-  且是全应用最常改的文件）、`i18n.ts` 745 行、`components/LeftSidebar.tsx` 607 行、
-  `components/ChatArea.tsx` 546 行。前两个下一个新功能就会顶破，按 code-structure 规则须先拆再写。
+- **已越过 / 逼近 800 行上限的文件拆分**（2026-10 实测行数，按欠账大小排序）：先拆**已越限的
+  测试文件**（拆法同 2026-10 那一次：`dispatcher.test.ts` 按事件域拆出 `dispatcherNotify.test.ts`
+  与共用夹具 `dispatcherFixtures.ts`）——`test/renderer/components.test.tsx` 1505 行、
+  `test/renderer/backendStore.test.ts` 1181 行；代码侧余量递减：`i18n.ts` 753 行（管家服务与
+  任务中心两域已各自拆出 `i18n-butler.ts` / `i18n-tasks.ts`）、`shared/contracts.ts` 696 行
+  （extension 类型已拆出 `extension-contracts.ts`）、`stores/backendStore.ts` 719 行（邮箱与任务
+  中心两组动作已于 2026-10 拆出 `butlerActions.ts` / `taskActions.ts`）、`components/LeftSidebar.tsx`
+  606 行、`components/ChatArea.tsx` 545 行。按 code-structure 规则，**改动这些文件前须先拆再写**。
