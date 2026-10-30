@@ -164,14 +164,50 @@ describe('ChatArea', () => {
     useChatStore.getState().appendThinking('用户要一个提醒')
     render(<ChatArea />)
     const block = screen.getByTestId('thinking-block')
-    // 流式中：展开实时可见，标题带字数
+    // 流式中：展开实时可见，标题带字数，正文也在 DOM 里
     expect(block).toHaveAttribute('open')
     expect(block).toHaveTextContent('思考过程 · 7 字')
-    // assistant_done → finishAssistant：自动收起（正文仍留在 DOM，点开可看）
+    expect(block).toHaveTextContent('用户要一个提醒')
+    // assistant_done → finishAssistant：自动收起
     act(() => useChatStore.getState().finishAssistant())
     const done = screen.getByTestId('thinking-block')
     expect(done).not.toHaveAttribute('open')
-    expect(done).toHaveTextContent('用户要一个提醒')
+    // 折叠时**不保留**正文（2026-10 卡顿优化口径变更）：思考动辄上千字，
+    // 几十个历史块常驻 DOM 会让流式期间的回流代价成倍放大。收起后文本已不
+    // 再变化，展开时再渲染一次即可（用户点开后看到的仍然是全文）。
+    // 旧口径是“折叠也留在 DOM”，本用例随之调整。@author aceFelix
+    expect(done).not.toHaveTextContent('用户要一个提醒')
+    // 标题行仍然完整可读（摘要不受懒渲染影响）
+    expect(done).toHaveTextContent('思考过程 · 7 字')
+  })
+
+  it('聊天区：用户上翻历史后，流式增量不再把他拽回底部', () => {
+    // jsdom 无布局引擎：手工灌 scrollHeight / clientHeight，让「距底距离」
+    // 可计算（与 slashAutocomplete 里 mock offsetTop 的做法一致）。
+    // 这条锁的是 2026-10 的现场：思考长文输出时每个增量都强制滚底，
+    // 用户往上翻历史根本翻不动，滚轮像坏了一样。@author aceFelix
+    render(<ChatArea />)
+    const el = document.getElementById('chat-history') as HTMLDivElement
+    Object.defineProperty(el, 'scrollHeight', { value: 1000, configurable: true })
+    Object.defineProperty(el, 'clientHeight', { value: 400, configurable: true })
+
+    // ① 在底部（距底 0）→ 新内容到达应跟随到底
+    el.scrollTop = 600
+    fireEvent.scroll(el)
+    act(() => useChatStore.getState().appendAssistantText('第一段'))
+    expect(el.scrollTop).toBe(1000)
+
+    // ② 用户上翻（距底 500px）→ 新增量不得抢滚动，位置保持不动
+    el.scrollTop = 100
+    fireEvent.scroll(el)
+    act(() => useChatStore.getState().appendThinking('思考中……'))
+    expect(el.scrollTop).toBe(100)
+
+    // ③ 他自己回到底部 → 恢复跟随（不能因为上翻过一次就永久不再跟随）
+    el.scrollTop = 600
+    fireEvent.scroll(el)
+    act(() => useChatStore.getState().appendThinking('继续思考'))
+    expect(el.scrollTop).toBe(1000)
   })
 
   it('工具组：连续工具调用聚合成一条框，全部完成后自动收起', () => {

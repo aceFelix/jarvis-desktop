@@ -9,7 +9,7 @@
  * @author aceFelix
  */
 
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { useChatStore, type MessageItem } from '../stores/chatStore'
 import QrcodeCard from './QrcodeCard'
 import { useT } from '../i18n'
@@ -71,14 +71,17 @@ function ThinkingBlock({ text, streaming }: { text: string; streaming: boolean }
       <summary>
         {t('chat.thinking')} · {t('chat.thinkingChars', { n: text.length })}
       </summary>
-      <div className="thinking-body">{text}</div>
+      {/* 折叠时不渲染正文（2026-10 卡顿优化）：思考内容动辄上千字，若常驻 DOM，
+          流式期间每来一个增量都要连带重排一大段文本。收起后文本已不再变化，
+          展开时再渲染一次即可，用户感知完全一致。@author aceFelix */}
+      {open ? <div className="thinking-body">{text}</div> : null}
     </details>
   )
 }
 
 /** 单条消息渲染（按 kind 判别分发）。
- * userTail/onRewind 仅用户气泡用：hover 显「撤回」（按尾部数定位）。@author aceFelix */
-export function MessageView({
+ * userTail/onRewind 仅用户气泡用：hover 显「撤回」（按尾部数定位）。 */
+function MessageViewImpl({
   item,
   userTail,
   onRewind,
@@ -184,6 +187,21 @@ export function MessageView({
       return <SlashCard item={item} />
   }
 }
+
+/**
+ * 单条消息渲染（memo 包裹）。
+ *
+ * 为什么要包一层 memo（2026-10 卡顿修复）：流式输出时每来一个增量，store 都
+ * 会重建 messages 数组；若不 memo，几十条历史消息（含 Markdown 正文、工具卡、
+ * 思考块）会跟着全量重渲染。思考两千字时主线程直接饱和——表现就是「滚轮都
+ * 推不动」。memo 后只有正在流式的那一条会重渲染。
+ *
+ * 生效前提：父组件传下来的回调必须引用稳定（ChatArea 用 useCallback 传
+ * onRewind），否则每渲染新建函数会让 memo 永久失效。
+ *
+ * @author aceFelix
+ */
+export const MessageView = memo(MessageViewImpl)
 
 /**
  * 工具组（2026-09）：连续的工具调用聚合成一条框，消掉「十几个框堆满一屏」。

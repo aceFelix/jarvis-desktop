@@ -18,7 +18,7 @@
  * @author aceFelix
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useBackendStore, type SendAttachments } from '../stores/backendStore'
 import { useChatStore } from '../stores/chatStore'
 import { useLeftStore } from '../stores/leftStore'
@@ -212,6 +212,10 @@ export default function ChatArea(): JSX.Element {
   const removeAttach = useAttachStore((s) => s.remove)
   const clearAttach = useAttachStore((s) => s.clear)
   const historyRef = useRef<HTMLDivElement>(null)
+  // 贴底跟随开关：true = 用户当前在底部（新内容到了就跟着滚）。
+  // 由 handleHistoryScroll 根据距底距离维护，doSend 时强制重置为 true。
+  // @author aceFelix
+  const stickRef = useRef(true)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const askInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -225,11 +229,23 @@ export default function ChatArea(): JSX.Element {
     inputRef.current?.focus()
   })
 
-  // 新消息自动滚底
+  // 新消息自动滚底（2026-10 卡顿/滚轮修复）。
+  // 原来是无条件 `el.scrollTop = el.scrollHeight`：流式输出时每来一个字就把
+  // 用户拽回底部——往上翻历史根本翻不动（“滚轮推不上去”就是这么来的）；
+  // 而且每次读 scrollHeight 都强制同步重排，叠在几百个增量上直接把主线程占满。
+  // 现在只在「用户本来就在底部」时跟随，他主动上翻后不再抢滚动。
+  // @author aceFelix
   useEffect(() => {
     const el = historyRef.current
-    if (el) el.scrollTop = el.scrollHeight
+    if (el && stickRef.current) el.scrollTop = el.scrollHeight
   }, [messages])
+
+  /** 监听聊天区滚动：距底 80px 内视为“跟随中”，超出则让出控制权给用户。 */
+  const handleHistoryScroll = useCallback((): void => {
+    const el = historyRef.current
+    if (!el) return
+    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  }, [])
 
   // ask_user 出现时聚焦回答输入框
   useEffect(() => {
@@ -240,6 +256,9 @@ export default function ChatArea(): JSX.Element {
   }, [askPrompt])
 
   const doSend = (): void => {
+    // 自己发消息时一定要看到自己的气泡和回复，即便刚才在翻历史：
+    // 重新接管贴底跟随。@author aceFelix
+    stickRef.current = true
     const text = draft.trim()
     // 纯附件（如只贴图）也允许发送：后端会补最小指令文本
     if (!text && !pending.length) return
@@ -301,7 +320,7 @@ export default function ChatArea(): JSX.Element {
   // 撤回：点用户气泡「撤回」→ 开弹窗并发 checkpoint.preview 取改动清单（reqId
   // 防预览竞态）；确认后发 checkpoint.rewind（入队即返），裁气泡由 rewound 事件
   // 经 dispatcher 驱动（本地不在此处裁，避免与事件双裁）。@author aceFelix
-  const openRewind = async (tail: number): Promise<void> => {
+  const openRewind = useCallback(async (tail: number): Promise<void> => {
     const reqId = ++rewindReqRef.current
     setRewindTail(tail)
     setRewindPreview(null)
@@ -311,7 +330,17 @@ export default function ChatArea(): JSX.Element {
     if (rewindReqRef.current !== reqId) return
     setRewindPreview(res)
     setRewindLoading(false)
-  }
+    // 依赖为空：只用 ref 与状态 setter（引用稳定），故可长期缓存。
+    // 引用稳定是 MessageView 的 memo 能生效的前提。@author aceFelix
+  }, [])
+
+  /** 传给 MessageView 的撤回回调（memo 要求引用稳定，不能写成内联箭头函数）。 */
+  const handleRewind = useCallback(
+    (tail: number): void => {
+      void openRewind(tail)
+    },
+    [openRewind]
+  )
 
   const closeRewind = (): void => {
     rewindReqRef.current += 1
@@ -329,7 +358,7 @@ export default function ChatArea(): JSX.Element {
 
   return (
     <main id="center-col">
-      <div id="chat-history" ref={historyRef}>
+      <div id="chat-history" ref={historyRef} onScroll={handleHistoryScroll}>
         {nodes.map((n) =>
           'tools' in n ? (
             <ToolGroup key={n.key} items={n.tools} />
@@ -338,7 +367,7 @@ export default function ChatArea(): JSX.Element {
               key={n.key}
               item={n.item}
               userTail={n.item.kind === 'user' ? userTailById[n.item.id] : undefined}
-              onRewind={(tail) => void openRewind(tail)}
+              onRewind={handleRewind}
               rewindDisabled={!wsConnected || busy}
             />
           )
