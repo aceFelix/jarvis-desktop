@@ -303,6 +303,15 @@ export default function SettingsPanel(): JSX.Element {
           settingKey="deadline_check_time"
         />
       </div>
+
+      {/* 底部出口：面板只放了最常改的十来项，剩下的两百多项不能断在这里。
+          用户翻到底以为“设置就这些”，而真源在 settings.toml。把下一步交清楚
+          比再堆一组开关有用：能代改的项在聊天里问一句就能改。
+          @author aceFelix */}
+      <div className="settings-more" data-testid="settings-more">
+        <p className="setting-hint">{t('settings.moreHint')}</p>
+        <p className="setting-hint settings-more-where">{t('settings.moreWhere')}</p>
+      </div>
     </aside>
   )
 }

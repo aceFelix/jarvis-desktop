@@ -316,6 +316,10 @@ const zh: Dict = {
   'settings.deadlineEnabledHint': '每天定时检查截止日期，分级提醒（7/3/1/0 天 + 逾期每天）',
   'settings.deadlineCheckTime': '检查时间',
   'settings.offline': '未连接后端，暂不可改',
+  // 面板底部出口：面板只有十来项，剩下的两百多项不该断在这里
+  'settings.moreHint':
+    '这里只是最常改的十来项。其余两百多项（模型、感知、邮件、MCP、监控阈值…）不用翻文件——在聊天里直接问「XX 是干嘛的、怎么配」就行，能改的我会帮你改。',
+  'settings.moreWhere': '配置文件：~/.jarvis/settings.toml　终端里也可用 /config explain <关键词> 查',
   // 自绘时间选择器的时/分下拉无障碍名（ThemedTimePicker 拼在行标签之后）
   'settings.hour': '小时',
   'settings.minute': '分钟',
@@ -668,6 +672,10 @@ const en: Dict = {
   'settings.deadlineEnabledHint': 'Check deadlines daily and remind in tiers (7/3/1/0 days + daily when overdue)',
   'settings.deadlineCheckTime': 'Check time',
   'settings.offline': 'Backend not connected',
+  // Bottom of the panel: the dozen visible rows are not the whole story.
+  'settings.moreHint':
+    'Only the most-used dozen items live here. The other 200+ (model, perception, mail, MCP, monitor thresholds…) need no file hunting — just ask in chat what something does or how to set it, and I will change it for you where I can.',
+  'settings.moreWhere': 'Config file: ~/.jarvis/settings.toml — or run /config explain <keyword> in the terminal',
   // Accessible names for the hour/minute dropdowns of the themed time picker
   'settings.hour': 'Hour',
   'settings.minute': 'Minute',

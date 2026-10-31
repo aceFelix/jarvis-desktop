@@ -1336,6 +1336,25 @@ describe('SettingsPanel 设置面板', () => {
     fireEvent.click(screen.getByTestId('btn-settings-back'))
     expect(useUiStore.getState().rightView).toBe('dashboard')
   })
+
+  // 面板只摆了十来项，底部必须把出口交清楚：否则用户翻到底会以为“设置就这些”，
+  // 而真源在 settings.toml，能代改的项在聊天里问一句就能改。@author aceFelix
+  it('底部说明其余配置在哪改：给出对话提问与配置文件两条路', () => {
+    render(<SettingsPanel />)
+    const more = screen.getByTestId('settings-more')
+    expect(more.textContent).toContain('两百多项')
+    expect(more.textContent).toContain('settings.toml')
+    expect(more.textContent).toContain('/config explain')
+  })
+
+  it('底部说明随语言切换为英文（文案不能只有中文一份）', () => {
+    render(<SettingsPanel />)
+    expect(screen.getByTestId('settings-more').textContent).toContain('两百多项')
+    fireEvent.click(screen.getByTestId('btn-lang-en'))
+    const more = screen.getByTestId('settings-more')
+    expect(more.textContent).toContain('200+')
+    expect(more.textContent).toContain('settings.toml')
+  })
 })
 
 describe('RightSidebar 任务中心与用量', () => {

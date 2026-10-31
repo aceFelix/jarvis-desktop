@@ -135,6 +135,30 @@
     line-height: 1.5;
 }
 
+/* 面板底部出口：说明「其余配置不在这个面板里」，把用户领到对话或配置文件。
+   虚线框 + 弱背景，视觉上像个注释块而不是又一个设置项。
+   <p> 自带上下 margin，这里归零后按 gap 排版。@author aceFelix */
+.settings-more {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 4px 2px 12px;
+    padding: 10px;
+    border: 1px dashed rgba(91, 200, 255, 0.22);
+    border-radius: 6px;
+    background: rgba(91, 200, 255, 0.04);
+}
+
+.settings-more p {
+    margin: 0;
+}
+
+/* 文件路径那行更弱一档，便于一眼认出它是个路径而非建议 */
+.settings-more-where {
+    font-family: var(--app-font, monospace);
+    color: rgba(159, 201, 232, 0.42);
+}
+
 /* 拨动开关（后端联动设置项，如主动播报 TTS）：role=switch + aria-checked。@author aceFelix */
 .toggle {
     position: relative;
