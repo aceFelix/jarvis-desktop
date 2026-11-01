@@ -425,7 +425,7 @@ export const Cmd = {
    * 扩展服务（extensions.exec，2026-10）：标题栏「扩展服务」入口 → 右栏面板，
    * 一条通用指令承载五类扩展能力的清单与增删改启停。category 取
    * mcp/tools/skills/plugins/harness，action 为该分类下的动作名；其余参数透传。
-   * 数据源见 jarvis 侧 agent/ui/workbench/extensions_api.py（终端五个 /mcp /tools
+   * 数据源见 jarvis 侧 agent/serve/engine/extensions_api.py（终端五个 /mcp /tools
    * /skills /plugin /cli_anything 命令只打印 Rich 文本、非结构化，桌面不复用）。
    * @author aceFelix
    */

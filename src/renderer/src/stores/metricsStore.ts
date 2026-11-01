@@ -1,7 +1,7 @@
 /**
  * 右栏指标 store —— CPU / 内存 / 磁盘（metrics 事件每 2 秒推送）。
  *
- * payload 结构与 agent/ui/workbench/metrics.collect_metrics 同构：
+ * payload 结构与 agent/serve/engine/metrics.collect_metrics 同构：
  * `{cpu: number, memory: {percent, used_gb, total_gb}, disk: {...}}`
  *
  * @author aceFelix
