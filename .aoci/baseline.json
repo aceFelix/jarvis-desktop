@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-08T13:08:51Z",
-  "updated_at": "2026-10-31T13:48:24Z",
+  "updated_at": "2026-11-01T04:09:28Z",
   "files": {
     ".gitattributes": {
       "role": "index",
@@ -35,9 +35,9 @@
     },
     "CHANGELOG.md": {
       "role": "index",
-      "sha256": "f57239a6d8d69a983ca527586f4d3a3cd54b714a0b6f0d5838bb6cb8e01cccc2",
-      "size": 3267,
-      "normalized_sha256": "f57239a6d8d69a983ca527586f4d3a3cd54b714a0b6f0d5838bb6cb8e01cccc2"
+      "sha256": "d2c5b8fc071822087560b4eab27b63a574e6ae8e3c2256ef40733d5a326ff309",
+      "size": 4719,
+      "normalized_sha256": "d2c5b8fc071822087560b4eab27b63a574e6ae8e3c2256ef40733d5a326ff309"
     },
     "LICENSE": {
       "role": "index",
@@ -47,21 +47,21 @@
     },
     "README.en.md": {
       "role": "index",
-      "sha256": "eecf2cf85299ddc4e8473b9efe94bee202b5dcab5a249c91484d9ef10f84a872",
-      "size": 13840,
-      "normalized_sha256": "eecf2cf85299ddc4e8473b9efe94bee202b5dcab5a249c91484d9ef10f84a872"
+      "sha256": "8d521dc2b455c7f499f1d7e694c31768b870e2b3c338b7b5f0a29aee0252fb57",
+      "size": 13883,
+      "normalized_sha256": "8d521dc2b455c7f499f1d7e694c31768b870e2b3c338b7b5f0a29aee0252fb57"
     },
     "README.md": {
       "role": "index",
-      "sha256": "3f1bb4faa2d1e0c5b5419edf2beaffc66ec129d529131c2a3ffe08e709ae988b",
-      "size": 12924,
-      "normalized_sha256": "3f1bb4faa2d1e0c5b5419edf2beaffc66ec129d529131c2a3ffe08e709ae988b"
+      "sha256": "b017b2dd66e3dbbba538027a5f58afd1c5b9e3723bb8b31255846527e8c65732",
+      "size": 12956,
+      "normalized_sha256": "b017b2dd66e3dbbba538027a5f58afd1c5b9e3723bb8b31255846527e8c65732"
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "f7074dd9addf9d315a6c30fc242c95ccdbd7794cbe3ac69201b6243cd96f98bd",
-      "size": 56923,
-      "normalized_sha256": "f7074dd9addf9d315a6c30fc242c95ccdbd7794cbe3ac69201b6243cd96f98bd"
+      "sha256": "c6b96c0242360f0dd1489fa5748417819db8daf09127968340be73b897c01c18",
+      "size": 56965,
+      "normalized_sha256": "c6b96c0242360f0dd1489fa5748417819db8daf09127968340be73b897c01c18"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -83,9 +83,9 @@
     },
     "docs/architecture.md": {
       "role": "index",
-      "sha256": "1e30b4794842a284c4b4c7ac65e5160c321106abb4326a45c0c111387ae8670f",
-      "size": 76874,
-      "normalized_sha256": "1e30b4794842a284c4b4c7ac65e5160c321106abb4326a45c0c111387ae8670f"
+      "sha256": "0c226b6e2dd464b781c3c8824485aef7c571d6cf3765a37dc499c0f2d18ac064",
+      "size": 77468,
+      "normalized_sha256": "0c226b6e2dd464b781c3c8824485aef7c571d6cf3765a37dc499c0f2d18ac064"
     },
     "docs/development.md": {
       "role": "index",
@@ -137,9 +137,9 @@
     },
     "docs/guide/features-panels.md": {
       "role": "index",
-      "sha256": "dab563869cad3263376b551247503fa67f13eb50f0e7a7a630410e196a3ebde9",
-      "size": 25417,
-      "normalized_sha256": "dab563869cad3263376b551247503fa67f13eb50f0e7a7a630410e196a3ebde9"
+      "sha256": "f644b4ea50c00ecd74b6ff309c5ef2909b4ce9a0470dc88eb2782b9dbe140bbb",
+      "size": 25703,
+      "normalized_sha256": "f644b4ea50c00ecd74b6ff309c5ef2909b4ce9a0470dc88eb2782b9dbe140bbb"
     },
     "docs/guide/features-voice.md": {
       "role": "index",
@@ -149,9 +149,9 @@
     },
     "docs/guide/installation.md": {
       "role": "index",
-      "sha256": "5bccb7b33b055dcc36dd81df9758ee0d681ddecfa8339fb466662c9bcf3a3c53",
+      "sha256": "848aac74eec318ec06529ad94b42be5d74788f1f6115bb73d23ffd39d3c22e40",
       "size": 5612,
-      "normalized_sha256": "5bccb7b33b055dcc36dd81df9758ee0d681ddecfa8339fb466662c9bcf3a3c53"
+      "normalized_sha256": "848aac74eec318ec06529ad94b42be5d74788f1f6115bb73d23ffd39d3c22e40"
     },
     "electron-builder.yml": {
       "role": "index",
@@ -167,15 +167,15 @@
     },
     "package-lock.json": {
       "role": "index",
-      "sha256": "cbc93b643a373538c5d756d2b7f906c6ef2bea5287941860fdb1e9fac7c4d4b2",
+      "sha256": "fd6df3b98e14a859c148dd10964f259d89efe4254545520271ac8ec79f8e169f",
       "size": 183828,
-      "normalized_sha256": "cbc93b643a373538c5d756d2b7f906c6ef2bea5287941860fdb1e9fac7c4d4b2"
+      "normalized_sha256": "fd6df3b98e14a859c148dd10964f259d89efe4254545520271ac8ec79f8e169f"
     },
     "package.json": {
       "role": "index",
-      "sha256": "93ad91df65d8c17952cb8519c1bfdbbdc15b6f3c2c83b20bbe8f749fa2b67715",
+      "sha256": "a9c51491625ac45ff704c37fea172b4afd3ea1867ab9422bc1405fac9786e0f8",
       "size": 1638,
-      "normalized_sha256": "93ad91df65d8c17952cb8519c1bfdbbdc15b6f3c2c83b20bbe8f749fa2b67715"
+      "normalized_sha256": "a9c51491625ac45ff704c37fea172b4afd3ea1867ab9422bc1405fac9786e0f8"
     },
     "scripts/gen_icon.py": {
       "role": "index",
@@ -557,9 +557,9 @@
     },
     "src/renderer/src/stores/metricsStore.ts": {
       "role": "index",
-      "sha256": "f3332b6cb4beee8e7b8ff77b469556518210e8e2ad1341b59e6be90125afa265",
+      "sha256": "f57987a7349fc8e8feeb82eaadce6ff3a3453a6e2ddfb130705d39bdbcd8d515",
       "size": 932,
-      "normalized_sha256": "45739350e1c6b8070c576a37cce0d0b7745ffa81422e0149e97edb5577ddc419"
+      "normalized_sha256": "bc7c411b69de478d3464b509dcc09928c4f71fd4bbb9e9b2168831c8ff67d2a6"
     },
     "src/renderer/src/stores/perceptActions.ts": {
       "role": "index",
@@ -725,15 +725,15 @@
     },
     "src/shared/contracts.ts": {
       "role": "index",
-      "sha256": "6aa880ef881896e95870c15f3750c4e929632c91e95957021d191c4825fc8777",
+      "sha256": "e52fe0f41ad23a105b63772dd7c3f10d1a1058598ef079f0edd21db28b8e9f6b",
       "size": 27932,
-      "normalized_sha256": "6aa880ef881896e95870c15f3750c4e929632c91e95957021d191c4825fc8777"
+      "normalized_sha256": "e52fe0f41ad23a105b63772dd7c3f10d1a1058598ef079f0edd21db28b8e9f6b"
     },
     "src/shared/extension-contracts.ts": {
       "role": "index",
-      "sha256": "dee90ff1e817ee263ecb80ca4b49c189f846cd52694598150051c105484040cb",
-      "size": 3895,
-      "normalized_sha256": "64bd7eb89f741e681a2260ad16483d076f5a46316383c9c782fe3c6b17579cff"
+      "sha256": "319f42b9340d4ceca2a7abfa572637e2d77e07105a6716251b74afc26cfb4eed",
+      "size": 3765,
+      "normalized_sha256": "319f42b9340d4ceca2a7abfa572637e2d77e07105a6716251b74afc26cfb4eed"
     },
     "src/shared/percept-contracts.ts": {
       "role": "index",

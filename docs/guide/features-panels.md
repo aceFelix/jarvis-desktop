@@ -88,6 +88,10 @@
 `SessionItem`（`inProject` prop）+ `normWorkdir`（样式在 main.css + 三张皮肤同口径）。
 
 > 项目工作区本身（切项目、最近项目、`project.set`）见 [架构说明](../architecture.md#左栏项目工作区切项目2026-08)。
+>
+> 打开历史会话时引擎会把 `workdir` 切回那条会话的目录（2026-11，见架构说明「左栏会话项交互」）；
+> `project_switched` 到达后这里比较的两边同步更新，`in-project` 标记随之从旧项目的会话组
+> 迁到新项目的会话组。
 
 ## 管家服务（右栏面板）
 

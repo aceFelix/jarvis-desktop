@@ -27,7 +27,7 @@ jarvis-desktop 是 `jarvis` 的**桌面宿主壳**，本身不含 Agent 运行�
 - **主进程**只做宿主能力：拉起并守护后端子进程、创建窗口、转发 IPC、退出时回收进程树。
   后端来源分两态：dev 态 spawn 本机 `python -m agent.serve`（依赖 jarvis 源码仓库）；
   打包态 spawn 随包冻结的 `resources/jarvis-serve/jarvis-serve.exe`（PyInstaller，用户无需装 Python）。
-- **Python 子进程**是唯一的 Agent 运行时，复用 jarvis 仓 `agent/ui/workbench/` 引擎层零件。历史口径：该引擎层曾同时服务两个宿主——jarvis 自带的 pywebview 三栏工作台（本进程渲染）与 serve（WebSocket 服务）；前者已于 2026-10 退役删除，现仅存 serve 一种宿主，故本仓库是唯一的图形化前端。
+- **Python 子进程**是唯一的 Agent 运行时，复用 jarvis 仓 `agent/serve/engine/` 引擎层零件。历史口径：该引擎层曾同时服务两个宿主——jarvis 自带的 pywebview 三栏工作台（本进程渲染）与 serve（WebSocket 服务）；前者已于 2026-10 退役删除，现仅存 serve 一种宿主，故本仓库是唯一的图形化前端。
 - **渲染进程**是纯 React UI，经 preload 暴露的最小 API 拿到连接信息后，直连 Python 的 WS 端口；不接触 Node/文件系统。
 
 ## 2. 启动流程
@@ -153,7 +153,7 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `email.send` | `subject`, `body`［, `to`, `cc`, `bcc`］ | `{ok: true, message}`（管家服务「邮箱服务」→「发送邮件」表单直连后端 `SendEmailTool`，**不经模型**——表单点「发送」即用户确认，后端刻意绕过工具默认 ASK 权限；`to` 留空回退 `[email].default_recipient`；收发件配置取自 `~/.jarvis/settings.toml` 的 `[email]` 表；主题/正文空、邮件未启用/缺配置/认证失败等回 ok=false + 原文错误；SMTP 阻塞 IO 由服务端 `asyncio.to_thread` 承载，不冻事件循环；首期不支持附件，2026-10） |
 | `email.config.get` | — | `{enabled, smtp_host, smtp_port, smtp_user, sender, default_recipient, has_password}`（读取 `[email]` 配置；**不回传授权码明文**，只回 `has_password` 布尔；管家服务「邮箱服务」→「邮箱配置」标签挂载时拉取，2026-10） |
 | `email.config.set` | `enabled`/`smtp_host`/`smtp_port`/`smtp_user`/`smtp_password`/`sender`/`default_recipient`（均可选，至少一项） | 回写后的同 `email.config.get` 字段（serve 侧白名单字段 + 端口 1..65535 校验 → 转义 upsert `settings.toml` 的 `[email]` 表 → 同步运行时 `Settings`；**`smtp_password` 留空 = 保持原授权码不变**；落盘失败 ok=false 且不动运行时；同步处理器，本地快速 IO，2026-10） |
-| `extensions.exec` | `category`（`mcp`/`tools`/`skills`/`plugins`/`harness`）+ `action` + 动作相关参数 | `{ok, data, message}`（扩展服务面板**一条通用指令承载五类扩展**的清单与增删改启停；serve 侧 `WorkbenchAPI.run_extension` → `agent/ui/workbench/extensions_api.py` 按 category 分发；插件/harness 的克隆安装等阻塞 IO 经 `asyncio.to_thread` 承载；2026-10） |
+| `extensions.exec` | `category`（`mcp`/`tools`/`skills`/`plugins`/`harness`）+ `action` + 动作相关参数 | `{ok, data, message}`（扩展服务面板**一条通用指令承载五类扩展**的清单与增删改启停；serve 侧 `WorkbenchAPI.run_extension` → `agent/serve/engine/extensions_api.py` 按 category 分发；插件/harness 的克隆安装等阻塞 IO 经 `asyncio.to_thread` 承载；2026-10） |
 | `percept.status.get` | —［, `event_limit`］ | 感知层快照 `{enabled, assembled, bus_running, counters, dedup_window_s, log_file, log_events, sources[], recent_events[], pending[], config, notify_budget}`（管家服务「感知源」面板挂载时一次拿全：总开关与逐源启用、总线三道闸计数、源自报的观察范围（`source.state()`）、最近事件与留痕文件路径（`log_file` 三态：留痕真关→空 / 总线在跑→实际路径 / 开着但没跑→默认路径；`assembled` 只表示后端宿主已接线，在不在采看 `bus_running`）、**W1 打扰预算快照 `notify_budget`**（`{day, count, daily_max, pending, quiet_hours}`，回答“jsonl 在涨为什么没声音”；后端未启用预算或读取异常时为 `null`，面板整行不显示）、可编辑配置快照；`event_limit` 上限 50；源名中文标签与“这个源采什么”均由后端 `status.py` 给出（单一真源）；未装配的收编位带 `pending_reason`，**前端据此不给开关**；类型镜像 `src/shared/percept-contracts.ts`；2026-10 阶段 9 W2） |
 | `percept.config.set` | `enabled`/`window_enabled`/…/`log_events`/四个名单数组/两个分钟阈值（均可选，至少一项） | 同 `percept.status.get` 快照 + `hot_applied` + `applied`（后端顺序：白名单校验 → 外科式 upsert `settings.toml` 的 `[percept]` 表 → 改运行时 `Settings` → **请宿主重装配总线**（逐源启用是装配期快照，不重装配就是“面板显已开、实际没在采”；停旧总线会真正释放 IMAP 连接与摄像头）→ 回读快照。`hot_applied=false` = 配置已落盘但本次会话未重装配，面板必须提示“需重启才生效”而不是假装已生效；白名单**之外的键直接报错**（不静默忽略），极客参数（去重窗口/地板分/采样间隔）不得入面板；2026-10 阶段 9 W2） |
 | `tasks.exec` | `action`（`status`/`create`/`show`/`pause`/`resume`/`cancel`/`advance`/`delete`/`approve`）+ 动作相关参数 | 台账快照 `{ok, action, message, goals[], count, driver_running, base_dir, tasks_config{enabled, wait_deadline_hours, step_max_attempts, retry_backoff_s, blocked_ask_days}[, need_confirm, goal, items]}`（右栏「跨会话目标」区块数据源；`driver_running`（驱动线程真的在跑）与 `tasks_config.enabled`（配置意图）**刻意分两个字段回传**，面板分开画，否则就是“显示已开、实际没人推”的假可用；`delete` 为**两拍**：不带 confirm 只回 `need_confirm=true` + 目标明细，一字未动；`approve` 一拍：按该步的 `denied_tools` 签发“仅本步被拒工具 + 仅目标工作目录 + 30 分钟”的 W1 授权租约再把步骤退回待执行，`denied_tools` 为空时**拒绝放行**（不签范围不明的租约）并给出原因；类型镜像 `src/shared/tasks-contracts.ts`，唯一真源 jarvis `agent/serve/rpc_tasks.py`；2026-10 阶段 10 W3） |
@@ -164,7 +164,7 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 终端 J.A.R.V.I.S 的 45 个斜杠命令过去在桌面只会当普通文本发给 LLM（引擎 `_handle_send`
 无命令路由）。现新增 `slash.exec` 一条透传指令：输入框 `text.startsWith('/')` 且无附件时
 整条按命令转发（`backendStore.execSlash`：本地回显命令气泡 + 置 busy，不入对话），
-引擎侧 `agent/ui/workbench/slash_bridge.py` 复用终端 `dispatch_command` 执行，捕获输出
+引擎侧 `agent/serve/engine/slash_bridge.py` 复用终端 `dispatch_command` 执行，捕获输出
 以 `slash_result` 事件（`{command, ok, text}`）回推，dispatcher 落为 `kind: 'slash'`
 命令输出卡片（`SlashCard`：summary=命令原文、正文=等宽 pre 全文，默认展开可点击收起，
 叠加 system 皮肤三主题配色；不受 aborted 停止闸门影响）。
@@ -603,7 +603,7 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
     + 市场浏览（展开收起，`harness.market`）→ 安装（`harness.install`）。
 - **单指令口径**：五类动作统一走通用指令 `extensions.exec`（`category` + `action`），
   统一返回体 `{ok, data, message}`；serve 侧 `WorkbenchAPI.run_extension` 委托
-  `agent/ui/workbench/extensions_api.py` 按 `category` 分发（见 jarvis 侧
+  `agent/serve/engine/extensions_api.py` 按 `category` 分发（见 jarvis 侧
   [07-UI层](file:///e:/2.MyProjects/MyAgentChat/J.A.R.V.I.S/jarvis/docs/architecture/07-UI层.md)）。
 - **状态与动作拆分**：共享取数/返回头抽到 `components/extensionShared.tsx`
   （`useExtensionData` 挂载即拉取 + `reload()`；`ExtensionSubhead` 统一子面板返回头）；
@@ -653,7 +653,7 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
 - **配置变更**：`settings_changed`（payload `{keys: string[], source: 'model'}`；后端 `ConfigSet` 改完一项/一批推一次：dispatcher 重调 `conn.refreshSettings()`（`settings.get` 是权威口径），带感知键时额外 `conn.refreshPercept()` 递增 `perceptTick` 让感知源面板重拉。这是 2026-10-26 实测缺陷的修复：面板只在 `init` 拉一次 `settings.get`，模型改完音量后滑杆停在旧值，用户顺手一拖就把旧值写回去、静默覆盖模型的改动；fixlog `config-panel-not-refreshed-after-model-set-fix`）
 - **提示**：`info` / `warn` / `error` / `status` / `ask_user`
 - **模型热切换**：`model_switched`（payload `{model}`；引擎已把运行中的 provider / 模型换成 `model` 的落地回执：壳清匹配的「待生效」标记 + 刷 `models.list` / 成本 / 状态，「· 当前」随之移动）
-- **项目工作区**：`project_switched`（payload `{workdir, name}`；`project.set` 在引擎线程内落地后推一次，与 `model_switched` 同为「入队即返回、落地走事件」：壳据此写当前项目、清匹配的「待生效」标记，并刷会话列表 + 项目区）
+- **项目工作区**：`project_switched`（payload `{workdir, name}`；`project.set` 在引擎线程内落地后推一次，**打开历史会话（`sessions.open`，2026-11）时也会推一次**——引擎把 workdir 切回该会话当初的目录但不开新会话，见下「左栏会话项交互」；与 `model_switched` 同为「入队即返回、落地走事件」：壳据此写当前项目、清匹配的「待生效」标记，并刷会话列表 + 项目区）
 - **指标**：`metrics`（每 2 秒推送）
 - **实时语音（真全双工）**：`talk_started` / `talk_stopped` / `volume` / `user_speaking` / `ai_speaking` / `user_transcript` / `ai_transcript` / `ai_transcript_delta` / `talk_audio`（下行 24kHz PCM 帧，base64；空串 payload = 打断 flush，由 `audio/talkPlayback.ts` 排播/清空）——duplex 会话下麦克风采集与播放均在渲染进程（浏览器 `getUserMedia({echoCancellation:true})` 系统级 AEC），服务端引擎只收发 WS 帧（`BridgeMic`/`BridgeSpk`，镜像 jarvis `agent/voice/realtime_bridge_audio.py`）
 - **半双工语音**：`voice_started` / `voice_stopped` / `voice_state`（payload 为 `listening｜thinking｜speaking｜standby｜exited`）/ `voice_user_transcript` / `voice_ai_text_delta`（流式增量）/ `voice_ai_text`（全量）——音频 I/O 留 serve 本机 pyaudio，壳只做遥控 + 状态/文字显示
@@ -671,11 +671,15 @@ pid 换代（崩溃重启）时清旧气泡；常规清屏初始化由页面加�
 ### 左栏会话项交互（删除 / 改名）
 
 `LeftSidebar.tsx::SessionItem` 交互口径（引擎侧改动见 jarvis 仓
-`agent/ui/workbench/engine.py`；历史 pywebview 工作台 `app.js::refreshSessionList` 曾同口径，
+`agent/serve/engine/engine.py`；历史 pywebview 工作台 `app.js::refreshSessionList` 曾同口径，
 已随窗口壳删除）：
 
 - **单击**：220ms 延时后发 `sessions.open` 加载会话（当前会话不发）；延时用于让位双击，
-  双击会先清掉该定时器，避免「想改名却先加载一次」。
+  双击会先清掉该定时器，避免「想改名却先加载一次」。**加载会把项目区切到这条会话
+  的目录**（引擎 `_handle_load → _restore_session_workdir`，2026-11）：面板高亮与
+  真实 `workdir` 一起换，之后在这条会话里发消息，读写文件与命令都落回它当初的目录；
+  不开新会话、不清对话、不弹切换气泡。目录已被删除/改名时保持当前项目，只提示一句，
+  历史消息照常可看。
 - **双击**：标题就地换成 `input`（`session-rename-input`）内联改名，`Enter` / 失焦提交发
   `sessions.rename`，`Esc` 取消；空名或未变化视为取消。改当前会话名时引擎置
   `_title_generated=True` 并取消未落地的自动标题任务，防自动标题覆盖用户自定义名。

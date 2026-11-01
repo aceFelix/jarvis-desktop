@@ -4,14 +4,14 @@
  * 为什么单独成文件（aceFelix，2026-10）：`contracts.ts` 已逼近 800 行上限，而阶段 10
  * 「任务中心」面板还要往 `Cmd` 里加两条指令。扩展域本身类型面就宽（五类清单 +
  * 两个市场 + 统一信封），照 `percept-contracts.ts` 的先例**按业务域拆**，而不是
- * 按语言或按类型拆。契约的唯一真源仍是 jarvis 侧
- * `agent/ui/workbench/extensions_api.py`，字段名一律保持后端 snake_case。
+ * 由业务域拆出。契约的唯一真源仍是 jarvis 侧
+ * `agent/serve/engine/extensions_api.py`，字段名一律保持后端 snake_case。
  *
  * @author aceFelix
  */
 
 /**
- * 扩展服务数据契约（镜像 jarvis 侧 agent/ui/workbench/extensions_api.py）。
+ * 扩展服务数据契约（镜像 jarvis 侧 agent/serve/engine/extensions_api.py）。
  *
  * 「扩展服务」面板（2026-10）集中管理五类扩展能力：MCP 服务 / 内置工具 / 技能 /
  * 插件 / harness。所有动作共用一条 RPC（extensions.exec），入参 `{category,
