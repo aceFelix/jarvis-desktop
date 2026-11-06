@@ -292,3 +292,206 @@
 
 .tasks-notice.tone-ok { border-left-color: var(--qr-ok); }
 .tasks-notice.tone-warn { border-left-color: var(--qr-warn); color: var(--qr-warn); }
+
+/* ------------------------------------------------------------------
+   代理团队（多 Agent 协作，2026-11）
+   容器同样复用右栏既有区块间距；本段只补成员行、状态色标、行内控制与反馈条。
+   颜色一律走 --qr-* / --edge-* 变量，三套皮肤自动联动。
+   @author aceFelix
+   ------------------------------------------------------------------ */
+
+.agents-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.agents-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
+}
+
+.agents-team-name {
+    color: var(--qr-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.agents-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--qr-dim);
+}
+
+.agents-count-run { color: var(--qr-accent); }
+.agents-count-done { color: var(--qr-ok); }
+.agents-count-bad { color: var(--qr-danger, #e5534b); }
+
+.agents-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.agents-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 8px;
+    border: 1px solid var(--edge-mid);
+    border-radius: 2px;
+    background: rgba(91, 200, 255, 0.04);
+}
+
+/* 在跑的行给一点强调：右栏信息多，靠颜色扫一眼就知道谁在动 */
+.agents-row-active {
+    border-color: var(--qr-accent);
+}
+
+.agents-row-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    min-width: 0;
+}
+
+.agents-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--qr-dim);
+    flex-shrink: 0;
+}
+
+.agents-dot-run { background: var(--qr-accent); }
+.agents-dot-idle { background: var(--qr-dim); }
+.agents-dot-done { background: var(--qr-ok); }
+.agents-dot-bad { background: var(--qr-danger, #e5534b); }
+.agents-dot-unknown { background: var(--qr-warn); }
+
+.agents-name {
+    color: var(--qr-panel-fg, inherit);
+    font-family: var(--app-font);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.agents-role {
+    color: var(--qr-dim);
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
+.agents-status {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--qr-dim);
+    flex-shrink: 0;
+}
+
+.agents-status-run { color: var(--qr-accent); }
+.agents-status-done { color: var(--qr-ok); }
+.agents-status-bad { color: var(--qr-danger, #e5534b); }
+
+/* 第二行：后端给的人话（activity / current_tool / task），超长省略 */
+.agents-activity {
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--qr-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.agents-error {
+    font-size: 11px;
+    color: var(--qr-danger, #e5534b);
+    word-break: break-word;
+}
+
+.agents-meta {
+    font-size: 10px;
+    color: var(--qr-dim);
+}
+
+.agents-row-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 2px;
+}
+
+.agents-btn {
+    font-size: 11px;
+    padding: 2px 8px;
+    border: 1px solid var(--edge-mid);
+    background: transparent;
+    color: var(--qr-panel-fg, inherit);
+    cursor: pointer;
+}
+
+.agents-btn-ghost {
+    color: var(--qr-dim);
+}
+
+.agents-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.agents-message-form {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.agents-input {
+    font-size: 11px;
+    padding: 4px 6px;
+    border: 1px solid var(--edge-mid);
+    background: transparent;
+    color: var(--qr-panel-fg, inherit);
+}
+
+.agents-message-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.agents-task-line {
+    font-size: 11px;
+    color: var(--qr-dim);
+}
+
+.agents-busy {
+    font-size: 11px;
+    color: var(--qr-dim);
+}
+
+/* 内联反馈条：与任务中心同一条纪律——运维状态不进聊天流 */
+.agents-notice {
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 6px 8px;
+    border-left: 2px solid var(--qr-ok);
+    background: rgba(91, 200, 255, 0.06);
+    word-break: break-word;
+}
+
+.agents-notice-warn {
+    border-left-color: var(--qr-warn);
+    color: var(--qr-warn);
+}

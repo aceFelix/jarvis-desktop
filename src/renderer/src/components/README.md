@@ -1,6 +1,6 @@
 # 组件地图（renderer/src/components）
 
-> 本目录 31 个组件是平铺的，看文件名不一定知道它管哪块界面。想知道「屏幕上这个东西是哪个文件」，查这张表，别挨个打开。
+> 本目录 32 个组件是平铺的，看文件名不一定知道它管哪块界面。想知道「屏幕上这个东西是哪个文件」，查这张表，别挨个打开。
 >
 > 每个文件头都有职责与设计动机的注释块，表里「要点」是从那里摘的 —— **改了行为要两处同步**。
 >
@@ -22,6 +22,7 @@
 | 聊天流里内联出现的那张二维码卡片 | `QrcodeCard.tsx` |
 | 右栏：任务中心 / 跨会话目标 / 副作用账本 / 会话与用量 / 系统状态 / 运行健康 | `RightSidebar.tsx` |
 | 右栏「跨会话目标」台账（驱动器状态 + 目标行 + 批准/暂停/删除/批量撤销） | `SpineTaskPanel.tsx` |
+| 右栏「代理团队」（多 Agent，2026-11）：每个子代理/队友的状态与当前动作 + 单独停止/发消息 | `AgentTeamPanel.tsx` |
 | 右栏「副作用账本」清单（扣住的预约 + 最近记录 + 整轮回退两拍确认） | `EffectJournalPanel.tsx` |
 | 齿轮进来的**设置**面板（四个分组：外观 / 语音播报 / 每日简报 / 截止日期追踪） | `SettingsPanel.tsx` |
 | 设置里「英文字体 / 中文字体」两行 | `FontPicker.tsx` |
@@ -50,7 +51,7 @@
 | **chat 对话区** | ChatArea (546) · ChatMessageViews (284) · SlashAutocomplete (225) · QrcodeCard (86) · RemoteConnectMenu (105) | 1246 | 都读 `chatStore` / `remoteStore` / `backendStore`，围绕中栏与输入栏 |
 | **butler 管家服务** | ButlerPanel (96) · EmailServicePanel (136) · EmailConfigForm (242) · EmailForm (152) · PerceptSourcePanel (293) · PerceptSourceList (160) · PerceptScopeForm (199) · PerceptEventList (78) | 1356 | 一棵闭合的树：`ButlerPanel → EmailServicePanel → Email*` 与 `→ PerceptSourcePanel → Percept*`，外部只有 `App.tsx` 引它 |
 | **extension 扩展服务** | ExtensionPanel (107) · ExtensionMcpPanel (313) · ExtensionListPanels (164) · ExtensionMarketPanels (359) · extensionShared (94) | 1037 | 五文件只互引 + 共用 `extensionShared`，**对外零引用**，最干净的一簇 |
-| **task 任务中心**（2026-10 阶段 10 W3） | SpineTaskPanel (395) · EffectJournalPanel (352) | 747 | 两文件只读 `tasksStore` 快照与 `backendStore` 注入的动作，数据契约在 `shared/tasks-contracts.ts`；两个区块共用一份 `notice`/`confirm` 态（靠 `panel` 与 `kind` 分流） |
+| **task 任务中心**（2026-10 阶段 10 W3） | SpineTaskPanel (395) · EffectJournalPanel (352) · AgentTeamPanel (261) | 1008 | 三个文件只读各自 store 快照与 `backendStore` 注入的动作；任务中心契约在 `shared/tasks-contracts.ts`，代理团队契约在 `shared/agents-contracts.ts`；Spine/Journal 共用一份 `notice`/`confirm` 态（靠 `panel` 与 `kind` 分流），AgentTeamPanel 独立 |
 | **布局骨架**（留在本目录） | LeftSidebar (607) · RightSidebar (299) · SettingsPanel (309) · TitleBar (150) · ModelForm (241) · VoiceForm (201) · ProjectSection (173) · ReactorCanvas (44) | 2024 | 被 `App.tsx` 直接组装的壳层，以及挂在左栏下的资源表单 |
 
 ## 三、为什么不先分目录

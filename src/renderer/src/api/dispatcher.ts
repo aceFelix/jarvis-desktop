@@ -28,6 +28,8 @@ import { useLeftStore, type ModelItem, type SessionItem, type VoiceItem } from '
 import { useMetricsStore, type MetricsPayload } from '../stores/metricsStore'
 import { useRightStore, type McpStatus } from '../stores/rightStore'
 import { useUiStore } from '../stores/uiStore'
+import { useAgentsStore } from '../stores/agentsStore'
+import { parseAgentsSnapshot } from '../../../shared/agents-contracts'
 import { getReactor } from '../stores/reactorRef'
 import type { ReactorStatus } from '../reactor'
 import type { JarvisConnection } from '../stores/backendStore'
@@ -103,6 +105,10 @@ export function dispatchServerEvent(
       // 重新拉一次（与面板自身那次拉取同一个入口，不会多开一条数据通路）。
       // @author aceFelix
       void conn.refreshTasks()
+      // 代理团队（多 Agent 协作，2026-11）：init 时拉一次全量快照；之后由
+      // agents_state 事件整份替换（活动台账变更时后端节流推送）。
+      // @author aceFelix
+      void conn.refreshAgents()
       // 握手完成：状态栏从启动期的「等待后端启动...」切到「就绪」。init 是每连接
       // 首帧，此前只有首轮回复结束/断线才会刷新状态文案，连上后端后长期挂着
       // 「等待后端启动...」会让人误以为后端没起来。@author aceFelix
@@ -237,6 +243,10 @@ export function dispatchServerEvent(
       // 「清屏初始化」语义已迁移到 backendStore 连接生命周期：后端进程
       // pid 换代时清旧气泡。@author aceFelix
       void conn.refreshSessions()
+      // 会话装配完成后团队才真正建立（协作工具在 _ensure_session 注册），
+      // 补拉一次代理团队，避免面板停在 init 时的 enabled=false。
+      // @author aceFelix
+      void conn.refreshAgents()
       break
     case 'session_new':
       chat.clear()
@@ -513,6 +523,14 @@ export function dispatchServerEvent(
       } else {
         void conn.refreshState()
       }
+      break
+    }
+
+    case 'agents_state': {
+      // 代理团队活动变更（多 Agent 协作，2026-11）：后端整份快照推送（节流
+       // 300ms，起止立即推）。面板不做增量合并——两份真相会互相盖掉。
+      // @author aceFelix
+      useAgentsStore.getState().setAgents(parseAgentsSnapshot(payload))
       break
     }
 

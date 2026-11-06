@@ -19,6 +19,7 @@ import { useMetricsStore } from '../stores/metricsStore'
 import { useRightStore, type DeadlineItem } from '../stores/rightStore'
 import SpineTaskPanel from './SpineTaskPanel'
 import EffectJournalPanel from './EffectJournalPanel'
+import AgentTeamPanel from './AgentTeamPanel'
 import { useT } from '../i18n'
 import { useGlyphs } from '../glyphs'
 
@@ -232,6 +233,13 @@ export default function RightSidebar(): JSX.Element {
         <span className="col-title">{t('right.tasks')}</span>
       </div>
       <TaskCenter />
+
+      {/* 代理团队（多 Agent 协作，2026-11）：子代理/队友的实时状态与当前动作，
+          支持单独停止与给队友追加指令。@author aceFelix */}
+      <div className="col-header">
+        <span className="col-title">{t('agents.head')}</span>
+      </div>
+      <AgentTeamPanel />
 
       {/* 跨会话目标台账（阶段 10 W3）：驱动器在不在跑、卡在哪一步、要不要授权。
           @author aceFelix */}

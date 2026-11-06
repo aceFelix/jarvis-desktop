@@ -52,9 +52,11 @@ import { buildExtensionActions, type ExtensionActions } from './extensionActions
 import { buildPerceptActions, type PerceptActions } from './perceptActions'
 // 任务中心（阶段 10 W3）动作拆出 taskActions.ts（同 800 行上限口径）。@author aceFelix
 import { buildTaskActions, type TaskActions } from './taskActions'
+import { buildAgentsActions, type AgentsActions } from './agentsActions'
 // 管家服务邮箱三条动作拆出 butlerActions.ts（2026-10，行为不变）。@author aceFelix
 import { buildButlerActions, type ButlerActions } from './butlerActions'
 import { useTasksStore } from './tasksStore'
+import { useAgentsStore } from './agentsStore'
 import {
   useRightStore,
   type CostInfo,
@@ -105,6 +107,8 @@ export interface JarvisConnection {
   refreshSlashCommands: () => Promise<void>
   /** 任务中心刷新（tasks.exec + actions.exec status → tasksStore）。@author aceFelix */
   refreshTasks: () => Promise<void>
+  /** 代理团队刷新（agents.exec status → agentsStore）。@author aceFelix */
+  refreshAgents: () => Promise<void>
   /** 提醒已读回执（proactive.ack）：fire-and-forget，失败静默。 */
   ackProactive: (taskId: string) => void
 }
@@ -135,7 +139,7 @@ function rlog(msg: string): void {
 }
 
 export interface BackendStoreState
-  extends ExtensionActions, PerceptActions, TaskActions, ButlerActions {
+  extends ExtensionActions, PerceptActions, TaskActions, AgentsActions, ButlerActions {
   state: BackendState
   info: BackendInfo | null
   error: string
@@ -274,6 +278,7 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     refreshRemote: () => get().refreshRemote(),
     refreshSlashCommands: () => get().refreshSlashCommands(),
     refreshTasks: () => get().refreshTasks(),
+    refreshAgents: () => get().refreshAgents(),
     ackProactive: (taskId) => {
       // 提醒已读回执：只发不等（send），失败静默——不因回执问题把错误
       // 写进聊天流（与 runCommand 的显式指令不同，这是后台自动确认）。
@@ -389,6 +394,9 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
         // 任务中心跟着清：留着旧台账会诱导用户对已经不存在的目标点撤销/批准。
         // @author aceFelix
         useTasksStore.getState().resetAll()
+        // 代理团队同理：断线后不能留一批"看起来还能停"的幽灵代理。
+        // @author aceFelix
+        useAgentsStore.getState().resetAll()
       }
     },
 
@@ -720,6 +728,9 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
 
     // ---- 任务中心（阶段 10 W3）：拆出 taskActions.ts（两拍确认不过本层）----
     ...buildTaskActions(() => get().client),
+
+    // ---- 代理团队（多 Agent 协作，2026-11）：拆出 agentsActions.ts ----
+    ...buildAgentsActions(() => get().client),
 
     // ---- 管家服务·邮箱（2026-10）：拆出 butlerActions.ts（错误内联在表单，不进聊天流）----
     ...buildButlerActions(() => get().client),

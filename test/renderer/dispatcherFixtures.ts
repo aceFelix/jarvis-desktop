@@ -46,6 +46,9 @@ export function makeConn(): JarvisConnection {
     // 任务中心刷新（2026-10 阶段 10 W3）：init / assistant_done / kind=task 播报都会拉。
     // @author aceFelix
     refreshTasks: vi.fn().mockResolvedValue(undefined),
+    // 代理团队刷新（2026-11 多 Agent）：init 拉取一次回填 agentsStore。
+    // @author aceFelix
+    refreshAgents: vi.fn().mockResolvedValue(undefined),
     ackProactive: vi.fn()
   }
 }

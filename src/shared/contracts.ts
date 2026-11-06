@@ -440,7 +440,13 @@ export const Cmd = {
    * @author aceFelix
    */
   TasksExec: 'tasks.exec',
-  ActionsExec: 'actions.exec'
+  ActionsExec: 'actions.exec',
+  /**
+   * 代理团队（多 Agent 协作，2026-11）：右栏显示子代理/队友状态并支持停止。
+   * 一条指令三动词：status / stop / message；status 与 `agents_state` 事件同形。
+   * @author aceFelix
+   */
+  AgentsExec: 'agents.exec'
 } as const
 
 /** 跨设备协同通道（qrcode / remote_state 事件的 channel 字段）。 */

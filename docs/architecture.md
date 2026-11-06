@@ -173,7 +173,8 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 
 - **白名单**：只放行非交互命令 `/context /compact /cost /c /diff /doctor /tools /mcp
   /skills /memory /plugin(s)`；桌面已有原生控件的（mode/think/model/sessions/rewind…）
-  不透传防双入口口径漂移；引擎无多 Agent 运行时，/agents /tasks 也不放行；
+  不透传防双入口口径漂移；`/agents /tasks` 也不放行——它们已有原生面板（代理团队 /
+  任务中心），再开一条文本入口只会让两套口径漂移；
 - **交互禁令**：serve 模式 stdin 是协议管道，执行期临时把 `pick_from_list /
   pick_from_grouped_list / form_input`（含 handlers 模块级 import 引用）与
   `ask_user / read_user_input_async / terminal_picker` 换成抛 `SlashInteractiveError`，
@@ -417,12 +418,14 @@ theme-dark-y2k / theme-light-y2k）用 `:is(.tool-card, .tool-group)` 统一配�
   并排）——原生 `<input type="time">` 的时/分弹出面板由 Chromium 内部 UI 绘制
   （白底 + 系统蓝选中），CSS 无法触达，故弃用。
 
-### 右栏六区块（任务中心 / 跨会话目标 / 副作用账本 / 用量 / 系统状态 / 运行健康）与设置面板
+### 右栏七区块（任务中心 / 代理团队 / 跨会话目标 / 副作用账本 / 用量 / 系统状态 / 运行健康）与设置面板
 
-右栏信息面板（`RightSidebar.tsx`）自上而下六区块；提醒/用量/健康这些**只读展示型**快照集中在 `stores/rightStore.ts`，而带写操作与两拍确认的任务中心快照单独放在 `stores/tasksStore.ts`（“谁能动台账”这条排查线索只留一处）：
+右栏信息面板（`RightSidebar.tsx`）自上而下七区块；提醒/用量/健康这些**只读展示型**快照集中在 `stores/rightStore.ts`，而带写操作与两拍确认的任务中心快照单独放在 `stores/tasksStore.ts`（“谁能动台账”这条排查线索只留一处），代理团队快照在 `stores/agentsStore.ts`：
 
 - **任务中心**：`schedule.list` 的待触发提醒（时间升序）+ 活跃截止日期（`days_left`
   倒计时，≤3 天标黄、逾期标红）+ 最近简报折叠块（`proactive_notify` kind=briefing 时更新）；
+- **代理团队**（2026-11，`AgentTeamPanel.tsx`）：`agents.exec` 快照 + `agents_state`
+  事件，显示每个子代理/队友的状态与当前动作，可单独停止/给队友发消息，详见下一节；
 - **跨会话目标**（阶段 10 W3，`SpineTaskPanel.tsx`）：`tasks.exec` 台账，驱动器在不在跑、
   卡在哪一步、等什么（等待条件/最迟时刻/已试次数/被哪些工具拦）就地管控，详见下一节；
 - **副作用账本**（阶段 10 W3，`EffectJournalPanel.tsx`）：`actions.exec` 账本，扣住的预约
@@ -644,6 +647,28 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
   并在 `main.tsx` 里**早于三张皮肤**引入（配色走 `--edge-*` / `--qr-*` 变量随主题联动）；
   `dispatcher.test.ts` 同步按事件域拆出 `dispatcherNotify.test.ts` + `dispatcherSettings.test.ts`（配置变更域）+ `dispatcherFixtures.ts`。
 
+### 右栏代理团队（agents.exec / agents_state，2026-11）
+
+后端 `serve` 路径此前只注册日程/截止工具，Agent/Team/Task 系列工具只在终端 `main.py`
+注册，桌面完全拿不到。本次升级在 `_ensure_session`（provider 建好后）补
+`register_collaboration`，并在右栏新增「代理团队」区块：
+
+- **数据源**：jarvis `agent/collaboration/activity.py` 的进程内活动台账（子代理 +
+  队友的状态、任务摘要、当前工具、一句人话 activity）；团队文件
+  `~/.jarvis/teams/<name>` 里仍存在但本进程没在跑的成员补成 `status=offline`；
+  共享任务台账给 `{done}/{total}` 进度；
+- **链路**：`init` / 面板挂载 / 刷新按钮 → `conn.refreshAgents()` →
+  `agents.exec {action:'status'}` → `stores/agentsStore.ts` → `AgentTeamPanel.tsx`；
+  之后后端台账变更以 `agents_state` 事件**整份替换**（节流 300ms，起止/失败立即推），
+  面板不再做增量合并；
+- **控制面**：`stop` 只停该代理——同步子代理由后端 `loop.call_soon_threadsafe(task.cancel)`
+  取消，队友走 `shutdown` 协议；`message` 只对队友有效（同步子代理没有邮箱，后端明确拒绝）。
+  按钮置于灰态与回执刷新同任务中心口径，失败在面板内联提示，不进聊天流；
+- **主聊天隔离**：子代理的流式文本/工具卡片由 `AgentActivityUI` 收进台账，不再涌进
+  主对话；`ask_user` / `warn` / `error` 仍转发；
+- **文件**：契约 `src/shared/agents-contracts.ts`（字段保持后端 snake_case）、
+  动作 `stores/agentsActions.ts`、样式 `styles/task-center.css` 的 `.agents-*` 段。
+
 ### 事件一览
 
 - **对话流**：`user_message` / `assistant_text`（流式增量）/ `assistant_thinking` / `tool_use` / `tool_result` / `assistant_done`
@@ -652,6 +677,9 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
 - **斜杠命令透传**：`slash_result`（payload `{command, ok, text}`；`slash.exec` 每执行/拒绝一条推一次：dispatcher 落 `kind: 'slash'` 命令输出卡片、解除 busy 并刷成本；技能命令另走正常对话流式事件，2026-10）
 - **配置变更**：`settings_changed`（payload `{keys: string[], source: 'model'}`；后端 `ConfigSet` 改完一项/一批推一次：dispatcher 重调 `conn.refreshSettings()`（`settings.get` 是权威口径），带感知键时额外 `conn.refreshPercept()` 递增 `perceptTick` 让感知源面板重拉。这是 2026-10-26 实测缺陷的修复：面板只在 `init` 拉一次 `settings.get`，模型改完音量后滑杆停在旧值，用户顺手一拖就把旧值写回去、静默覆盖模型的改动；fixlog `config-panel-not-refreshed-after-model-set-fix`）
 - **提示**：`info` / `warn` / `error` / `status` / `ask_user`
+- **代理团队**：`agents_state`（payload 与 `agents.exec status` 同形：`enabled / team /
+  agents[] / counts / task_list`；活动台账变更时整份推送，起止/失败立即推、其余节流
+  300ms；dispatcher 直接 `setAgents(parseAgentsSnapshot(payload))`，2026-11）
 - **模型热切换**：`model_switched`（payload `{model}`；引擎已把运行中的 provider / 模型换成 `model` 的落地回执：壳清匹配的「待生效」标记 + 刷 `models.list` / 成本 / 状态，「· 当前」随之移动）
 - **项目工作区**：`project_switched`（payload `{workdir, name}`；`project.set` 在引擎线程内落地后推一次，**打开历史会话（`sessions.open`，2026-11）时也会推一次**——引擎把 workdir 切回该会话当初的目录但不开新会话，见下「左栏会话项交互」；与 `model_switched` 同为「入队即返回、落地走事件」：壳据此写当前项目、清匹配的「待生效」标记，并刷会话列表 + 项目区）
 - **指标**：`metrics`（每 2 秒推送）
