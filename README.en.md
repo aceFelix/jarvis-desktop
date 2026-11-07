@@ -33,6 +33,8 @@ jarvis (Python)                          jarvis-desktop (Electron)
 └──────────────────────────┘  WS events  └──────────────────────────────┘
 ```
 
+> 📌 **Starting with v1.2.0, the desktop installer provides every core capability of upstream jarvis**: true full-duplex / half-duplex voice, screenshots and mouse/keyboard, window control, camera, browser automation (headless + full Chromium kernels bundled), vision detection and OCR, MCP (including WeChat and multi-end access), scheduled reminders and percept sources, plan mode and long-term memory. The frozen backend is built from `jarvis-agent[all]`, and `jarvis-serve.exe --caps` gates each capability before a release — a missing one blocks publishing.
+
 ## Highlights
 
 | Capability | Description | Details |
@@ -49,7 +51,7 @@ jarvis (Python)                          jarvis-desktop (Electron)
 | **Agent team** (2026-11) | Right-column block showing every subagent/teammate live: status and current action (running/thinking/idle/done/failed); stop one agent without touching the main conversation, or send follow-up instructions to a background teammate. Complex tasks are split across subagents by the backend | [Panels & settings (中文)](docs/guide/features-panels.md) |
 | **Plan mode** (2026-11) | The model can enter read-only planning on its own, submit a plan and restore write access; the plan is written to `.jarvis/PLAN.md` and the desktop shows a system message with its summary and preview. “规划” in the composer still selects the permission mode manually | [Chat experience (中文)](docs/guide/features-chat.md) |
 | **Task center** | Two new right-column blocks (stage 10 W3): the **cross-session goal** ledger (whether the driver is actually running, which step is stuck and what it waits for, with pause / skip-wait / delete in place; when a step waits for approval one click **approves and retries** — the backend grants a lease scoped to exactly the tools this step was denied, the goal's own workdir and 30 minutes) and the **effect journal** (held reservations count down and can be withdrawn, applied entries roll back the whole turn behind a two-step confirm, and things that cannot be undone — a mail already sent — are labelled as such instead of offering a dead button) | [Panels & settings (中文)](docs/guide/features-panels.md) |
-| **Ready to run** | Windows installer available — **no Python required**, just download and launch | [Download the Installer](#download-the-installer) |
+| **Ready to run** | Windows installer available — **no Python required**, just download and launch; **since v1.2.0 it matches upstream jarvis core capabilities**, bundling the full-capability backend (screenshots / windows / camera / voice / MCP / browser automation / vision OCR) and both Playwright Chromium kernels | [Download the Installer](#download-the-installer) |
 | **Auto update** | Silent check on startup; when a new version exists an "Update" button appears in the title bar → one-click download (with progress) → "Restart to install" (not code-signed, so a SmartScreen prompt is expected) | — |
 
 ## Screenshots
@@ -81,6 +83,7 @@ Multi-end collaboration — scan to connect WeChat; phone and desktop share one 
 **End users should stop here**: grab the Windows installer and double-click — **no Python / Node needed**
 (the backend is frozen with PyInstaller into `jarvis-serve.exe` and shipped inside the package).
 It bundles the full-capability backend (all eight extras) and both Chromium kernels, so the installer is about **585 MB**.
+Since **v1.2.0** the desktop side provides every core capability of upstream jarvis — no more "works in dev, missing in the package".
 
 | Version | Platform | Direct download |
 |---|---|---|
