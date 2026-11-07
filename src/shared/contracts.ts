@@ -446,7 +446,17 @@ export const Cmd = {
    * 一条指令三动词：status / stop / message；status 与 `agents_state` 事件同形。
    * @author aceFelix
    */
-  AgentsExec: 'agents.exec'
+  AgentsExec: 'agents.exec',
+  /**
+   * 长期记忆（设置面板，2026-11）：memory.get 读 user/project 两个范围的
+   * MEMORY.md 快照（路径/全文/字数/修改时间），memory.save 整体覆盖一个范围。
+   * 保存成功后后端会重建本会话系统提示词并推 `memory_changed`，下一轮对话即生效。
+   * 模型侧的「记住一条」走 MemoryUpdate 工具，只追加不覆盖；整体编辑只在这里。
+   * 类型契约见 shared/memory-contracts.ts，服务端实现 agent/serve/rpc_memory.py。
+   * @author aceFelix
+   */
+  MemoryGet: 'memory.get',
+  MemorySave: 'memory.save'
 } as const
 
 /** 跨设备协同通道（qrcode / remote_state 事件的 channel 字段）。 */

@@ -53,6 +53,9 @@ import { buildPerceptActions, type PerceptActions } from './perceptActions'
 // 任务中心（阶段 10 W3）动作拆出 taskActions.ts（同 800 行上限口径）。@author aceFelix
 import { buildTaskActions, type TaskActions } from './taskActions'
 import { buildAgentsActions, type AgentsActions } from './agentsActions'
+// 长期记忆（设置面板，2026-11）动作同样拆出 memoryActions.ts（同 800 行上限口径）。@author aceFelix
+import { buildMemoryActions, type MemoryActions } from './memoryActions'
+import { useMemoryStore } from './memoryStore'
 // 管家服务邮箱三条动作拆出 butlerActions.ts（2026-10，行为不变）。@author aceFelix
 import { buildButlerActions, type ButlerActions } from './butlerActions'
 import { useTasksStore } from './tasksStore'
@@ -109,6 +112,8 @@ export interface JarvisConnection {
   refreshTasks: () => Promise<void>
   /** 代理团队刷新（agents.exec status → agentsStore）。@author aceFelix */
   refreshAgents: () => Promise<void>
+  /** 长期记忆刷新（memory.get → memoryStore；init / memory_changed 时调）。@author aceFelix */
+  refreshMemory: () => Promise<void>
   /** 提醒已读回执（proactive.ack）：fire-and-forget，失败静默。 */
   ackProactive: (taskId: string) => void
 }
@@ -139,7 +144,7 @@ function rlog(msg: string): void {
 }
 
 export interface BackendStoreState
-  extends ExtensionActions, PerceptActions, TaskActions, AgentsActions, ButlerActions {
+  extends ExtensionActions, PerceptActions, TaskActions, AgentsActions, MemoryActions, ButlerActions {
   state: BackendState
   info: BackendInfo | null
   error: string
@@ -279,6 +284,7 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
     refreshSlashCommands: () => get().refreshSlashCommands(),
     refreshTasks: () => get().refreshTasks(),
     refreshAgents: () => get().refreshAgents(),
+    refreshMemory: () => get().refreshMemory(),
     ackProactive: (taskId) => {
       // 提醒已读回执：只发不等（send），失败静默——不因回执问题把错误
       // 写进聊天流（与 runCommand 的显式指令不同，这是后台自动确认）。
@@ -397,6 +403,9 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
         // 代理团队同理：断线后不能留一批"看起来还能停"的幽灵代理。
         // @author aceFelix
         useAgentsStore.getState().resetAll()
+        // 长期记忆同理：断线后记忆面板应显离线态，而不是上一后端的旧内容。
+        // @author aceFelix
+        useMemoryStore.getState().reset()
       }
     },
 
@@ -731,6 +740,9 @@ export const useBackendStore = create<BackendStoreState>((set, get) => {
 
     // ---- 代理团队（多 Agent 协作，2026-11）：拆出 agentsActions.ts ----
     ...buildAgentsActions(() => get().client),
+    // 长期记忆（设置面板，2026-11）：memory.get / memory.save 走同一 client 直取回执。
+    // @author aceFelix
+    ...buildMemoryActions(() => get().client),
 
     // ---- 管家服务·邮箱（2026-10）：拆出 butlerActions.ts（错误内联在表单，不进聊天流）----
     ...buildButlerActions(() => get().client),

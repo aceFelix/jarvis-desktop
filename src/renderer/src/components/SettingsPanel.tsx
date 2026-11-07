@@ -25,6 +25,7 @@ import { useUiStore } from '../stores/uiStore'
 import { useT } from '../i18n'
 import ThemedTimePicker from './ThemedTimePicker'
 import FontPicker from './FontPicker'
+import MemoryPanel from './MemoryPanel'
 
 /** 行组件公共 props：label/hintKey/testid 前缀由父组件传入。 */
 interface RowProps {
@@ -303,6 +304,13 @@ export default function SettingsPanel(): JSX.Element {
           settingKey="deadline_check_time"
         />
       </div>
+
+      {/* 长期记忆（2026-11）：用户级/项目级两行，点开气泡浏览与整体编辑；
+          模型侧的「记住一条」走 MemoryUpdate 工具只追加，二者共用 MEMORY.md。@author aceFelix */}
+      <div className="col-header">
+        <span className="col-title">{t('memory.section')}</span>
+      </div>
+      <MemoryPanel />
 
       {/* 底部出口：面板只放了最常改的十来项，剩下的两百多项不能断在这里。
           用户翻到底以为“设置就这些”，而真源在 settings.toml。把下一步交清楚

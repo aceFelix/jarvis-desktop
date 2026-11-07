@@ -27,6 +27,9 @@ jarvis-desktop 是 `jarvis` 的**桌面宿主壳**，本身不含 Agent 运行�
 - **主进程**只做宿主能力：拉起并守护后端子进程、创建窗口、转发 IPC、退出时回收进程树。
   后端来源分两态：dev 态 spawn 本机 `python -m agent.serve`（依赖 jarvis 源码仓库）；
   打包态 spawn 随包冻结的 `resources/jarvis-serve/jarvis-serve.exe`（PyInstaller，用户无需装 Python）。
+  该冻结包自 2026-11-07 起按**全能力**构建：安装 `jarvis-agent[all]` 八组 extras
+  （gui/browser/camera/vision/voice/mcp/daemon/wechat）并随包带 playwright 无头壳 +
+  完整 chromium；`jarvis-serve.exe --caps` 是发布前的能力门禁。
 - **Python 子进程**是唯一的 Agent 运行时，复用 jarvis 仓 `agent/serve/engine/` 引擎层零件。历史口径：该引擎层曾同时服务两个宿主——jarvis 自带的 pywebview 三栏工作台（本进程渲染）与 serve（WebSocket 服务）；前者已于 2026-10 退役删除，现仅存 serve 一种宿主，故本仓库是唯一的图形化前端。
 - **渲染进程**是纯 React UI，经 preload 暴露的最小 API 拿到连接信息后，直连 Python 的 WS 端口；不接触 Node/文件系统。
 
@@ -146,6 +149,8 @@ Python 侧 `run_serve` 的装配顺序（`agent/serve/app.py::_serve_main`）：
 | `proactive.ack` | `task_id` | bool（确认主动提醒已读、停升级重发；serve 侧 hub 未装配时 ok=false） |
 | `settings.get` | — | `{proactive_tts_enabled, briefing_enabled, briefing_time, deadline_enabled, deadline_check_time, tts_volume, tts_speech_rate}`（后端联动设置白名单，与 jarvis 侧 `agent/config/desktop_settings.py` 同口径；主题/语言为纯前端偏好不入协议） |
 | `settings.set` | 单个白名单键 | `{key: value}`（serve 侧校验→先外科式落盘 settings.toml 对应节→再改运行时 Settings；简报/截止日期键额外触发 ProactiveHub 调度热重注册；落盘失败 ok=false 且不动运行时，壳侧回滚镜像） |
+| `memory.get` | — | `{workdir, entries: [{scope, path, content, exists, chars, updated_at}]}`（长期记忆快照：`user` 恒有、`project` 仅在已选项目时返回；文件不存在时 `content=""`、`exists=false`，不报错。类型镜像 `src/shared/memory-contracts.ts`，实现 jarvis `agent/serve/rpc_memory.py`，2026-11） |
+| `memory.save` | `scope`（`user`/`project`）、`content`（全文） | `{scope, entry}`（保存后的同形快照。后端整体覆盖：≤100 000 字符、临时文件 + `os.replace` 原子写、覆盖前留一份 `MEMORY.md.bak`；保存后 `api.reload_memory()` 入引擎队列重建本会话 system prompt 并推 `memory_changed`，下一轮对话即生效；2026-11） |
 | `project.set` | `path`（绝对目录） | null（结果走 `project_switched`；非法/相对/不存在的路径 ok=false，**不**自动建目录）。serve 校验通过后入队引擎 `set_workdir`，引擎线程内串行重建系统提示词/重挂 harness/开新会话（2026-08） |
 | `project.get` | — | `{workdir, name, persisted}`（`persisted=false`：serve 启动默认值尚未写入 projects.toml） |
 | `projects.list` | — | `[{path, name, last_opened, exists}]`（按 `last_opened` 倒序；`exists=false` 前端置灰仍可移除） |
@@ -669,6 +674,38 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
 - **文件**：契约 `src/shared/agents-contracts.ts`（字段保持后端 snake_case）、
   动作 `stores/agentsActions.ts`、样式 `styles/task-center.css` 的 `.agents-*` 段。
 
+### 规划模式与计划提交（2026-11）
+
+桌面有两个“规划”，别混：输入区下拉的「规划」是**权限模式**（整个会话 plan）；
+`EnterPlanMode` / `ExitPlanMode` 是**模型自主**的临时规划态。
+
+- serve 在 `register_collaboration` 里补注册两个工具后，模型可先只读调研再提交方案；
+- 权限层修复：`PermissionChecker.check()` 支持调用时 `mode` 覆盖，orchestrator 在
+  `ctx.extra["_plan_mode_entered"]` 为真时把 ctx 的 plan 传给 checker（此前只改 ctx，
+  写操作实际拦不住）；`mode.set` 同时同步 `ctx.permission_mode`；
+- `ExitPlanMode` 落盘 `<项目>/.jarvis/PLAN.md`，恢复原模式，并调用
+  `WorkbenchUI.plan_submitted` 发 `plan_submitted` 事件；dispatcher 以系统消息上屏。
+
+### 长期记忆面板（memory.get / memory.save / memory_changed，2026-11）
+
+设置面板新增「长期记忆」分组，让用户**看得见、改得动** `MEMORY.md`：
+
+- **数据源**：`memory.get` 返回 user / project 两个范围（路径/全文/字数/修改时间）；
+  `project` 只在已选项目时存在。面板两行分别展示首行预览，未选项目时项目级行置灰；
+- **链路**：`init` → `conn.refreshMemory()`（`stores/memoryStore.ts`）；
+  面板挂载再拉一次（懒渲染可能晚于 init）；点行 → `MemoryBubble` 打开，
+  保存 → `stores/memoryActions.ts` 的 `saveMemory` → `memory.save` →
+  回执更新 store 该范围 → 后端推 `memory_changed` 时 dispatcher 再重拉一次；
+- **为什么不在前端拼内容**：保存后以后端回执 + `memory_changed` 重拉为唯一真相，
+  避免「面板显示」与「磁盘内容」两份数据互相覆盖；气泡里只保留用户未保存的草稿；
+- **与模型的分工**：用户明确说「记住…」时模型调 `MemoryUpdate`（只追加、去重、
+  带日期）；整体覆盖/清空仅由用户在气泡里做（有未保存修改时关闭会二次确认，
+  后端覆盖前留一份 `MEMORY.md.bak`）；
+- **文件**：契约 `src/shared/memory-contracts.ts`、store `stores/memoryStore.ts`、
+  动作 `stores/memoryActions.ts`、视图 `components/MemoryPanel.tsx` /
+  `components/MemoryBubble.tsx`、样式 `styles/memory.css`（三张皮肤各自覆盖
+  `.memory-*` 配色）。
+
 ### 事件一览
 
 - **对话流**：`user_message` / `assistant_text`（流式增量）/ `assistant_thinking` / `tool_use` / `tool_result` / `assistant_done`
@@ -676,7 +713,11 @@ preload `captureScreen` / `ScreenCapture` 类型 / 相关 i18n 与 glyph 全链�
 - **消息回溯**：`rewound`（payload `{ok, removed, removed_user, files_restored, reason}`；`checkpoint.rewind` 引擎队列内落地后推一次：成功时 dispatcher 按 `removed_user` 调 `chatStore.rewindTailFromUser` 裁气泡（本地发送侧不裁防双裁）并提示文件回滚结果；失败弹错不裁；另刷会话列表与成本）
 - **斜杠命令透传**：`slash_result`（payload `{command, ok, text}`；`slash.exec` 每执行/拒绝一条推一次：dispatcher 落 `kind: 'slash'` 命令输出卡片、解除 busy 并刷成本；技能命令另走正常对话流式事件，2026-10）
 - **配置变更**：`settings_changed`（payload `{keys: string[], source: 'model'}`；后端 `ConfigSet` 改完一项/一批推一次：dispatcher 重调 `conn.refreshSettings()`（`settings.get` 是权威口径），带感知键时额外 `conn.refreshPercept()` 递增 `perceptTick` 让感知源面板重拉。这是 2026-10-26 实测缺陷的修复：面板只在 `init` 拉一次 `settings.get`，模型改完音量后滑杆停在旧值，用户顺手一拖就把旧值写回去、静默覆盖模型的改动；fixlog `config-panel-not-refreshed-after-model-set-fix`）
+- **长期记忆变更**：`memory_changed`（payload `{scope}`；用户保存 `memory.save` 或模型 `MemoryUpdate` 追加后推一次，dispatcher 调 `conn.refreshMemory()` 重拉 `memory.get`，面板字数/预览随之更新，2026-11）
 - **提示**：`info` / `warn` / `error` / `status` / `ask_user`
+- **计划提交**：`plan_submitted`（payload `{content, summary, path}`；后端
+  `ExitPlanMode` 落盘 `.jarvis/PLAN.md` 后推一次，content 仅 2000 字预览；
+  dispatcher 以系统消息上屏「计划已提交 + 摘要 + 路径 + 预览」，2026-11）
 - **代理团队**：`agents_state`（payload 与 `agents.exec status` 同形：`enabled / team /
   agents[] / counts / task_list`；活动台账变更时整份推送，起止/失败立即推、其余节流
   300ms；dispatcher 直接 `setAgents(parseAgentsSnapshot(payload))`，2026-11）

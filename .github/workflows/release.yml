@@ -101,12 +101,14 @@ jobs:
         with:
           python-version: "3.12"
 
-      # 冻结前置：安装 agent 包（可编辑）+ PyInstaller（仅构建期工具，非运行依赖）
+      # 冻结前置：安装 agent 包（全 extras：gui/browser/camera/vision/voice/mcp/
+      # daemon/wechat）+ PyInstaller。桌面安装包要求与 jarvis 能力对齐，缺 extras
+      # 会直接让后面的 --caps 门禁红，不再出现“开发态能跑、打包态没有”。
       - name: Install backend for freezing
         working-directory: jarvis
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
+          pip install -e ".[all]"
           pip install pyinstaller
 
       - name: Install desktop dependencies
@@ -118,6 +120,16 @@ jobs:
       - name: Build installer (npm run dist)
         working-directory: jarvis-desktop
         run: npm run dist
+
+      # 冻结包能力门禁（2026-11-07）：逐项断言八组 extras、语音/截图/摄像头/视觉/
+      # 浏览器与双内核真的在打包产物里。build_serve.ps1 已跑一次，这里再显式跑一次，
+      # 让发布日志里有一条独立的“能力对齐”证据，缺失即红、不发布半成品。
+      - name: Verify frozen capability gate
+        working-directory: jarvis
+        shell: pwsh
+        run: |
+          & ".\dist\jarvis-serve\jarvis-serve.exe" --caps
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       # 校验产物存在，缺失即让流水线红，避免发布空 Release
       # latest.yml 是 electron-updater 客户端启动检查用的更新清单，缺它则用户端

@@ -70,6 +70,22 @@ npm run dev
 
 主进程 `backend.ts::resolveLaunchPlan` 的决策优先级为：`JARVIS_SERVE_EXE` 显式 exe → 打包内置 `resources/jarvis-serve/jarvis-serve.exe` → dev `python -m agent.serve`。
 
+### 打包后端能力（2026-11-07 起）
+
+安装包内置的冻结后端按**全能力**构建：构建机先 `pip install -e ".[all]"`（gui /
+browser / camera / vision / voice / mcp / daemon / wechat 八组），`build_serve.ps1`
+再冻结并把 playwright 无头壳 + 完整 chromium 下载到 `dist/jarvis-serve/ms-playwright`，
+`serve_entry` 冻结态自动把 `PLAYWRIGHT_BROWSERS_PATH` 指向该目录。因此只装桌面的
+用户可以离线使用截图/鼠标键盘/窗口/摄像头/语音/浏览器自动化/视觉 OCR。
+
+- **冻结包能力门禁**：`jarvis-serve.exe --caps` 输出八组模块、双内核与关键能力的
+  检查结果；任何一项缺失返回非 0。`build_serve.ps1` 与 `release.yml` 都会执行，
+  不再允许“开发态能跑、打包态没有”的包发布。
+- **OCR 模型权重**：paddleocr 的模型在首次使用 OCR 时下载到用户目录，安装包只带
+  推理库与配置；离线使用 OCR 前需要先联网下载一次。
+- **体积**：全 extras + 双内核会显著增大安装包与自动更新下载量，以 Release 资产为准。
+
+
 示例（指定 venv 与非同级仓库）：
 
 ```powershell

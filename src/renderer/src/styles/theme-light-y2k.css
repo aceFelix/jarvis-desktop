@@ -416,6 +416,29 @@
 [data-theme='light'] .boot-detail { color: var(--sil-error); }
 [data-theme='light'] .boot-spinner { border-color: var(--edge-soft); border-top-color: var(--sil-bright); border-radius: 0; }
 
+/* ==================== 长期记忆（入口行 + 气泡编辑器） ==================== */
+/* 结构样式在 memory.css；本皮肤只换表面色/文本色，走中性灰口径（无蓝相）。
+   @author aceFelix */
+[data-theme='light'] .memory-row { background: rgba(255, 255, 255, 0.6); }
+[data-theme='light'] .memory-row:hover { background: rgba(0, 0, 0, 0.08); }
+[data-theme='light'] .memory-row-meta,
+[data-theme='light'] .memory-row-path { color: var(--sil-dim); }
+[data-theme='light'] .memory-row-preview { color: var(--sil-text); }
+[data-theme='light'] .memory-bubble {
+    background: rgba(255, 255, 255, 0.97);
+    border-color: var(--edge-mid);
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.35);
+}
+[data-theme='light'] .memory-bubble-title { color: var(--sil-bright); }
+[data-theme='light'] .memory-bubble-hint,
+[data-theme='light'] .memory-bubble-path,
+[data-theme='light'] .memory-bubble-count { color: var(--sil-dim); }
+[data-theme='light'] .memory-bubble-editor { background: #fff; color: var(--sil-text); }
+[data-theme='light'] .memory-bubble-close { color: var(--sil-text); border-color: var(--edge-mid); }
+[data-theme='light'] .memory-btn { background: rgba(0, 0, 0, 0.06); border-color: var(--edge-mid); color: var(--sil-text); }
+[data-theme='light'] .memory-btn.primary { background: rgba(0, 0, 0, 0.18); color: var(--sil-bright); }
+[data-theme='light'] .memory-bubble-saved { color: #1f7a3a; }
+
 /* ==================== 粗滚动条 + 方块滑块 ==================== */
 
 [data-theme='light'] ::-webkit-scrollbar { width: 10px; height: 10px; }

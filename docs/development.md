@@ -90,7 +90,7 @@ python scripts/gen_icon.py   # 任一装了 Pillow 的环境（如 jarvis 的 ve
 
 ## 4. 测试
 
-vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **524 用例**：
+vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，主进程 / preload 逻辑）与 `test/renderer/**`（默认 node，组件测试文件头用 `// @vitest-environment jsdom` 单独声明）。共 **562 用例**：
 
 | 测试文件 | 覆盖 |
 |---|---|
@@ -118,6 +118,8 @@ vitest 分两个环境：`test/main/**` 与 `test/preload/**`（node 环境，�
 | `test/renderer/slashAutocomplete.test.tsx` | 斜杠命令补全（`slash.commands`，2026-10）：`slashTriggerOf`（仅“/xxx 且无空白”触发）、`filterSlashCommands`（前缀匹配忽略大小写）、`useSlashAutocomplete` 弹层交互（候选弹出、↑↓ 高亮跟随滚动、Tab/Enter 回填、已等于完整命令名时 Enter 直通、Esc 收起、空目录不弹层） |
 | `test/renderer/percept.test.tsx` | 感知源面板（管家服务第二项，2026-10 阶段 9 W2 第 5 步）：契约宽容解析 `parsePerceptStatus` / `parsePerceptConfig`（完整快照、非数组回空、脏事件丢弃、`log_events` 出厂缺省必须回 true）、`perceptEnableKey`（未装配源回空串→不给开关）、`perceptDetailEntries`（标量/字符串数组成行，嵌套对象与空值跳过）、`formatEventTime` / `perceptEventSummary` 兜底；`perceptActions`（未连 client 读回 null / 写回 ok=false，`event_limit` 透传，回执 ok=false 回 null，保存失败错误原样上交）；`ButlerPanel`（两个服务入口、点感知源进面板）；`PerceptSourcePanel`（总览逐行、后端宿主接线文案、总开关即时保存并用回执快照刷新 aria-checked、`hot_applied=false` 的降级提示、保存失败错误内联且不改本地态、离线态、三子标签切换、刷新重拉）；`PerceptSourceList`（已实现源有开关/收编位无开关、按源名推补丁键、账本徽标与末次错误、观察范围展开）；`PerceptScopeForm`（草稿回填、**只提交实际改动的键**、没改动不发补丁、分钟非法本地拦截）；`PerceptEventList`（事件行渲染、「总线未运行」与「暂无事件」两种空态区分）、留痕路径三态文案（有路径 / 真关显「已关闭」 / 开着但拿不到路径显「总线未运行」）、**打扰预算行（后端给了就显示、`notify_budget` 为 null 时整行不显示）**、反馈条在文档序上必须排在总览之前（错误不能藏在滚动区外） |
 | `test/renderer/tasks.test.tsx` | 任务中心（右栏两个新区块，2026-10 阶段 10 W3）：契约宽容解析 `parseTasksSnapshot` / `parseActionsSnapshot` / `parseEffectRecord` / `parseUndoPreview`（完整快照、goals 非数组回空、布尔只认真 `true`、`denied_tools` 缺失给空表、`preview` 对象形与数组形分别收敛）、`shortId` / `fmtEpoch`；`taskActions`（未连 client 读回 null / 写回 ok=false，`create` 的 steps/wait 只在有值时进 payload，**两拍动作第一拍绝不带 confirm**、第二拍才带，`cancel_hold` 一拍不塞 confirm，`approve` 的 minutes 省略不传/传了取整，业务失败与传输失败都回 ok=false 且文案取后端原文，`refreshTasks` 成功回填两份快照/失败保留旧数据/离线不动 store）；`SpineTaskPanel`（挂载即拉一次、驱动器三态文案分别说、等授权才画批准按钮且按 goal+step id 发 approve、`denied_tools` 为空时**点了不发请求**只说明、暂停态不递批准但仍显「等你授权」、建目标表单空文本拦下、删除与批量撤销的两拍流程且确认卡内容取自第一拍、空台账空态）；`EffectJournalPanel`（未启用只说明不给撤销入口、held 行倒计时与一拍撤回预约、回退这一轮两拍（文件清单 + 整轮提醒原文都摊开）、撑不住的项只写「撤不回」+ 后端原因不给按钮、未知状态收敛成「未知状态」不外泄内部键名、反馈条按 `panel` 分流不画两遍） |
+| `test/renderer/memory.test.tsx` | 长期记忆（2026-11）：`memory-contracts` 宽容解析（完整/脏数据/缺字段）、`buildMemoryActions`（未连 client、读取成功回填、保存成功回填、失败保留旧快照）、`MemoryPanel` + `MemoryBubble`（两行入口、未选项目时项目级置灰、点开气泡、编辑保存后显示「已保存」且回执带正确 scope/content） |
+| `test/renderer/planMode.test.ts` | 规划模式事件（2026-11）：`plan_submitted` → 聊天区系统消息（摘要/路径/预览），缺 summary/path 时仍出标题；后端 `ExitPlanMode` 落盘与模式恢复由 jarvis 侧测试覆盖 |
 
 > 组件测试不渲染 `App` / `ReactorCanvas`（会挂载 canvas 动画，jsdom 无 2D 上下文），逐个渲染纯展示组件；后端 client 默认 null，组件不会真正发起 WS 连接。
 

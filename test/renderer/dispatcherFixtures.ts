@@ -49,6 +49,9 @@ export function makeConn(): JarvisConnection {
     // 代理团队刷新（2026-11 多 Agent）：init 拉取一次回填 agentsStore。
     // @author aceFelix
     refreshAgents: vi.fn().mockResolvedValue(undefined),
+    // 长期记忆刷新（2026-11）：init 与 memory_changed 都会拉取一次。
+    // @author aceFelix
+    refreshMemory: vi.fn().mockResolvedValue(undefined),
     ackProactive: vi.fn()
   }
 }

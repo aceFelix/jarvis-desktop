@@ -38,6 +38,10 @@ import './styles/extension.css'
 // 按职责拆分的模块样式，同样需早于皮肤引入以允许主题层基于 --edge-* / --qr-* 联动。
 // @author aceFelix
 import './styles/task-center.css'
+// 长期记忆（2026-11 设置面板「长期记忆」入口行 + 气泡编辑器）：按职责拆分的
+// 模块样式，同样需早于皮肤引入以允许主题层基于 .memory-* 前缀覆盖色板。
+// @author aceFelix
+import './styles/memory.css'
 import './styles/theme-dark-y2k.css'
 import './styles/theme-light-y2k.css'
 import './styles/theme-retro.css'

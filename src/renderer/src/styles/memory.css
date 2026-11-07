@@ -1,0 +1,229 @@
+/* 长期记忆面板（2026-11）：设置面板「长期记忆」两行入口 + 右栏左侧的气泡编辑器。
+   拆分自 right-column.css 同族样式（800 行规范）；底色/文本按暗色基底写，
+   light / retro 两张皮肤在各自文件中以 .memory-* 前缀覆盖。@author aceFelix */
+
+/* ---- 入口行：整行可点击（label + 字数 / 首行预览 / 文件路径） ---- */
+.memory-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    /* 按钮默认按内容撑宽：长路径/长文件名会把整行顶出右栏，这里钉死宽度并
+       允许内部收缩（子元素的 ellipsis 才有生效空间）。@author aceFelix */
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--edge-soft);
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.memory-row:hover {
+    background: rgba(91, 200, 255, 0.12);
+}
+
+.memory-row.disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+.memory-row.disabled:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.memory-row-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+}
+
+/* 标签与字数各占一行空间：标签可省略、字数不换行，避免「（跨项 目）」折行 */
+.memory-row-head .setting-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.memory-row-meta {
+    flex-shrink: 0;
+    font-size: 10px;
+    color: rgba(159, 201, 232, 0.6);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.memory-row-preview {
+    font-size: 11px;
+    color: #c2dcf0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.memory-row-path {
+    font-family: var(--app-font, monospace);
+    font-size: 10px;
+    color: rgba(159, 201, 232, 0.4);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---- 气泡编辑器：屏幕居中浮层，不挤压三栏网格 ---- */
+.memory-bubble {
+    position: fixed;
+    /* 比标题栏再低 110px：浮层不贴顶，视觉上落在窗口中上部。@author aceFelix */
+    top: calc(var(--titlebar-h, 40px) + 110px);
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: min(520px, calc(100vw - 48px));
+    max-height: calc(100vh - var(--titlebar-h, 40px) - 96px);
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid var(--edge-mid);
+    background: rgba(10, 24, 40, 0.96);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(14px);
+}
+
+.memory-bubble-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.memory-bubble-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #9fe9ff;
+    letter-spacing: 1px;
+}
+
+.memory-bubble-close {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: 1px solid rgba(91, 200, 255, 0.35);
+    background: transparent;
+    color: #9fc9e8;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.memory-bubble-close:hover {
+    background: rgba(91, 200, 255, 0.18);
+    color: #eafaff;
+}
+
+.memory-bubble-hint {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: rgba(159, 201, 232, 0.65);
+}
+
+.memory-bubble-path {
+    margin: 0;
+    font-family: var(--app-font, monospace);
+    font-size: 10px;
+    color: rgba(159, 201, 232, 0.42);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.memory-bubble-editor {
+    flex: 1;
+    min-height: 220px;
+    resize: vertical;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--edge-soft);
+    background: rgba(0, 0, 0, 0.35);
+    color: #e8f4ff;
+    font-family: var(--app-font, monospace);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.memory-bubble-editor:focus {
+    outline: none;
+    border-color: var(--edge-strong);
+}
+
+.memory-bubble-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.memory-bubble-count {
+    font-size: 10px;
+    color: rgba(159, 201, 232, 0.55);
+    font-variant-numeric: tabular-nums;
+}
+
+.memory-bubble-count.over {
+    color: #ff8a8a;
+}
+
+.memory-bubble-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.memory-bubble-saved {
+    font-size: 10px;
+    color: #7fe3b8;
+}
+
+.memory-btn {
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(91, 200, 255, 0.35);
+    background: rgba(91, 200, 255, 0.08);
+    color: #9fc9e8;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.memory-btn:hover:not(:disabled) {
+    background: rgba(91, 200, 255, 0.18);
+    color: #eafaff;
+}
+
+.memory-btn.primary {
+    border-color: rgba(91, 200, 255, 0.7);
+    background: rgba(91, 200, 255, 0.28);
+    color: #eafaff;
+}
+
+.memory-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.memory-bubble-error {
+    margin: 0;
+    font-size: 11px;
+    color: #ff8a8a;
+}

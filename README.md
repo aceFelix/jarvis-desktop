@@ -47,8 +47,10 @@ jarvis（Python）                         jarvis-desktop（Electron）
 | **管家服务** | 标题栏「设置」旁按钮进入右栏管家服务面板，用表单直接使用管家能力（不经过模型）：**邮箱服务**（查看/修改当前邮箱、配置 SMTP、发送邮件）与 **感知源**（阶段 9 W2：看「它在观察我什么、采到了什么」、逐源开关与采集名单，**默认全关**，从未表过态时会在连接后告知一次并在按钮上点亮提示点），后续可扩展更多服务 | [三栏面板与设置](docs/guide/features-panels.md) |
 | **扩展服务** | 标题栏「管家服务」旁按钮进入右栏扩展服务面板，集中管理五类扩展能力：**MCP 服务**（增删改 + 启停）、**内置工具**（清单与搜索）、**技能**（目录与已加载清单）、**插件**（市场搜索 + 安装/卸载/启停）、**harness 工具**（市场浏览 + 安装/卸载/启停） | [三栏面板与设置](docs/guide/features-panels.md) |
 | **代理团队**（2026-11） | 右栏实时显示每个子代理/队友的**状态与当前动作**（执行中/思考中/空闲/完成/失败），可单独停止、可给后台队友追加指令；复杂任务由后端自动拆给子代理并行执行 | [三栏面板与设置](docs/guide/features-panels.md) |
+| **规划模式**（2026-11） | 模型可自主进入只读规划、提交方案后恢复写权限；方案写入 `.jarvis/PLAN.md`，桌面以系统消息显示摘要与预览。输入区下拉仍可手动选「规划」 | [对话体验](docs/guide/features-chat.md) |
+| **长期记忆**（2026-11） | 设置面板新增「长期记忆」分组：用户级（跨项目）/ 项目级（当前项目）两行，点开在气泡里浏览与整体编辑（保存后下一轮对话立即生效，覆盖前后端自动留一份 `.bak`）；也可以直接对 JARVIS 说「记住…」，由它自己追加 | [三栏面板与设置](docs/guide/features-panels.md) |
 | **任务中心** | 右栏两个新区块（阶段 10 W3）：**跨会话目标**台账（驱动器在不在跑、卡在哪一步、等什么，就地暂停/跳过等待/删除，卡在等授权时一键**批准并重试**——后端只按本步被拒工具 + 目标目录 + 30 分钟签一条授权租约）与**副作用账本**（扣住的预约带倒计时可撤回、已执行项整轮回退需两拍确认、邮件已发出这类只写「撤不回」不给无效按钮） | [三栏面板与设置](docs/guide/features-panels.md) |
-| **开箱即用** | 提供 Windows 安装包，**免装 Python**，下载双击即用 | [下载安装包](#下载安装包) |
+| **开箱即用** | 提供 Windows 安装包，**免装 Python**，下载双击即用；随包内置全能力后端（截图/窗口/摄像头/语音/MCP/浏览器自动化/视觉 OCR）与 playwright 双浏览器内核 | [下载安装包](#下载安装包) |
 | **自动更新** | 启动静默检查新版本，有新版本时标题栏出现「更新」按钮 → 一键下载（带进度）→「重启安装」覆盖升级（未做代码签名，SmartScreen 提示属预期） | — |
 
 ## 界面预览
@@ -78,11 +80,14 @@ jarvis（Python）                         jarvis-desktop（Electron）
 ## 下载安装包
 
 **终端用户走这条路即可**：下载 Windows 安装包，双击安装，**无需安装 Python / Node**
-（后端已用 PyInstaller 冻结成 `jarvis-serve.exe`，随包一起分发）。
+（后端已用 PyInstaller 冻结成 `jarvis-serve.exe`，随包一起分发）。安装包内置全能力
+后端所需的可选依赖（`gui / browser / camera / vision / voice / mcp / daemon / wechat`）
+与 playwright 无头 + 完整双内核，安装体积因此明显大于早期版本；具体大小以 Release
+资产为准。
 
 | 版本 | 平台 | 直接下载 |
 |---|---|---|
-| v1.0.0 | Windows x64 | [JARVIS.Desktop-Setup-1.0.0.exe](https://github.com/aceFelix/jarvis-desktop/releases/download/v1.0.0/JARVIS.Desktop-Setup-1.0.0.exe)（约 100 MB） |
+| v1.0.0 | Windows x64 | [JARVIS.Desktop-Setup-1.0.0.exe](https://github.com/aceFelix/jarvis-desktop/releases/download/v1.0.0/JARVIS.Desktop-Setup-1.0.0.exe)（早期精简版，约 100 MB；新版含全能力，体积更大） |
 
 - 全部版本与更新说明：[Releases](https://github.com/aceFelix/jarvis-desktop/releases/latest)
   （每个 Release 附 `latest.yml`，内含安装包的 sha512 校验值）
@@ -141,7 +146,7 @@ jarvis-desktop/
 | [三栏面板与设置](docs/guide/features-panels.md) | 输入栏、左栏模型/音色、项目↔会话、右栏六区块（含跨会话目标与副作用账本）、设置面板 |
 | [语音与多端](docs/guide/features-voice.md) | 真全双工语音、手机/微信跨设备协同 |
 | [架构说明](docs/architecture.md) | 运行时拓扑、启动流程、持久化、安全边界、协议契约（指令/事件一览） |
-| [开发指南](docs/development.md) | 本地环境、测试（524 用例）、人工走查清单、二期路线图 |
+| [开发指南](docs/development.md) | 本地环境、测试（562 用例）、人工走查清单、二期路线图 |
 
 ## 交流与赞赏
 

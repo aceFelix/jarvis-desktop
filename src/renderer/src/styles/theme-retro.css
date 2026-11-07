@@ -360,6 +360,36 @@
 [data-theme='retro'] .boot-detail { color: var(--retro-error); }
 [data-theme='retro'] .boot-spinner { border-color: var(--edge-soft); border-top-color: var(--retro-bright); border-radius: 0; }
 
+/* ==================== 长期记忆（入口行 + 气泡编辑器） ==================== */
+/* 结构样式在 memory.css；本皮肤换成荧光绿文本体系 + 硬边像素质感。@author aceFelix */
+[data-theme='retro'] .memory-row { background: rgba(0, 26, 8, 0.6); border-radius: 0; }
+[data-theme='retro'] .memory-row:hover { background: rgba(51, 255, 102, 0.16); }
+[data-theme='retro'] .memory-row-meta,
+[data-theme='retro'] .memory-row-path { color: var(--retro-dim); }
+[data-theme='retro'] .memory-row-preview { color: var(--retro-text); }
+[data-theme='retro'] .memory-bubble {
+    background: var(--retro-panel);
+    border-radius: 0;
+    box-shadow: var(--retro-glow), 4px 4px 0 rgba(0, 0, 0, 0.6);
+}
+[data-theme='retro'] .memory-bubble-title { color: var(--retro-bright); }
+[data-theme='retro'] .memory-bubble-hint,
+[data-theme='retro'] .memory-bubble-path,
+[data-theme='retro'] .memory-bubble-count { color: var(--retro-dim); }
+[data-theme='retro'] .memory-bubble-editor {
+    background: rgba(0, 12, 4, 0.85);
+    color: var(--retro-text);
+    border-radius: 0;
+}
+[data-theme='retro'] .memory-bubble-close { color: var(--retro-dim); border-radius: 0; }
+[data-theme='retro'] .memory-btn {
+    background: rgba(0, 26, 8, 0.8);
+    color: var(--retro-text);
+    border-radius: 0;
+}
+[data-theme='retro'] .memory-btn.primary { background: rgba(51, 255, 102, 0.25); color: var(--retro-bright); }
+[data-theme='retro'] .memory-bubble-saved { color: var(--retro-bright); }
+
 /* ==================== 粗滚动条 + 方块滑块 ==================== */
 
 [data-theme='retro'] ::-webkit-scrollbar { width: 10px; height: 10px; }

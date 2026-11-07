@@ -1310,11 +1310,17 @@ describe('SettingsPanel 设置面板', () => {
     fireEvent.click(screen.getByTestId('time-briefing-time-minute'))
     fireEvent.click(screen.getByTestId('time-briefing-time-minute-option-45'))
     expect(client.sendCommand).toHaveBeenCalledWith(Cmd.SettingsSet, { briefing_time: '06:45' })
-    expect(client.sendCommand).toHaveBeenCalledTimes(2)
+    // 只数 settings.set：设置面板里现在还有「长期记忆」分组，挂载时会发一次
+    // memory.get，按总调用次数断言会把它误算进去。@author aceFelix
+    const settingsSetCalls = (): number =>
+      (client.sendCommand as ReturnType<typeof vi.fn>).mock.calls.filter(
+        (c: unknown[]) => c[0] === Cmd.SettingsSet
+      ).length
+    expect(settingsSetCalls()).toBe(2)
     // 重选当前值不发指令（避免重复落盘/调度重注册）
     fireEvent.click(screen.getByTestId('time-briefing-time-minute'))
     fireEvent.click(screen.getByTestId('time-briefing-time-minute-option-45'))
-    expect(client.sendCommand).toHaveBeenCalledTimes(2)
+    expect(settingsSetCalls()).toBe(2)
   })
 
   it('拖音量滑杆乐观写回并发 settings.set', () => {

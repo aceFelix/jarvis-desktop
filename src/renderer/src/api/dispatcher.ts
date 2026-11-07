@@ -109,6 +109,10 @@ export function dispatchServerEvent(
       // agents_state 事件整份替换（活动台账变更时后端节流推送）。
       // @author aceFelix
       void conn.refreshAgents()
+      // 长期记忆（设置面板，2026-11）：init 拉一次两个范围快照；之后由
+      // memory_changed 事件重拉（用户在面板保存、或模型用 MemoryUpdate 追加后）。
+      // @author aceFelix
+      void conn.refreshMemory()
       // 握手完成：状态栏从启动期的「等待后端启动...」切到「就绪」。init 是每连接
       // 首帧，此前只有首轮回复结束/断线才会刷新状态文案，连上后端后长期挂着
       // 「等待后端启动...」会让人误以为后端没起来。@author aceFelix
@@ -526,11 +530,31 @@ export function dispatchServerEvent(
       break
     }
 
+    case 'plan_submitted': {
+      // 规划模式（2026-11）：模型调 ExitPlanMode 后推一次。计划全文落
+      // `.jarvis/PLAN.md`，事件只带预览；这里以系统消息上屏，避免把长计划
+      // 当成用户发言。@author aceFelix
+      const p = payload as { content?: string; summary?: string; path?: string }
+      const head = p.summary ? `计划已提交：${p.summary}` : '计划已提交'
+      const where = p.path ? `\n已保存到 ${p.path}` : ''
+      const body = p.content ? `\n\n${p.content}` : ''
+      chat.addSystem(`${head}${where}${body}`)
+      break
+    }
+
     case 'agents_state': {
       // 代理团队活动变更（多 Agent 协作，2026-11）：后端整份快照推送（节流
        // 300ms，起止立即推）。面板不做增量合并——两份真相会互相盖掉。
       // @author aceFelix
       useAgentsStore.getState().setAgents(parseAgentsSnapshot(payload))
+      break
+    }
+
+    case 'memory_changed': {
+      // 长期记忆被改写（设置面板保存 / 模型 MemoryUpdate 追加，2026-11）：
+      // 事件只带 scope，内容一律重拉 memory.get 为准——不在前端拼内容，
+      // 面板与磁盘保持单一真相。@author aceFelix
+      void conn.refreshMemory()
       break
     }
 
