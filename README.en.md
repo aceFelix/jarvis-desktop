@@ -80,10 +80,11 @@ Multi-end collaboration — scan to connect WeChat; phone and desktop share one 
 
 **End users should stop here**: grab the Windows installer and double-click — **no Python / Node needed**
 (the backend is frozen with PyInstaller into `jarvis-serve.exe` and shipped inside the package).
+It bundles the full-capability backend (all eight extras) and both Chromium kernels, so the installer is about **585 MB**.
 
 | Version | Platform | Direct download |
 |---|---|---|
-| v1.0.0 | Windows x64 | [JARVIS.Desktop-Setup-1.0.0.exe](https://github.com/aceFelix/jarvis-desktop/releases/download/v1.0.0/JARVIS.Desktop-Setup-1.0.0.exe) (~100 MB) |
+| v1.2.0 | Windows x64 | [JARVIS.Desktop-Setup-1.2.0.exe](https://github.com/aceFelix/jarvis-desktop/releases/download/v1.2.0/JARVIS.Desktop-Setup-1.2.0.exe) (current release, full capabilities + both Chromium kernels, ~585 MB) |
 
 - All versions and release notes: [Releases](https://github.com/aceFelix/jarvis-desktop/releases/latest)
   (every release carries a `latest.yml` holding the installer's sha512 digest)

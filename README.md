@@ -82,12 +82,11 @@ jarvis（Python）                         jarvis-desktop（Electron）
 **终端用户走这条路即可**：下载 Windows 安装包，双击安装，**无需安装 Python / Node**
 （后端已用 PyInstaller 冻结成 `jarvis-serve.exe`，随包一起分发）。安装包内置全能力
 后端所需的可选依赖（`gui / browser / camera / vision / voice / mcp / daemon / wechat`）
-与 playwright 无头 + 完整双内核，安装体积因此明显大于早期版本；具体大小以 Release
-资产为准。
+与 playwright 无头 + 完整双内核，当前安装包约 **585 MB**（具体大小以 Release 资产为准）。
 
 | 版本 | 平台 | 直接下载 |
 |---|---|---|
-| v1.0.0 | Windows x64 | [JARVIS.Desktop-Setup-1.0.0.exe](https://github.com/aceFelix/jarvis-desktop/releases/download/v1.0.0/JARVIS.Desktop-Setup-1.0.0.exe)（早期精简版，约 100 MB；新版含全能力，体积更大） |
+| v1.2.0 | Windows x64 | [JARVIS.Desktop-Setup-1.2.0.exe](https://github.com/aceFelix/jarvis-desktop/releases/download/v1.2.0/JARVIS.Desktop-Setup-1.2.0.exe)（当前版本，全能力后端 + playwright 双内核，约 585 MB） |
 
 - 全部版本与更新说明：[Releases](https://github.com/aceFelix/jarvis-desktop/releases/latest)
   （每个 Release 附 `latest.yml`，内含安装包的 sha512 校验值）
