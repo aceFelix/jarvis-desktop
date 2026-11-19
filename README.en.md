@@ -148,30 +148,13 @@ Looking for which file owns a given piece of the UI? Check the [component map (�
 | [Architecture (中文)](docs/architecture.md) | Runtime topology, startup flow, persistence, security, protocol (commands/events) |
 | [Development Guide (中文)](docs/development.md) | Local env, tests (562 cases), manual walkthrough, phase-2 roadmap |
 
-## Community & Support
+## Community
 
 <div align="center">
 
 **Jarvis Agent App Development Community** — scan to join and exchange Agent app development experience, plugins and various AI use cases with other Agent app peers.
 
-<table>
-<tr>
-  <td align="center">WeChat group "Hello Jarvis."</td>
-  <td align="center">QQ group "Hello Jarvis."<br/>(1109055256)</td>
-  <td align="center">Douyin group "Hello Jarvis."<br/>(777346526350)</td>
-</tr>
-<tr>
-  <td><img src="assets/communication/discussion-group.png" alt="WeChat group Hello Jarvis." width="150"/></td>
-  <td><img src="assets/communication/discussion-group2.jpg" alt="QQ group Hello Jarvis." width="150"/></td>
-  <td><img src="assets/communication/discussion-group3.jpg" alt="Douyin group Hello Jarvis." width="150"/></td>
-</tr>
-</table>
-
-> The WeChat QR code is valid for 7 days; once it expires, get the latest invite from the QQ group. The QQ and Douyin groups can be joined by searching the group number directly in their apps, so they are not affected by expired QR codes.
-
-**Buy me a coffee** — if J.A.R.V.I.S. Desktop has been helpful to you, feel free to buy me a coffee — your support keeps this project moving forward. 🦀🦀
-
-<img src="assets/communication/thanks-for-the-tip.png" alt="WeChat tip QR code" width="200"/>
+<img src="assets/communication/discussion-group.png" alt="WeChat group Hello Jarvis." width="200"/>
 
 </div>
 
