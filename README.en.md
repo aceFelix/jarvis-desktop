@@ -16,6 +16,10 @@
 
 ---
 
+> **Update notice (2026-11-20)**: this repository is **paused** for a while — no new releases and no feature merges during this period.
+> Published installers and the source remain available; the upstream [`jarvis`](https://github.com/aceFelix/jarvis) keeps shipping, and the terminal version can still be used and upgraded.
+> The resume date will be posted here once it is decided.
+
 ## Positioning
 
 `jarvis-desktop` and `jarvis` are two **upstream/downstream separated** repositories:
